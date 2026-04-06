@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		7B2233D02F71062200B65247 /* Canvas in Frameworks */ = {isa = PBXBuildFile; productRef = 7BC42C1E2F70C19800D3FEC6 /* Canvas */; };
-		7B2233D12F71062200B65247 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 7BC42C1F2F70C19800D3FEC6 /* SwiftTerm */; };
 		AA0000012FA0000500000005 /* ClaudeCodeSDK in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000012FA0000300000003 /* ClaudeCodeSDK */; };
 		AA0000012FA0000600000006 /* ClaudeCodeCore in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000012FA0000400000004 /* ClaudeCodeCore */; };
 		BB0000012FA0000700000007 /* ApprovalServerKit in Frameworks */ = {isa = PBXBuildFile; productRef = BB0000012FA0000800000008 /* ApprovalServerKit */; };
@@ -60,7 +59,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				7B2233D12F71062200B65247 /* SwiftTerm in Frameworks */,
 				7B2233D02F71062200B65247 /* Canvas in Frameworks */,
 				AA0000012FA0000500000005 /* ClaudeCodeSDK in Frameworks */,
 				AA0000012FA0000600000006 /* ClaudeCodeCore in Frameworks */,
@@ -127,7 +125,6 @@
 			name = Easel;
 			packageProductDependencies = (
 				7BC42C1E2F70C19800D3FEC6 /* Canvas */,
-				7BC42C1F2F70C19800D3FEC6 /* SwiftTerm */,
 				AA0000012FA0000300000003 /* ClaudeCodeSDK */,
 				AA0000012FA0000400000004 /* ClaudeCodeCore */,
 				BB0000012FA0000800000008 /* ApprovalServerKit */,
@@ -216,7 +213,6 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				7BC42C1C2F70C19800D3FEC6 /* XCLocalSwiftPackageReference "../Canvas" */,
-				7BC42C1D2F70C19800D3FEC6 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
 				AA0000012FA0000100000001 /* XCLocalSwiftPackageReference "../ClaudeCodeSDK" */,
 				AA0000012FA0000200000002 /* XCLocalSwiftPackageReference "../ClaudeCodeUI" */,
 				BB0000012FA0000A0000000A /* XCRemoteSwiftPackageReference "ClaudeCodeApprovalServer" */,
@@ -627,14 +623,6 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		7BC42C1D2F70C19800D3FEC6 /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/migueldeicaza/SwiftTerm";
-			requirement = {
-				kind = exactVersion;
-				version = 1.11.0;
-			};
-		};
 		BB0000012FA0000A0000000A /* XCRemoteSwiftPackageReference "ClaudeCodeApprovalServer" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/jamesrochabrun/ClaudeCodeApprovalServer";
@@ -649,10 +637,6 @@
 		7BC42C1E2F70C19800D3FEC6 /* Canvas */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = Canvas;
-		};
-		7BC42C1F2F70C19800D3FEC6 /* SwiftTerm */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = SwiftTerm;
 		};
 		AA0000012FA0000300000003 /* ClaudeCodeSDK */ = {
 			isa = XCSwiftPackageProductDependency;
