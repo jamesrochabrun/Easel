@@ -11,6 +11,7 @@
 		7B2233D12F71062200B65247 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 7BC42C1F2F70C19800D3FEC6 /* SwiftTerm */; };
 		AA0000012FA0000500000005 /* ClaudeCodeSDK in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000012FA0000300000003 /* ClaudeCodeSDK */; };
 		AA0000012FA0000600000006 /* ClaudeCodeCore in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000012FA0000400000004 /* ClaudeCodeCore */; };
+		BB0000012FA0000700000007 /* ApprovalServerKit in Frameworks */ = {isa = PBXBuildFile; productRef = BB0000012FA0000800000008 /* ApprovalServerKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -63,6 +64,7 @@
 				7B2233D02F71062200B65247 /* Canvas in Frameworks */,
 				AA0000012FA0000500000005 /* ClaudeCodeSDK in Frameworks */,
 				AA0000012FA0000600000006 /* ClaudeCodeCore in Frameworks */,
+				BB0000012FA0000700000007 /* ApprovalServerKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -113,6 +115,7 @@
 				7BC42BEE2F70C19600D3FEC6 /* Sources */,
 				7BC42BEF2F70C19600D3FEC6 /* Frameworks */,
 				7BC42BF02F70C19600D3FEC6 /* Resources */,
+				BB0000012FA0000900000009 /* ShellScript */,
 			);
 			buildRules = (
 			);
@@ -127,6 +130,7 @@
 				7BC42C1F2F70C19800D3FEC6 /* SwiftTerm */,
 				AA0000012FA0000300000003 /* ClaudeCodeSDK */,
 				AA0000012FA0000400000004 /* ClaudeCodeCore */,
+				BB0000012FA0000800000008 /* ApprovalServerKit */,
 			);
 			productName = Easel;
 			productReference = 7BC42BF22F70C19600D3FEC6 /* Easel.app */;
@@ -215,6 +219,7 @@
 				7BC42C1D2F70C19800D3FEC6 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
 				AA0000012FA0000100000001 /* XCLocalSwiftPackageReference "../ClaudeCodeSDK" */,
 				AA0000012FA0000200000002 /* XCLocalSwiftPackageReference "../ClaudeCodeUI" */,
+				BB0000012FA0000A0000000A /* XCRemoteSwiftPackageReference "ClaudeCodeApprovalServer" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 7BC42BF32F70C19600D3FEC6 /* Products */;
@@ -251,6 +256,27 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		BB0000012FA0000900000009 /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${SRCROOT}/bundle_server.sh\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		7BC42BEE2F70C19600D3FEC6 /* Sources */ = {
@@ -327,7 +353,7 @@
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -390,7 +416,7 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -609,6 +635,14 @@
 				version = 1.11.0;
 			};
 		};
+		BB0000012FA0000A0000000A /* XCRemoteSwiftPackageReference "ClaudeCodeApprovalServer" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/jamesrochabrun/ClaudeCodeApprovalServer";
+			requirement = {
+				kind = exactVersion;
+				version = 1.1.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -627,6 +661,11 @@
 		AA0000012FA0000400000004 /* ClaudeCodeCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = ClaudeCodeCore;
+		};
+		BB0000012FA0000800000008 /* ApprovalServerKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BB0000012FA0000A0000000A /* XCRemoteSwiftPackageReference "ClaudeCodeApprovalServer" */;
+			productName = ApprovalServerKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
