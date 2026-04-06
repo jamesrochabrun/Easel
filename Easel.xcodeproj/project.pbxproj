@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		7B2233D02F71062200B65247 /* Canvas in Frameworks */ = {isa = PBXBuildFile; productRef = 7BC42C1E2F70C19800D3FEC6 /* Canvas */; };
 		7B2233D12F71062200B65247 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 7BC42C1F2F70C19800D3FEC6 /* SwiftTerm */; };
+		AA0000012FA0000500000005 /* ClaudeCodeSDK in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000012FA0000300000003 /* ClaudeCodeSDK */; };
+		AA0000012FA0000600000006 /* ClaudeCodeCore in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000012FA0000400000004 /* ClaudeCodeCore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -59,6 +61,8 @@
 			files = (
 				7B2233D12F71062200B65247 /* SwiftTerm in Frameworks */,
 				7B2233D02F71062200B65247 /* Canvas in Frameworks */,
+				AA0000012FA0000500000005 /* ClaudeCodeSDK in Frameworks */,
+				AA0000012FA0000600000006 /* ClaudeCodeCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -121,6 +125,8 @@
 			packageProductDependencies = (
 				7BC42C1E2F70C19800D3FEC6 /* Canvas */,
 				7BC42C1F2F70C19800D3FEC6 /* SwiftTerm */,
+				AA0000012FA0000300000003 /* ClaudeCodeSDK */,
+				AA0000012FA0000400000004 /* ClaudeCodeCore */,
 			);
 			productName = Easel;
 			productReference = 7BC42BF22F70C19600D3FEC6 /* Easel.app */;
@@ -207,6 +213,8 @@
 			packageReferences = (
 				7BC42C1C2F70C19800D3FEC6 /* XCLocalSwiftPackageReference "../Canvas" */,
 				7BC42C1D2F70C19800D3FEC6 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
+				AA0000012FA0000100000001 /* XCLocalSwiftPackageReference "../ClaudeCodeSDK" */,
+				AA0000012FA0000200000002 /* XCLocalSwiftPackageReference "../ClaudeCodeUI" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 7BC42BF32F70C19600D3FEC6 /* Products */;
@@ -582,6 +590,14 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../Canvas;
 		};
+		AA0000012FA0000100000001 /* XCLocalSwiftPackageReference "../ClaudeCodeSDK" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../ClaudeCodeSDK;
+		};
+		AA0000012FA0000200000002 /* XCLocalSwiftPackageReference "../ClaudeCodeUI" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../ClaudeCodeUI;
+		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
@@ -603,6 +619,14 @@
 		7BC42C1F2F70C19800D3FEC6 /* SwiftTerm */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SwiftTerm;
+		};
+		AA0000012FA0000300000003 /* ClaudeCodeSDK */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ClaudeCodeSDK;
+		};
+		AA0000012FA0000400000004 /* ClaudeCodeCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ClaudeCodeCore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
