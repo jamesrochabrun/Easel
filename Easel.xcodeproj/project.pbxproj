@@ -7,10 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		7B2233D02F71062200B65247 /* Canvas in Frameworks */ = {isa = PBXBuildFile; productRef = 7BC42C1E2F70C19800D3FEC6 /* Canvas */; };
-		AA0000012FA0000500000005 /* ClaudeCodeSDK in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000012FA0000300000003 /* ClaudeCodeSDK */; };
-		AA0000012FA0000600000006 /* ClaudeCodeCore in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000012FA0000400000004 /* ClaudeCodeCore */; };
 		BB0000012FA0000700000007 /* ApprovalServerKit in Frameworks */ = {isa = PBXBuildFile; productRef = BB0000012FA0000800000008 /* ApprovalServerKit */; };
+		CC0000010000000100000001 /* EaselKit in Frameworks */ = {isa = PBXBuildFile; productRef = CC0000010000000200000002 /* EaselKit */; };
+		CC0000010000000300000003 /* EaselChat in Frameworks */ = {isa = PBXBuildFile; productRef = CC0000010000000400000004 /* EaselChat */; };
+		CC0000010000000500000005 /* EaselPreview in Frameworks */ = {isa = PBXBuildFile; productRef = CC0000010000000600000006 /* EaselPreview */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -59,9 +59,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				7B2233D02F71062200B65247 /* Canvas in Frameworks */,
-				AA0000012FA0000500000005 /* ClaudeCodeSDK in Frameworks */,
-				AA0000012FA0000600000006 /* ClaudeCodeCore in Frameworks */,
+				CC0000010000000100000001 /* EaselKit in Frameworks */,
+				CC0000010000000300000003 /* EaselChat in Frameworks */,
+				CC0000010000000500000005 /* EaselPreview in Frameworks */,
 				BB0000012FA0000700000007 /* ApprovalServerKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -124,9 +124,9 @@
 			);
 			name = Easel;
 			packageProductDependencies = (
-				7BC42C1E2F70C19800D3FEC6 /* Canvas */,
-				AA0000012FA0000300000003 /* ClaudeCodeSDK */,
-				AA0000012FA0000400000004 /* ClaudeCodeCore */,
+				CC0000010000000200000002 /* EaselKit */,
+				CC0000010000000400000004 /* EaselChat */,
+				CC0000010000000600000006 /* EaselPreview */,
 				BB0000012FA0000800000008 /* ApprovalServerKit */,
 			);
 			productName = Easel;
@@ -212,9 +212,9 @@
 			mainGroup = 7BC42BE92F70C19600D3FEC6;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				7BC42C1C2F70C19800D3FEC6 /* XCLocalSwiftPackageReference "../Canvas" */,
-				AA0000012FA0000100000001 /* XCLocalSwiftPackageReference "../ClaudeCodeSDK" */,
-				AA0000012FA0000200000002 /* XCLocalSwiftPackageReference "../ClaudeCodeUI" */,
+				CC0000010000000700000007 /* XCLocalSwiftPackageReference "Packages/EaselKit" */,
+				CC0000010000000800000008 /* XCLocalSwiftPackageReference "Packages/EaselChat" */,
+				CC0000010000000900000009 /* XCLocalSwiftPackageReference "Packages/EaselPreview" */,
 				BB0000012FA0000A0000000A /* XCRemoteSwiftPackageReference "ClaudeCodeApprovalServer" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -608,17 +608,17 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		7BC42C1C2F70C19800D3FEC6 /* XCLocalSwiftPackageReference "../Canvas" */ = {
+		CC0000010000000700000007 /* XCLocalSwiftPackageReference "Packages/EaselKit" */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = ../Canvas;
+			relativePath = Packages/EaselKit;
 		};
-		AA0000012FA0000100000001 /* XCLocalSwiftPackageReference "../ClaudeCodeSDK" */ = {
+		CC0000010000000800000008 /* XCLocalSwiftPackageReference "Packages/EaselChat" */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = ../ClaudeCodeSDK;
+			relativePath = Packages/EaselChat;
 		};
-		AA0000012FA0000200000002 /* XCLocalSwiftPackageReference "../ClaudeCodeUI" */ = {
+		CC0000010000000900000009 /* XCLocalSwiftPackageReference "Packages/EaselPreview" */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = ../ClaudeCodeUI;
+			relativePath = Packages/EaselPreview;
 		};
 /* End XCLocalSwiftPackageReference section */
 
@@ -634,22 +634,22 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		7BC42C1E2F70C19800D3FEC6 /* Canvas */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = Canvas;
-		};
-		AA0000012FA0000300000003 /* ClaudeCodeSDK */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = ClaudeCodeSDK;
-		};
-		AA0000012FA0000400000004 /* ClaudeCodeCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = ClaudeCodeCore;
-		};
 		BB0000012FA0000800000008 /* ApprovalServerKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = BB0000012FA0000A0000000A /* XCRemoteSwiftPackageReference "ClaudeCodeApprovalServer" */;
 			productName = ApprovalServerKit;
+		};
+		CC0000010000000200000002 /* EaselKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = EaselKit;
+		};
+		CC0000010000000400000004 /* EaselChat */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = EaselChat;
+		};
+		CC0000010000000600000006 /* EaselPreview */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = EaselPreview;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -3,6 +3,7 @@
 //  Easel
 //
 
+import EaselKit
 import SwiftUI
 
 struct CapsuleInputView: View {

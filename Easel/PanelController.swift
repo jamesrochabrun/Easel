@@ -4,6 +4,7 @@
 //
 
 import AppKit
+import EaselKit
 import SwiftUI
 
 // MARK: - Constants
@@ -18,15 +19,6 @@ private enum PanelMetrics {
   static let canvasCornerRadius: CGFloat = 12
 
   static let animationDuration: CGFloat = 0.5
-}
-
-// MARK: - PanelControlling
-
-@MainActor
-protocol PanelControlling: AnyObject {
-  func showCapsule()
-  func animateToCanvas()
-  func animateToCapsule()
 }
 
 // MARK: - KeyablePanel

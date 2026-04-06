@@ -1,10 +1,10 @@
 //
 //  AppStateTests.swift
-//  EaselTests
+//  EaselKitTests
 //
 
 import Testing
-@testable import Easel
+@testable import EaselKit
 
 @MainActor
 struct AppStateTests {

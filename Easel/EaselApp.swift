@@ -5,6 +5,7 @@
 //  Created by James Rochabrun on 3/22/26.
 //
 
+import EaselKit
 import SwiftUI
 
 @main
