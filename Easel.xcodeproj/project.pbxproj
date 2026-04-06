@@ -1,0 +1,610 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		7B2233D02F71062200B65247 /* Canvas in Frameworks */ = {isa = PBXBuildFile; productRef = 7BC42C1E2F70C19800D3FEC6 /* Canvas */; };
+		7B2233D12F71062200B65247 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 7BC42C1F2F70C19800D3FEC6 /* SwiftTerm */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		7BC42C002F70C19800D3FEC6 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7BC42BEA2F70C19600D3FEC6 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 7BC42BF12F70C19600D3FEC6;
+			remoteInfo = Easel;
+		};
+		7BC42C0A2F70C19800D3FEC6 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7BC42BEA2F70C19600D3FEC6 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 7BC42BF12F70C19600D3FEC6;
+			remoteInfo = Easel;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		7BC42BF22F70C19600D3FEC6 /* Easel.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Easel.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		7BC42BFF2F70C19800D3FEC6 /* EaselTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EaselTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		7BC42C092F70C19800D3FEC6 /* EaselUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EaselUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		7BC42BF42F70C19600D3FEC6 /* Easel */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Easel;
+			sourceTree = "<group>";
+		};
+		7BC42C022F70C19800D3FEC6 /* EaselTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = EaselTests;
+			sourceTree = "<group>";
+		};
+		7BC42C0C2F70C19800D3FEC6 /* EaselUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = EaselUITests;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		7BC42BEF2F70C19600D3FEC6 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7B2233D12F71062200B65247 /* SwiftTerm in Frameworks */,
+				7B2233D02F71062200B65247 /* Canvas in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7BC42BFC2F70C19800D3FEC6 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7BC42C062F70C19800D3FEC6 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		7BC42BE92F70C19600D3FEC6 = {
+			isa = PBXGroup;
+			children = (
+				7BC42BF42F70C19600D3FEC6 /* Easel */,
+				7BC42C022F70C19800D3FEC6 /* EaselTests */,
+				7BC42C0C2F70C19800D3FEC6 /* EaselUITests */,
+				7BC42BF32F70C19600D3FEC6 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		7BC42BF32F70C19600D3FEC6 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				7BC42BF22F70C19600D3FEC6 /* Easel.app */,
+				7BC42BFF2F70C19800D3FEC6 /* EaselTests.xctest */,
+				7BC42C092F70C19800D3FEC6 /* EaselUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		7BC42BF12F70C19600D3FEC6 /* Easel */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7BC42C132F70C19800D3FEC6 /* Build configuration list for PBXNativeTarget "Easel" */;
+			buildPhases = (
+				7BC42BEE2F70C19600D3FEC6 /* Sources */,
+				7BC42BEF2F70C19600D3FEC6 /* Frameworks */,
+				7BC42BF02F70C19600D3FEC6 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				7BC42BF42F70C19600D3FEC6 /* Easel */,
+			);
+			name = Easel;
+			packageProductDependencies = (
+				7BC42C1E2F70C19800D3FEC6 /* Canvas */,
+				7BC42C1F2F70C19800D3FEC6 /* SwiftTerm */,
+			);
+			productName = Easel;
+			productReference = 7BC42BF22F70C19600D3FEC6 /* Easel.app */;
+			productType = "com.apple.product-type.application";
+		};
+		7BC42BFE2F70C19800D3FEC6 /* EaselTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7BC42C162F70C19800D3FEC6 /* Build configuration list for PBXNativeTarget "EaselTests" */;
+			buildPhases = (
+				7BC42BFB2F70C19800D3FEC6 /* Sources */,
+				7BC42BFC2F70C19800D3FEC6 /* Frameworks */,
+				7BC42BFD2F70C19800D3FEC6 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				7BC42C012F70C19800D3FEC6 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				7BC42C022F70C19800D3FEC6 /* EaselTests */,
+			);
+			name = EaselTests;
+			packageProductDependencies = (
+			);
+			productName = EaselTests;
+			productReference = 7BC42BFF2F70C19800D3FEC6 /* EaselTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		7BC42C082F70C19800D3FEC6 /* EaselUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7BC42C192F70C19800D3FEC6 /* Build configuration list for PBXNativeTarget "EaselUITests" */;
+			buildPhases = (
+				7BC42C052F70C19800D3FEC6 /* Sources */,
+				7BC42C062F70C19800D3FEC6 /* Frameworks */,
+				7BC42C072F70C19800D3FEC6 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				7BC42C0B2F70C19800D3FEC6 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				7BC42C0C2F70C19800D3FEC6 /* EaselUITests */,
+			);
+			name = EaselUITests;
+			packageProductDependencies = (
+			);
+			productName = EaselUITests;
+			productReference = 7BC42C092F70C19800D3FEC6 /* EaselUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		7BC42BEA2F70C19600D3FEC6 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2630;
+				LastUpgradeCheck = 2630;
+				TargetAttributes = {
+					7BC42BF12F70C19600D3FEC6 = {
+						CreatedOnToolsVersion = 26.3;
+					};
+					7BC42BFE2F70C19800D3FEC6 = {
+						CreatedOnToolsVersion = 26.3;
+						TestTargetID = 7BC42BF12F70C19600D3FEC6;
+					};
+					7BC42C082F70C19800D3FEC6 = {
+						CreatedOnToolsVersion = 26.3;
+						TestTargetID = 7BC42BF12F70C19600D3FEC6;
+					};
+				};
+			};
+			buildConfigurationList = 7BC42BED2F70C19600D3FEC6 /* Build configuration list for PBXProject "Easel" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 7BC42BE92F70C19600D3FEC6;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				7BC42C1C2F70C19800D3FEC6 /* XCLocalSwiftPackageReference "../Canvas" */,
+				7BC42C1D2F70C19800D3FEC6 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 7BC42BF32F70C19600D3FEC6 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				7BC42BF12F70C19600D3FEC6 /* Easel */,
+				7BC42BFE2F70C19800D3FEC6 /* EaselTests */,
+				7BC42C082F70C19800D3FEC6 /* EaselUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		7BC42BF02F70C19600D3FEC6 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7BC42BFD2F70C19800D3FEC6 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7BC42C072F70C19800D3FEC6 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		7BC42BEE2F70C19600D3FEC6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7BC42BFB2F70C19800D3FEC6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7BC42C052F70C19800D3FEC6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		7BC42C012F70C19800D3FEC6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 7BC42BF12F70C19600D3FEC6 /* Easel */;
+			targetProxy = 7BC42C002F70C19800D3FEC6 /* PBXContainerItemProxy */;
+		};
+		7BC42C0B2F70C19800D3FEC6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 7BC42BF12F70C19600D3FEC6 /* Easel */;
+			targetProxy = 7BC42C0A2F70C19800D3FEC6 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		7BC42C112F70C19800D3FEC6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		7BC42C122F70C19800D3FEC6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		7BC42C142F70C19800D3FEC6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = jamesrochabrun.Easel;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		7BC42C152F70C19800D3FEC6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = jamesrochabrun.Easel;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		7BC42C172F70C19800D3FEC6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = jamesrochabrun.EaselTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Easel.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Easel";
+			};
+			name = Debug;
+		};
+		7BC42C182F70C19800D3FEC6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = jamesrochabrun.EaselTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Easel.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Easel";
+			};
+			name = Release;
+		};
+		7BC42C1A2F70C19800D3FEC6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = jamesrochabrun.EaselUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Easel;
+			};
+			name = Debug;
+		};
+		7BC42C1B2F70C19800D3FEC6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = jamesrochabrun.EaselUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Easel;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		7BC42BED2F70C19600D3FEC6 /* Build configuration list for PBXProject "Easel" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7BC42C112F70C19800D3FEC6 /* Debug */,
+				7BC42C122F70C19800D3FEC6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		7BC42C132F70C19800D3FEC6 /* Build configuration list for PBXNativeTarget "Easel" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7BC42C142F70C19800D3FEC6 /* Debug */,
+				7BC42C152F70C19800D3FEC6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		7BC42C162F70C19800D3FEC6 /* Build configuration list for PBXNativeTarget "EaselTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7BC42C172F70C19800D3FEC6 /* Debug */,
+				7BC42C182F70C19800D3FEC6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		7BC42C192F70C19800D3FEC6 /* Build configuration list for PBXNativeTarget "EaselUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7BC42C1A2F70C19800D3FEC6 /* Debug */,
+				7BC42C1B2F70C19800D3FEC6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		7BC42C1C2F70C19800D3FEC6 /* XCLocalSwiftPackageReference "../Canvas" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../Canvas;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		7BC42C1D2F70C19800D3FEC6 /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/migueldeicaza/SwiftTerm";
+			requirement = {
+				kind = exactVersion;
+				version = 1.11.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		7BC42C1E2F70C19800D3FEC6 /* Canvas */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Canvas;
+		};
+		7BC42C1F2F70C19800D3FEC6 /* SwiftTerm */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SwiftTerm;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 7BC42BEA2F70C19600D3FEC6 /* Project object */;
+}
