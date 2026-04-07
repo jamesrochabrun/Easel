@@ -21,6 +21,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
   public private(set) var previewURL: URL?
 
   private var hasSentInitialPrompt = false
+  private let previewURLObserver = PreviewURLObserver()
 
   // MARK: - Init
 
@@ -46,12 +47,22 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
       self.deps = container
       self.globalPreferences = globalPrefs
       self.isInitialized = true
+
+      previewURLObserver.startObserving(
+        messages: { [weak self] in
+          self?.chatViewModel?.messages ?? []
+        },
+        onURLDetected: { [weak self] url in
+          self?.previewURL = url
+        }
+      )
     } catch {
       self.initError = error
     }
   }
 
   public func retry() {
+    previewURLObserver.stopObserving()
     initError = nil
     isInitialized = false
     Task { await initialize() }
