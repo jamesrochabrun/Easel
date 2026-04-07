@@ -1,10 +1,10 @@
 //
-//  PanelControlling.swift
+//  WindowControlling.swift
 //  EaselKit
 //
 
 @MainActor
-public protocol PanelControlling: AnyObject {
+public protocol WindowControlling: AnyObject {
   func showCapsule()
   func animateToCanvas()
   func animateToCapsule()

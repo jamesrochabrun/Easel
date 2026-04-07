@@ -10,30 +10,46 @@ import SwiftUI
 
 struct CanvasContentView: View {
   @Bindable var appState: AppState
+  let initialPrompt: String
+
   @State private var chatService = ChatService()
 
   private let chatPanelWidth: CGFloat = 380
 
   var body: some View {
-    HStack(spacing: 1) {
-      // Left: Chat panel
-      ChatPanelView(chatService: chatService, initialPrompt: appState.promptText)
-        .frame(width: chatPanelWidth)
-        .frame(maxHeight: .infinity)
+    VStack(spacing: 0) {
+      HStack {
+        Button("Back to Prompt", systemImage: "chevron.left", action: resetToCapsule)
+          .buttonStyle(.borderless)
 
-      // Subtle divider
-      Rectangle()
-        .fill(.quaternary)
-        .frame(width: 1)
+        Spacer()
+      }
+      .padding(.horizontal, 12)
+      .padding(.vertical, 8)
+      .background(.bar)
 
-      // Right: Web preview canvas
-      WebPreviewPanel(
-        previewURLProvider: chatService,
-        inspectorBridge: chatService
-      )
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      Divider()
+
+      HStack(spacing: 1) {
+        ChatPanelView(chatService: chatService, initialPrompt: initialPrompt)
+          .frame(width: chatPanelWidth)
+          .frame(maxHeight: .infinity)
+
+        Rectangle()
+          .fill(.quaternary)
+          .frame(width: 1)
+
+        WebPreviewPanel(
+          previewURLProvider: chatService,
+          inspectorBridge: chatService
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+      }
     }
     .background(GlassBackgroundView(material: .sidebar))
-    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+  }
+
+  private func resetToCapsule() {
+    appState.resetToCapsule()
   }
 }
