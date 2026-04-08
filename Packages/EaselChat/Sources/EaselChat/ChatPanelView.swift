@@ -38,7 +38,11 @@ public struct ChatPanelView: View {
             appName: "Easel",
             showSettingsInNavBar: false,
             showRiskData: false,
-            showTokenCount: true
+            showTokenCount: true,
+            messageFontSize: 13.0,
+            inputCornerRadius: 8.0,
+            useMaterialInputBackground: true,
+            showCommandTip: false
           )
         )
         .environment(globalPreferences)

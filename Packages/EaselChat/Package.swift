@@ -16,7 +16,7 @@ let package = Package(
   dependencies: [
     .package(path: "../EaselKit"),
     .package(path: "../../../ClaudeCodeSDK"),
-    .package(path: "../../../ClaudeCodeUI"),
+    .package(path: "../EaselClaudeCodeUI"),
   ],
   targets: [
     .target(
@@ -24,7 +24,7 @@ let package = Package(
       dependencies: [
         "EaselKit",
         .product(name: "ClaudeCodeSDK", package: "ClaudeCodeSDK"),
-        .product(name: "ClaudeCodeCore", package: "ClaudeCodeUI"),
+        .product(name: "ClaudeCodeCore", package: "EaselClaudeCodeUI"),
       ],
       swiftSettings: [
         .swiftLanguageMode(.v5)
