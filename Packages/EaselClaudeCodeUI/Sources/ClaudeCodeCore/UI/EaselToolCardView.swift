@@ -124,7 +124,7 @@ struct EaselToolCardView: View {
   private var shouldShowDetailedContent: Bool {
     guard toolUse.messageType == .toolUse else { return false }
     guard let toolName = toolUse.toolName else { return false }
-    return ["Edit", "MultiEdit", "Write", "TodoWrite", "ExitPlanMode", "exit_plan_mode"].contains(toolName)
+    return ["TodoWrite", "ExitPlanMode", "exit_plan_mode"].contains(toolName)
   }
 
   private var statusColor: Color {

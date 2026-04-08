@@ -43,6 +43,24 @@ final class EaselChatRuntimePresentationTests: XCTestCase {
     XCTAssertEqual(presentation.metadata, "Bash - running")
   }
 
+  func testToolPresentationUsesWriteInputForPreviewWhenResultIsEmpty() {
+    let toolUse = ChatMessage(
+      role: .assistant,
+      content: "",
+      messageType: .toolUse,
+      toolName: "Write",
+      toolInputData: ToolInputData(
+        parameters: ["file_path": "/tmp/main.ts", "content": "let name = \"easel\"\nconsole.log(name)"],
+        rawParameters: ["file_path": "/tmp/main.ts", "content": "let name = \"easel\"\nconsole.log(name)"]
+      )
+    )
+
+    let presentation = EaselToolCardPresentation(toolUse: toolUse, toolResult: nil)
+
+    XCTAssertEqual(presentation.title, "Write /tmp/main.ts")
+    XCTAssertEqual(presentation.preview, "let name = \"easel\"\nconsole.log(name)")
+  }
+
   func testToolPresentationMapsFailedAndDeniedStates() {
     let toolUse = ChatMessage(
       role: .assistant,

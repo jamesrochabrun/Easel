@@ -152,15 +152,4 @@ struct TaskGroupView: View {
     }
   }
   
-  private var headerBackgroundColor: Color {
-    colorScheme == .dark
-      ? Color.expandedContentBackgroundDark.opacity(0.6)
-      : Color.expandedContentBackgroundLight.opacity(0.6)
-  }
-  
-  private var borderColor: Color {
-    colorScheme == .dark
-      ? Color(white: 0.25)
-      : Color(white: 0.85)
-  }
 }

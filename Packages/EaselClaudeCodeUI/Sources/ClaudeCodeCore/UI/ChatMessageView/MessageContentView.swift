@@ -1,29 +1,17 @@
 import SwiftUI
 import CCTerminalServiceInterface
-import PierreDiffsSwift
 
 // MARK: - JSON Keys
 private enum JSONKeys {
   static let filePath = "file_path"
-  static let oldString = "old_string"
-  static let newString = "new_string"
-  static let edits = "edits"
   static let content = "content"
-}
-
-/// Data for presenting the diff modal
-struct DiffModalData: Identifiable {
-  let id = UUID()
-  let messageID: UUID
-  let tool: EditTool
-  let params: [String: String]
 }
 
 /// A view that renders the content of a chat message with appropriate formatting based on the message type.
 ///
 /// This view handles different message types including:
 /// - Plain text messages from users and assistants
-/// - Tool usage messages (Edit, MultiEdit, etc.) with specialized diff views
+/// - Tool usage messages with specialized native detail views where needed
 /// - Tool results and errors
 /// - Thinking messages
 /// - Web search results
@@ -32,7 +20,7 @@ struct DiffModalData: Identifiable {
 /// - Collapsible content for tool-related messages
 /// - Formatted text for assistant responses
 /// - Plain text for user messages
-/// - Specialized diff views for Edit and MultiEdit tools
+/// - Specialized native views for approval and file-write tool content
 ///
 /// ## Usage Example
 /// ```swift
@@ -45,21 +33,6 @@ struct DiffModalData: Identifiable {
 ///     terminalService: terminalService
 /// )
 /// ```
-/// A loading view specifically for diff tools with consistent styling
-private struct DiffLoadingView: View {
-  var body: some View {
-    VStack(spacing: 12) {
-      ProgressView()
-        .controlSize(.small)
-        .frame(width: 20, height: 20) // Explicit size to prevent layout conflicts
-      Text("Preparing diff view...")
-        .font(.caption)
-        .foregroundStyle(.secondary)
-    }
-    .frame(maxWidth: .infinity, minHeight: 80) // Explicit minimum height
-    .padding()
-  }
-}
 
 struct MessageContentView: View {
   /// The chat message to display.
@@ -90,9 +63,7 @@ struct MessageContentView: View {
   /// ensuring optimal readability. Usually set based on the container width.
   let maxWidth: CGFloat
   
-  /// Terminal service for executing commands in diff views.
-  /// Used by EditToolDiffView and MultiEditToolDiffView to apply changes
-  /// when users click "Apply" buttons in the diff interface.
+  /// Terminal service retained for tool renderers that need command execution.
   let terminalService: TerminalService
   
   /// The project path for file operations
@@ -109,15 +80,6 @@ struct MessageContentView: View {
   /// in both light and dark modes.
   @Environment(\.colorScheme) private var colorScheme
   
-  /// Data for the modal diff view - when non-nil, shows the modal
-  @State private var modalDiffData: DiffModalData?
-  
-  /// Single diff state manager for this message - lazily initialized once
-  @State private var diffStateManager: DiffStateManager?
-  
-  /// Tracks whether the diff manager has been initialized
-  @State private var isDiffManagerInitialized = false
-  
   /// Creates a new message content view with the specified configuration.
   ///
   /// - Parameters:
@@ -127,7 +89,7 @@ struct MessageContentView: View {
   ///   - horizontalPadding: Padding between message content and container edges
   ///   - showArtifact: Optional callback to display artifacts like Mermaid diagrams
   ///   - maxWidth: Maximum width constraint to ensure optimal readability
-  ///   - terminalService: Service for executing commands in diff views
+  ///   - terminalService: Service for tool renderers that need command execution
   ///   - projectPath: Optional project directory path for file operations
   ///   - onApprovalAction: Optional callback invoked when user approves/denies tool actions
   ///   - viewModel: Optional view model for handling approval actions
@@ -167,63 +129,8 @@ struct MessageContentView: View {
     }
   }
 
-  /// Determines if diffs for Edit/Write/MultiEdit tools should be shown in compact form.
-  /// Returns true if there are any messages after this tool's result in the conversation,
-  /// indicating the user has moved on (either accepted, rejected, or sent a new message).
-  private var shouldCollapseDiff: Bool {
-    guard let viewModel = viewModel,
-          message.messageType == .toolUse,
-          let toolName = message.toolName,
-          ["Edit", "Write", "MultiEdit"].contains(toolName) else {
-      return false
-    }
-
-    // Get all messages in the conversation
-    let allMessages = viewModel.getCurrentMessages()
-
-    // Find the index of this tool use message
-    guard let currentIndex = allMessages.firstIndex(where: { $0.id == message.id }) else {
-      return false
-    }
-
-    // Check if there are at least 2 more messages after this one:
-    // - Next message should be the tool result
-    // - Any message after that means user has moved on
-    return currentIndex + 2 < allMessages.count
-  }
-
   var body: some View {
     contentView
-      .sheet(item: $modalDiffData) { data in
-        DiffModalView(
-          input: .tool(
-            messageID: data.messageID,
-            editTool: data.tool,
-            toolParameters: data.params,
-            projectPath: projectPath,
-            diffStore: diffStateManager,
-            diffLifecycleState: nil
-          ),
-          onDismiss: {
-            modalDiffData = nil
-          }
-        )
-      }
-      .onAppear {
-        initializeDiffManagerIfNeeded()
-      }
-  }
-  
-  private func initializeDiffManagerIfNeeded() {
-    guard !isDiffManagerInitialized,
-          message.messageType == .toolUse,
-          let toolName = message.toolName,
-          [EditTool.edit.rawValue, EditTool.multiEdit.rawValue, EditTool.write.rawValue].contains(toolName) else {
-      return
-    }
-    
-    diffStateManager = DiffStateManager()
-    isDiffManagerInitialized = true
   }
   
   @ViewBuilder
@@ -263,16 +170,16 @@ struct MessageContentView: View {
         )
         .padding(.horizontal, horizontalPadding)
       }
-      // Check if this is an Edit or MultiEdit tool message with diff data
+      // Check if this is an Edit, MultiEdit, or Write tool message with tool input data
       else if message.messageType == .toolUse,
          let rawParams = message.toolInputData?.rawParameters {
 
-        switch EditTool(rawValue: message.toolName ?? "") {
-        case .edit:
+        switch message.toolName {
+        case "Edit":
           editToolContent(rawParams: rawParams)
-        case .multiEdit:
+        case "MultiEdit":
           multiEditToolContent(rawParams: rawParams)
-        case .write:
+        case "Write":
           writeToolContent(rawParams: rawParams)
         default:
           defaultToolDisplay
@@ -286,85 +193,29 @@ struct MessageContentView: View {
   // MARK: - Tool Content Views
   
   @ViewBuilder
-  private func editToolContent(rawParams: [String: String]) -> some View {
-    if let _ = rawParams[JSONKeys.filePath],
-       rawParams[JSONKeys.oldString] != nil,
-       rawParams[JSONKeys.newString] != nil {
-      diffView(editTool: .edit, rawParams: rawParams)
-    } else {
-      defaultToolDisplay
-    }
+  private func editToolContent(rawParams _: [String: String]) -> some View {
+    defaultToolDisplay
   }
   
   @ViewBuilder
-  private func multiEditToolContent(rawParams: [String: String]) -> some View {
-    if let _ = rawParams[JSONKeys.filePath],
-       rawParams[JSONKeys.edits] != nil {
-      diffView(editTool: .multiEdit, rawParams: rawParams)
-    } else {
-      defaultToolDisplay
-    }
+  private func multiEditToolContent(rawParams _: [String: String]) -> some View {
+    defaultToolDisplay
   }
   
   @ViewBuilder
   private func writeToolContent(rawParams: [String: String]) -> some View {
-    if let _ = rawParams[JSONKeys.filePath],
-       rawParams[JSONKeys.content] != nil {
-      diffView(editTool: .write, rawParams: rawParams)
+    if let filePath = rawParams[JSONKeys.filePath],
+       let content = rawParams[JSONKeys.content] {
+      WriteToolContentView(
+        content: content,
+        filePath: filePath,
+        fontSize: fontSize,
+        textFormatter: textFormatter,
+        maxWidth: maxWidth
+      )
     } else {
       defaultToolDisplay
     }
-  }
-  
-  @ViewBuilder
-  private func diffView(editTool: EditTool, rawParams: [String: String]) -> some View {
-    Group {
-      if let diffStore = diffStateManager {
-        DiffEditsView(
-          input: .tool(
-            messageID: message.id,
-            editTool: editTool,
-            toolParameters: rawParams,
-            projectPath: projectPath,
-            diffStore: diffStore,
-            diffLifecycleState: effectiveDiffLifecycleState
-          ),
-          onExpandRequest: {
-            modalDiffData = DiffModalData(messageID: message.id, tool: editTool, params: rawParams)
-          }
-        )
-        .id(message.id) // Force view recreation on message change
-        .transition(.asymmetric(
-          insertion: .opacity.combined(with: .scale(scale: 0.98, anchor: .top)),
-          removal: .opacity
-        ))
-      } else {
-        DiffLoadingView()
-          .transition(.opacity)
-      }
-    }
-    .animation(.easeInOut(duration: 0.2), value: diffStateManager != nil)
-  }
-
-  /// Computes the effective diff lifecycle state based on message position.
-  /// If the user has moved on (subsequent messages exist), auto-collapse all diffs.
-  private var effectiveDiffLifecycleState: DiffLifecycleState? {
-    if shouldCollapseDiff {
-      guard let diffStore = diffStateManager else { return nil }
-      let diffState = diffStore.getState(for: message.id)
-      guard diffState.hasContent else { return nil }
-
-      // Mark as applied/collapsed since user has moved on
-      var autoCollapseState = DiffLifecycleState()
-      let diffID = message.id.uuidString
-      autoCollapseState.appliedDiffGroupIDs.insert(diffID)
-      autoCollapseState.appliedTimestamps[diffID] = Date()
-      autoCollapseState.lastModified = Date()
-      return autoCollapseState
-    }
-
-    // Return persisted state if it exists (for future use)
-    return message.diffLifecycleState
   }
 
   /// Default display for tool messages that don't have specialized views.

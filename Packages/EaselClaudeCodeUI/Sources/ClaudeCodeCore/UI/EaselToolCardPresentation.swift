@@ -43,7 +43,12 @@ struct EaselToolCardPresentation: Equatable {
       resultContent: resultContent
     )
     self.status = status
-    self.preview = Self.preview(for: toolName, resultContent: resultContent, localhostURL: url)
+    self.preview = Self.preview(
+      for: toolName,
+      resultContent: resultContent,
+      toolInputData: toolUse.toolInputData,
+      localhostURL: url
+    )
     self.localhostURL = url
   }
 
@@ -110,18 +115,55 @@ struct EaselToolCardPresentation: Equatable {
     return "\(category) - \(status.label)"
   }
 
-  private static func preview(for toolName: String, resultContent: String, localhostURL: URL?) -> String? {
+  private static func preview(
+    for toolName: String,
+    resultContent: String,
+    toolInputData: ToolInputData?,
+    localhostURL: URL?
+  ) -> String? {
     guard localhostURL == nil else { return nil }
-    let trimmed = resultContent.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else { return nil }
-
-    let shouldPreview = ["Read", "Write", "Bash", "WebFetch", "WebSearch"].contains(toolName)
+    let shouldPreview = ["Read", "Write", "Edit", "MultiEdit", "TodoWrite", "Bash", "WebFetch", "WebSearch"].contains(toolName)
     guard shouldPreview else { return nil }
+
+    let content = preferredPreviewContent(
+      for: toolName,
+      resultContent: resultContent,
+      toolInputData: toolInputData
+    )
+    let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return nil }
 
     return trimmed
       .split(separator: "\n", omittingEmptySubsequences: false)
       .prefix(8)
       .joined(separator: "\n")
+  }
+
+  private static func preferredPreviewContent(
+    for toolName: String,
+    resultContent: String,
+    toolInputData: ToolInputData?
+  ) -> String {
+    let trimmedResult = resultContent.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !trimmedResult.isEmpty {
+      return trimmedResult
+    }
+
+    let rawParameters = toolInputData?.rawParameters
+    let parameters = toolInputData?.parameters
+
+    switch toolName {
+    case "Write":
+      return rawParameters?["content"] ?? parameters?["content"] ?? ""
+    case "Edit":
+      return rawParameters?["new_string"] ?? parameters?["new_string"] ?? ""
+    case "MultiEdit":
+      return rawParameters?["edits"] ?? parameters?["edits"] ?? ""
+    case "TodoWrite":
+      return parameters?["todos"] ?? ""
+    default:
+      return ""
+    }
   }
 
   static func localhostURL(in content: String) -> URL? {

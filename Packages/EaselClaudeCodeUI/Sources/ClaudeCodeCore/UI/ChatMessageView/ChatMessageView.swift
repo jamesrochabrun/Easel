@@ -340,15 +340,11 @@ struct ChatMessageView: View {
   }
   
   private var contentBackgroundColor: SwiftUI.Color {
-    colorScheme == .dark
-    ? Color.expandedContentBackgroundDark
-    : .expandedContentBackgroundLight
+    EaselChatRuntimeStyle.subtleCardBackground(for: colorScheme)
   }
   
   private var borderColor: SwiftUI.Color {
-    colorScheme == .dark
-    ? SwiftUI.Color(white: 0.25)
-    : SwiftUI.Color(white: 0.85)
+    EaselChatRuntimeStyle.border(for: colorScheme)
   }
   
   // MARK: - Context Menu
