@@ -124,9 +124,9 @@ struct TableContentView: View {
       .frame(minHeight: 100, maxHeight: 500)
       .background(tableBackground)
     }
-    .clipShape(RoundedRectangle(cornerRadius: 6))
+    .clipShape(RoundedRectangle(cornerRadius: EaselChatRuntimeStyle.compactRadius))
     .overlay(
-      RoundedRectangle(cornerRadius: 6)
+      RoundedRectangle(cornerRadius: EaselChatRuntimeStyle.compactRadius)
         .strokeBorder(borderColor, lineWidth: 1)
     )
   }
@@ -169,39 +169,27 @@ struct TableContentView: View {
   }
   
   private var headerBackground: Color {
-    colorScheme == .dark
-    ? Color(white: 0.15)
-    : Color(white: 0.95)
+    EaselChatRuntimeStyle.cardBackground(for: colorScheme)
   }
   
   private var tableBackground: Color {
-    colorScheme == .dark
-    ? Color(white: 0.08)
-    : Color.white
+    EaselChatRuntimeStyle.subtleCardBackground(for: colorScheme)
   }
   
   private var headerRowBackground: Color {
-    colorScheme == .dark
-    ? Color(white: 0.12)
-    : Color(white: 0.97)
+    EaselChatRuntimeStyle.cardBackground(for: colorScheme)
   }
   
   private func rowBackground(for index: Int) -> Color {
     if index % 2 == 0 {
-      return colorScheme == .dark
-      ? Color(white: 0.1)
-      : Color(white: 0.99)
+      return EaselChatRuntimeStyle.subtleCardBackground(for: colorScheme)
     } else {
-      return colorScheme == .dark
-      ? Color(white: 0.06)
-      : Color(white: 0.96)
+      return EaselChatRuntimeStyle.cardBackground(for: colorScheme)
     }
   }
   
   private var borderColor: Color {
-    colorScheme == .dark
-    ? Color(white: 0.25)
-    : Color(white: 0.85)
+    EaselChatRuntimeStyle.border(for: colorScheme)
   }
 }
 
@@ -235,20 +223,14 @@ struct TableCell: View {
   
   private var textColor: Color {
     if isHeader {
-      return colorScheme == .dark
-      ? Color.white.opacity(0.95)
-      : Color.black.opacity(0.9)
+      return .primary
     } else {
-      return colorScheme == .dark
-      ? Color.white.opacity(0.85)
-      : Color.black.opacity(0.8)
+      return EaselChatRuntimeStyle.secondaryText(for: colorScheme)
     }
   }
   
   private var borderColor: Color {
-    colorScheme == .dark
-    ? Color(white: 0.25)
-    : Color(white: 0.85)
+    EaselChatRuntimeStyle.border(for: colorScheme)
   }
   
   private var textAlignment: TextAlignment {

@@ -57,7 +57,13 @@ struct ToolDisplayView: View {
       
       // Formatted content
       formattedContentView(for: content)
-        .padding(.horizontal, 4)
+        .padding(.horizontal, 8)
+        .padding(.bottom, 8)
+    }
+    .background(EaselChatRuntimeStyle.subtleCardBackground(for: colorScheme), in: RoundedRectangle(cornerRadius: EaselChatRuntimeStyle.compactRadius))
+    .overlay {
+      RoundedRectangle(cornerRadius: EaselChatRuntimeStyle.compactRadius)
+        .stroke(EaselChatRuntimeStyle.border(for: colorScheme), lineWidth: 1)
     }
   }
   
@@ -281,7 +287,7 @@ struct ToolDisplayView: View {
       if content.isError {
         Color.red.opacity(0.1)
       } else {
-        Color.clear
+        EaselChatRuntimeStyle.cardBackground(for: colorScheme)
       }
     }
   }
@@ -312,11 +318,7 @@ struct ToolDisplayView: View {
   }
   
   private var contentTextColor: Color {
-    colorScheme == .dark ? .white : Color.black.opacity(0.85)
-  }
-  
-  private var codeBackground: Color {
-    colorScheme == .dark ? Color.black.opacity(0.3) : Color.secondary.opacity(0.1)
+    EaselChatRuntimeStyle.secondaryText(for: colorScheme)
   }
   
   private func createMarkdownTextFormatter(for content: String) -> TextFormatter {

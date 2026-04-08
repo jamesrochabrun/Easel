@@ -1,5 +1,4 @@
 import SwiftUI
-import AppKit
 
 struct CodeBlockContentView: View {
   
@@ -85,54 +84,38 @@ struct CodeBlockContentView: View {
       // Code content
       ScrollView(.vertical) {
         ScrollView(.horizontal, showsIndicators: false) {
-          if let highlightedText = code.highlightedText {
-            // Use highlighted text when available
-            Text(highlightedText)
-              .font(.system(size: 13, design: .monospaced))
-              .textSelection(.enabled)
-              .padding(12)
-          } else {
-            // Fallback to plain text
-            Text(code.content)
-              .font(.system(size: 13, design: .monospaced))
-              .foregroundColor(codeTextColor)
-              .textSelection(.enabled)
-              .padding(12)
-          }
+          Text(code.content)
+            .font(.system(size: 13, design: .monospaced))
+            .foregroundStyle(codeTextColor)
+            .textSelection(.enabled)
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
       }
       .frame(maxHeight: 500)
       .background(codeBackground)
     }
-    .clipShape(RoundedRectangle(cornerRadius: 6))
+    .clipShape(RoundedRectangle(cornerRadius: EaselChatRuntimeStyle.compactRadius))
     .overlay(
-      RoundedRectangle(cornerRadius: 6)
+      RoundedRectangle(cornerRadius: EaselChatRuntimeStyle.compactRadius)
         .strokeBorder(borderColor, lineWidth: 1)
     )
   }
   
   private var headerBackground: Color {
-    colorScheme == .dark
-    ? Color(white: 0.15)
-    : Color(white: 0.95)
+    EaselChatRuntimeStyle.cardBackground(for: colorScheme)
   }
   
   private var codeBackground: Color {
-    colorScheme == .dark
-    ? Color(white: 0.1)
-    : Color(white: 0.98)
+    EaselChatRuntimeStyle.subtleCardBackground(for: colorScheme)
   }
   
   private var borderColor: Color {
-    colorScheme == .dark
-    ? Color(white: 0.25)
-    : Color(white: 0.85)
+    EaselChatRuntimeStyle.border(for: colorScheme)
   }
   
   private var codeTextColor: Color {
-    colorScheme == .dark
-    ? Color.white.opacity(0.9)
-    : Color.black.opacity(0.85)
+    EaselChatRuntimeStyle.secondaryText(for: colorScheme)
   }
   
   private func fileIcon(for path: String) -> String {

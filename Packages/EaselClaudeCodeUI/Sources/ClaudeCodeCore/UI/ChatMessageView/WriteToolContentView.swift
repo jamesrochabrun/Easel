@@ -45,18 +45,18 @@ struct WriteToolContentView: View {
           .padding(.vertical, 8)
           .background(
             RoundedRectangle(cornerRadius: 8)
-              .fill(colorScheme == .dark ? Color.black.opacity(0.3) : Color.gray.opacity(0.05))
+              .fill(EaselChatRuntimeStyle.subtleCardBackground(for: colorScheme))
           )
           .overlay(
             RoundedRectangle(cornerRadius: 8)
-              .stroke(colorScheme == .dark ? Color.gray.opacity(0.3) : Color.gray.opacity(0.2), lineWidth: 1)
+              .stroke(EaselChatRuntimeStyle.border(for: colorScheme), lineWidth: 1)
           )
         }
         .padding(.horizontal, 12)
       }
       .frame(maxHeight: 400) // Limit height for long files
     }
-    .background(Color(NSColor.controlBackgroundColor))
+    .background(EaselChatRuntimeStyle.cardBackground(for: colorScheme))
     .cornerRadius(EaselChatRuntimeStyle.cardRadius)
   }
   

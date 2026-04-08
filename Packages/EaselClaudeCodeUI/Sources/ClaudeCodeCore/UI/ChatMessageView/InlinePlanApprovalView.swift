@@ -7,7 +7,6 @@
 
 import SwiftUI
 import Down
-import AppKit
 
 /// A view that displays a plan for approval inline within a chat message
 public struct InlinePlanApprovalView: View {
@@ -111,11 +110,11 @@ public struct InlinePlanApprovalView: View {
                 .font(.system(.body, design: .default))
                 .frame(height: 50)
                 .scrollContentBackground(.hidden)
-                .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(4)
+                .background(EaselChatRuntimeStyle.subtleCardBackground(for: colorScheme))
+                .cornerRadius(EaselChatRuntimeStyle.compactRadius)
                 .overlay(
-                  RoundedRectangle(cornerRadius: 4)
-                    .stroke(Color(NSColor.separatorColor), lineWidth: 0.5)
+                  RoundedRectangle(cornerRadius: EaselChatRuntimeStyle.compactRadius)
+                    .stroke(EaselChatRuntimeStyle.border(for: colorScheme), lineWidth: 0.5)
                 )
 
               HStack(spacing: 8) {
@@ -169,7 +168,7 @@ public struct InlinePlanApprovalView: View {
         }
       }
     }
-    .background(Color(NSColor.controlBackgroundColor))
+    .background(EaselChatRuntimeStyle.cardBackground(for: colorScheme))
     .cornerRadius(EaselChatRuntimeStyle.cardRadius)
     .overlay(
       RoundedRectangle(cornerRadius: EaselChatRuntimeStyle.cardRadius)
@@ -199,14 +198,14 @@ public struct InlinePlanApprovalView: View {
     if isResolved {
       switch approvalStatus {
       case .approved, .approvedWithAutoAccept:
-        return .green
+        return EaselChatRuntimeStyle.completed
       case .denied:
-        return .red
+        return EaselChatRuntimeStyle.failed
       default:
-        return .blue
+        return EaselChatRuntimeStyle.running
       }
     }
-    return .blue
+    return EaselChatRuntimeStyle.running
   }
 
   private var headerText: String {
@@ -231,24 +230,18 @@ public struct InlinePlanApprovalView: View {
   }
 
   private var contentBackground: SwiftUI.Color {
-    colorScheme == .dark
-      ? Color(NSColor.controlBackgroundColor)
-      : Color.white
+    EaselChatRuntimeStyle.subtleCardBackground(for: colorScheme)
   }
 
   private var actionButtonBackground: SwiftUI.Color {
-    colorScheme == .dark
-      ? Color(white: 0.12)
-      : Color(white: 0.98)
+    EaselChatRuntimeStyle.cardBackground(for: colorScheme)
   }
 
   private var borderColor: SwiftUI.Color {
     if isResolved {
       return headerColor.opacity(0.3)
     }
-    return colorScheme == .dark
-      ? Color(white: 0.25)
-      : Color(white: 0.85)
+    return EaselChatRuntimeStyle.border(for: colorScheme)
   }
 
   // MARK: - Action Handlers
