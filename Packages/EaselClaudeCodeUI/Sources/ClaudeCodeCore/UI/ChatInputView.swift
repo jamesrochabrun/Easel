@@ -9,7 +9,6 @@ import SwiftUI
 import ClaudeCodeSDK
 import CCPermissionsServiceInterface
 import CCXcodeObserverServiceInterface
-import CCAccessibilityFoundation
 import Combine
 import UniformTypeIdentifiers
 
