@@ -170,7 +170,7 @@ extension ChatScreen {
         .padding(.vertical, 18)
         .frame(maxWidth: .infinity)
       }
-      .background(EaselChatRuntimeStyle.appBackground(for: colorScheme))
+      .background(EaselChatRuntimeStyle.appBackground(for: colorScheme, themeColors: appearanceSettings.themeColors))
       .onChange(of: viewModel.messages) { _,_ in
         // Scroll to bottom when new messages are added
         if let lastMessage = viewModel.messages.last {

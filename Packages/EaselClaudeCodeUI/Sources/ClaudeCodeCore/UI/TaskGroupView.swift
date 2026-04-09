@@ -18,6 +18,7 @@ struct TaskGroupView: View {
   let viewModel: ChatViewModel
   let showArtifact: ((Artifact) -> Void)?
   
+  @Environment(AppearanceSettings.self) private var appearanceSettings
   @Environment(\.colorScheme) private var colorScheme
   
   /// Gets the latest tool status (either executing or last completed)
@@ -118,12 +119,12 @@ struct TaskGroupView: View {
         } else if pairedToolMessages.count > 0 {
           Text("\(pairedToolMessages.count) tools")
             .font(.caption)
-            .foregroundStyle(EaselChatRuntimeStyle.secondaryText(for: colorScheme))
+            .foregroundStyle(EaselChatRuntimeStyle.secondaryText(for: colorScheme, themeColors: appearanceSettings.themeColors))
         }
       }
       .padding(.horizontal, 12)
       .padding(.vertical, 10)
-      .background(EaselChatRuntimeStyle.cardBackground(for: colorScheme), in: RoundedRectangle(cornerRadius: EaselChatRuntimeStyle.cardRadius))
+      .background(EaselChatRuntimeStyle.cardBackground(for: colorScheme, themeColors: appearanceSettings.themeColors), in: RoundedRectangle(cornerRadius: EaselChatRuntimeStyle.cardRadius))
       
       if !groupedMessages.isEmpty {
         VStack(alignment: .leading, spacing: 8) {

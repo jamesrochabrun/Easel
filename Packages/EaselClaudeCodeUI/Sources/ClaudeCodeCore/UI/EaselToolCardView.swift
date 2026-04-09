@@ -11,6 +11,7 @@ struct EaselToolCardView: View {
   let showArtifact: ((Artifact) -> Void)?
 
   @State private var textFormatter: TextFormatter
+  @Environment(AppearanceSettings.self) private var appearanceSettings
   @Environment(\.colorScheme) private var colorScheme
 
   init(
@@ -56,10 +57,10 @@ struct EaselToolCardView: View {
     }
     .padding(12)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(EaselChatRuntimeStyle.cardBackground(for: colorScheme), in: RoundedRectangle(cornerRadius: EaselChatRuntimeStyle.cardRadius))
+    .background(EaselChatRuntimeStyle.cardBackground(for: colorScheme, themeColors: appearanceSettings.themeColors), in: RoundedRectangle(cornerRadius: EaselChatRuntimeStyle.cardRadius))
     .overlay {
       RoundedRectangle(cornerRadius: EaselChatRuntimeStyle.cardRadius)
-        .stroke(EaselChatRuntimeStyle.border(for: colorScheme), lineWidth: 1)
+        .stroke(EaselChatRuntimeStyle.border(for: colorScheme, themeColors: appearanceSettings.themeColors), lineWidth: 1)
     }
   }
 
@@ -109,11 +110,11 @@ struct EaselToolCardView: View {
   private func previewBlock(_ preview: String) -> some View {
     Text(preview)
       .font(.system(size: fontSize - 1, design: .monospaced))
-      .foregroundStyle(EaselChatRuntimeStyle.secondaryText(for: colorScheme))
+      .foregroundStyle(EaselChatRuntimeStyle.secondaryText(for: colorScheme, themeColors: appearanceSettings.themeColors))
       .textSelection(.enabled)
       .padding(12)
       .frame(maxWidth: .infinity, alignment: .leading)
-      .background(EaselChatRuntimeStyle.subtleCardBackground(for: colorScheme), in: RoundedRectangle(cornerRadius: EaselChatRuntimeStyle.compactRadius))
+      .background(EaselChatRuntimeStyle.subtleCardBackground(for: colorScheme, themeColors: appearanceSettings.themeColors), in: RoundedRectangle(cornerRadius: EaselChatRuntimeStyle.compactRadius))
       .lineLimit(10)
   }
 

@@ -23,7 +23,7 @@ public final class AppearanceSettings {
   
   private enum Defaults {
     static let fontSize: Double = 12.0
-    static let theme: AppTheme = .claude
+    static let theme: AppTheme = .clear
     static let customPrimaryHex = "#7C3AED"   // purple
     static let customSecondaryHex = "#FFB000" // mustard
     static let customTertiaryHex = "#64748B"  // slate
@@ -57,6 +57,15 @@ public final class AppearanceSettings {
     didSet {
       UserDefaults.standard.set(customTertiaryHex, forKey: Keys.customTertiaryHex)
     }
+  }
+
+  var themeColors: ThemeColors {
+    ThemeColors.themeColors(
+      for: selectedTheme,
+      customPrimaryHex: customPrimaryHex,
+      customSecondaryHex: customSecondaryHex,
+      customTertiaryHex: customTertiaryHex
+    )
   }
   
   // MARK: - Initialization
