@@ -11,6 +11,7 @@ struct EaselToolCardView: View {
   let showArtifact: ((Artifact) -> Void)?
 
   @State private var textFormatter: TextFormatter
+  @State private var isExpanded: Bool
   @Environment(AppearanceSettings.self) private var appearanceSettings
   @Environment(\.colorScheme) private var colorScheme
 
@@ -33,6 +34,12 @@ struct EaselToolCardView: View {
 
     let projectRoot = settingsStorage.projectPath.isEmpty ? nil : URL(fileURLWithPath: settingsStorage.projectPath)
     _textFormatter = State(initialValue: TextFormatter(projectRoot: projectRoot))
+
+    // Default collapsed, but expand for tools that need immediate visibility
+    let toolName = toolUse.toolName ?? ""
+    let needsExpanded = ["TodoWrite", "ExitPlanMode", "exit_plan_mode"].contains(toolName)
+    let persisted = viewModel.messageExpansionStates[toolUse.id]
+    _isExpanded = State(initialValue: persisted ?? needsExpanded)
   }
 
   var body: some View {
@@ -46,47 +53,65 @@ struct EaselToolCardView: View {
   }
 
   private var toolCard: some View {
-    VStack(alignment: .leading, spacing: 8) {
+    VStack(alignment: .leading, spacing: EaselChatRuntimeStyle.Spacing.cardContentSpacing) {
       header
 
-      if shouldShowDetailedContent {
-        detailedContent
-      } else if let preview = presentation.preview {
-        previewBlock(preview)
+      if isExpanded {
+        if shouldShowDetailedContent {
+          detailedContent
+        } else if let preview = presentation.preview {
+          previewBlock(preview)
+        }
       }
     }
-    .padding(12)
+    .padding(isExpanded ? EaselChatRuntimeStyle.Spacing.cardPadding : EaselChatRuntimeStyle.Spacing.cardPaddingCompact)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(EaselChatRuntimeStyle.cardBackground(for: colorScheme, themeColors: appearanceSettings.themeColors), in: RoundedRectangle(cornerRadius: EaselChatRuntimeStyle.cardRadius))
     .overlay {
       RoundedRectangle(cornerRadius: EaselChatRuntimeStyle.cardRadius)
         .stroke(EaselChatRuntimeStyle.border(for: colorScheme, themeColors: appearanceSettings.themeColors), lineWidth: 1)
     }
+    .contentShape(Rectangle())
+    .onTapGesture {
+      withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+        isExpanded.toggle()
+        viewModel.messageExpansionStates[toolUse.id] = isExpanded
+      }
+    }
   }
 
   private var header: some View {
-    HStack(alignment: .center, spacing: 10) {
+    HStack(alignment: .center, spacing: EaselChatRuntimeStyle.Spacing.headerDotSpacing) {
       Circle()
         .fill(statusColor)
-        .frame(width: 6, height: 6)
+        .frame(width: EaselChatRuntimeStyle.Spacing.statusDotSize, height: EaselChatRuntimeStyle.Spacing.statusDotSize)
 
       VStack(alignment: .leading, spacing: 3) {
         Text(presentation.title)
-          .font(.callout.bold())
+          .font(EaselChatRuntimeStyle.Typography.primaryTitle)
           .foregroundStyle(.primary)
           .lineLimit(1)
           .truncationMode(.middle)
 
         Text(presentation.metadata)
-          .font(.caption)
+          .font(EaselChatRuntimeStyle.Typography.secondaryBody)
           .foregroundStyle(statusColor)
       }
 
       Spacer(minLength: 12)
 
-      Image(systemName: statusIcon)
-        .font(.system(size: 12, weight: .semibold))
-        .foregroundStyle(statusColor)
+      HStack(spacing: 6) {
+        Image(systemName: statusIcon)
+          .font(EaselChatRuntimeStyle.Typography.statusIcon)
+          .foregroundStyle(statusColor)
+
+        if hasExpandableContent {
+          Image(systemName: "chevron.right")
+            .font(.system(size: EaselChatRuntimeStyle.Spacing.chevronSize, weight: .medium))
+            .foregroundStyle(.secondary)
+            .rotationEffect(.degrees(isExpanded ? 90 : 0))
+        }
+      }
     }
   }
 
@@ -109,10 +134,10 @@ struct EaselToolCardView: View {
 
   private func previewBlock(_ preview: String) -> some View {
     Text(preview)
-      .font(.system(size: fontSize - 1, design: .monospaced))
+      .font(EaselChatRuntimeStyle.Typography.code(size: fontSize - 1))
       .foregroundStyle(EaselChatRuntimeStyle.secondaryText(for: colorScheme, themeColors: appearanceSettings.themeColors))
       .textSelection(.enabled)
-      .padding(12)
+      .padding(EaselChatRuntimeStyle.Spacing.previewPadding)
       .frame(maxWidth: .infinity, alignment: .leading)
       .background(EaselChatRuntimeStyle.subtleCardBackground(for: colorScheme, themeColors: appearanceSettings.themeColors), in: RoundedRectangle(cornerRadius: EaselChatRuntimeStyle.compactRadius))
       .lineLimit(10)
@@ -120,6 +145,10 @@ struct EaselToolCardView: View {
 
   private var presentation: EaselToolCardPresentation {
     EaselToolCardPresentation(toolUse: toolUse, toolResult: toolResult)
+  }
+
+  private var hasExpandableContent: Bool {
+    shouldShowDetailedContent || presentation.preview != nil
   }
 
   private var shouldShowDetailedContent: Bool {

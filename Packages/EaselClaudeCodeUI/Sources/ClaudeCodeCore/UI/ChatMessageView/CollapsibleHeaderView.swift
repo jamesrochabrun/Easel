@@ -13,23 +13,23 @@ struct CollapsibleHeaderView: View {
   @Environment(\.colorScheme) private var colorScheme
   
   var body: some View {
-    HStack(spacing: 12) {
+    HStack(spacing: EaselChatRuntimeStyle.Spacing.headerDotSpacing) {
       // Tool icon
       Image(systemName: toolIcon)
-        .font(.system(size: 14))
+        .font(EaselChatRuntimeStyle.Typography.toolIcon)
         .foregroundStyle(statusColor)
         .frame(width: 20, height: 20)
-      
+
       // Message type label
       Text(headerText)
-        .font(.system(size: fontSize - 1, design: .monospaced))
+        .font(EaselChatRuntimeStyle.Typography.code(size: fontSize - 1))
         .foregroundStyle(.primary)
-      
+
       Spacer()
-      
+
       // Expand/collapse chevron
       Image(systemName: "chevron.right")
-        .font(.system(size: 12, weight: .medium))
+        .font(.system(size: EaselChatRuntimeStyle.Spacing.chevronSize, weight: .medium))
         .foregroundStyle(.secondary)
         .rotationEffect(.degrees(isExpanded.wrappedValue ? 90 : 0))
     }

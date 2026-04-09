@@ -102,7 +102,7 @@ struct ChatMessageView: View {
       modernMessageContent
       Spacer(minLength: 0)
     }
-    .padding(.vertical, 2)
+    .padding(.vertical, EaselChatRuntimeStyle.Spacing.messageRowVertical)
     .onHover { hovering in
       withAnimation(.easeInOut(duration: 0.2)) {
         isHovered = hovering

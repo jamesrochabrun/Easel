@@ -6,6 +6,41 @@ enum EaselChatRuntimeStyle {
   static let cardRadius: CGFloat = 8
   static let compactRadius: CGFloat = 6
 
+  // MARK: - Typography
+
+  enum Typography {
+    static let primaryTitle: Font = .callout.bold()
+    static let secondaryBody: Font = .caption
+    static let tertiaryCaption: Font = .caption2
+    static let assistantLabel: Font = .caption.bold()
+    static let statusIcon: Font = .system(size: 10, weight: .semibold)
+    static let toolIcon: Font = .system(size: 13)
+
+    static func code(size: CGFloat) -> Font {
+      .system(size: size, design: .monospaced)
+    }
+
+    static func codeBold(size: CGFloat) -> Font {
+      .system(size: size, weight: .semibold, design: .monospaced)
+    }
+  }
+
+  // MARK: - Spacing
+
+  enum Spacing {
+    static let cardPadding: CGFloat = 10
+    static let cardPaddingCompact: CGFloat = 8
+    static let previewPadding: CGFloat = 10
+    static let cardContentSpacing: CGFloat = 6
+    static let messageListSpacing: CGFloat = 6
+    static let messageRowVertical: CGFloat = 1
+    static let taskHeaderHorizontal: CGFloat = 10
+    static let taskHeaderVertical: CGFloat = 8
+    static let headerDotSpacing: CGFloat = 8
+    static let statusDotSize: CGFloat = 6
+    static let chevronSize: CGFloat = 10
+  }
+
   static func appBackground(for colorScheme: ColorScheme, themeColors: ThemeColors = .current) -> Color {
     switch colorScheme {
     case .dark:
