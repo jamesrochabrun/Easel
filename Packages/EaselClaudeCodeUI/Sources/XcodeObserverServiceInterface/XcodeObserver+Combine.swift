@@ -1,4 +1,4 @@
-import CCAccessibilityFoundation
+import CCAccessibilityServiceInterface
 @preconcurrency import Combine
 
 extension XcodeObserver {

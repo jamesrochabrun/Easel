@@ -1,5 +1,5 @@
+import CCAccessibilityServiceInterface
 import Foundation
-import CCAccessibilityFoundation
 
 // MARK: - SourceLineAnnotation
 

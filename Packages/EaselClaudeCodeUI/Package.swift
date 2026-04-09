@@ -27,11 +27,6 @@ let package = Package(
         .package(url: "https://github.com/stephencelis/SQLite.swift", from: "0.15.3"),
     ],
     targets: [
-        // Foundation modules (no dependencies)
-        .target(
-            name: "CCAccessibilityFoundation",
-            path: "Sources/AccessibilityFoundation"
-        ),
         .target(
             name: "CCAccessibilityServiceInterface",
             path: "Sources/AccessibilityServiceInterface"
@@ -55,7 +50,7 @@ let package = Package(
         // Modules with single dependencies
         .target(
             name: "CCXcodeObserverServiceInterface",
-            dependencies: ["CCAccessibilityFoundation"],
+            dependencies: ["CCAccessibilityServiceInterface"],
             path: "Sources/XcodeObserverServiceInterface"
         ),
         .target(
@@ -78,7 +73,6 @@ let package = Package(
         .target(
             name: "CCAccessibilityService",
             dependencies: [
-                "CCAccessibilityFoundation",
                 "CCAccessibilityServiceInterface"
             ],
             path: "Sources/AccessibilityService"
@@ -94,7 +88,6 @@ let package = Package(
         .target(
             name: "CCXcodeObserverService",
             dependencies: [
-                "CCAccessibilityFoundation",
                 "CCAccessibilityServiceInterface",
                 "CCPermissionsServiceInterface",
                 "CCXcodeObserverServiceInterface"
@@ -119,7 +112,6 @@ let package = Package(
                 .product(name: "PierreDiffsSwift", package: "PierreDiffsSwift"),
 
                 // Internal module dependencies
-                "CCAccessibilityFoundation",
                 "CCAccessibilityService",
                 "CCAccessibilityServiceInterface",
                 "CCCustomPermissionService",
