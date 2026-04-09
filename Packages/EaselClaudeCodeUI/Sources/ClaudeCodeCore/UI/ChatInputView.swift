@@ -24,6 +24,7 @@ struct ChatInputView: View {
   let uiConfiguration: UIConfiguration
   
   @Environment(GlobalPreferencesStorage.self) private var globalPreferences
+  @Environment(AppearanceSettings.self) private var appearanceSettings
   @Environment(\.colorScheme) private var colorScheme
   
   @FocusState private var isFocused: Bool
@@ -185,7 +186,7 @@ struct ChatInputView: View {
       .padding(.top, 8)
       .padding(.bottom, 12)
       .frame(maxWidth: .infinity)
-      .background(EaselChatRuntimeStyle.appBackground(for: colorScheme))
+      .background(EaselChatRuntimeStyle.appBackground(for: colorScheme, themeColors: appearanceSettings.themeColors))
     }
     .animation(.easeInOut(duration: 0.2), value: showingFileSearch)
     .animation(.easeInOut(duration: 0.2), value: xcodeObservationViewModel.workspaceModel.activeFile?.name)

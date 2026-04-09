@@ -10,6 +10,7 @@ struct EaselChatHeaderView: View {
   let onClearChat: () -> Void
   let onShowSettings: () -> Void
 
+  @Environment(AppearanceSettings.self) private var appearanceSettings
   @Environment(\.colorScheme) private var colorScheme
 
   var body: some View {
@@ -18,7 +19,7 @@ struct EaselChatHeaderView: View {
         .labelStyle(.iconOnly)
         .font(.system(size: 14, weight: .medium))
         .buttonStyle(.plain)
-        .foregroundStyle(EaselChatRuntimeStyle.secondaryText(for: colorScheme))
+        .foregroundStyle(EaselChatRuntimeStyle.secondaryText(for: colorScheme, themeColors: appearanceSettings.themeColors))
         .frame(width: 32, height: 32)
 
       Spacer()
@@ -33,7 +34,7 @@ struct EaselChatHeaderView: View {
     }
     .padding(.horizontal, 14)
     .padding(.vertical, 10)
-    .background(EaselChatRuntimeStyle.appBackground(for: colorScheme))
+    .background(EaselChatRuntimeStyle.appBackground(for: colorScheme, themeColors: appearanceSettings.themeColors))
   }
 
   private var headerMenu: some View {
@@ -51,9 +52,9 @@ struct EaselChatHeaderView: View {
     } label: {
       Text(avatarInitial)
         .font(.system(size: 13, weight: .bold))
-        .foregroundStyle(EaselChatRuntimeStyle.userText(for: colorScheme))
+        .foregroundStyle(EaselChatRuntimeStyle.userText(for: colorScheme, themeColors: appearanceSettings.themeColors))
         .frame(width: 30, height: 30)
-        .background(EaselChatRuntimeStyle.userBubble(for: colorScheme), in: Circle())
+        .background(EaselChatRuntimeStyle.userBubble(for: colorScheme, themeColors: appearanceSettings.themeColors), in: Circle())
     }
     .menuStyle(.borderlessButton)
     .menuIndicator(.hidden)

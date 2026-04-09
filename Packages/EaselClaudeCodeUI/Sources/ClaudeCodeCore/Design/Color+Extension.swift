@@ -8,6 +8,7 @@ import AppKit
 
 /// Available app themes
 public enum AppTheme: String, CaseIterable, Identifiable {
+  case clear = "clear"
   case claude = "claude"
   case bat = "bat"
   case xcode = "Blue"
@@ -17,6 +18,7 @@ public enum AppTheme: String, CaseIterable, Identifiable {
   
   public var displayName: String {
     switch self {
+    case .clear: return "Clear"
     case .claude: return "Claude"
     case .bat: return "Bat"
     case .xcode: return "Blue"
@@ -26,6 +28,7 @@ public enum AppTheme: String, CaseIterable, Identifiable {
   
   public var description: String {
     switch self {
+    case .clear: return "Clean neutral grays"
     case .claude: return "Warm earth tones"
     case .bat: return "Purple with mustard accents"
     case .xcode: return "Cool blues"
@@ -44,6 +47,57 @@ public struct ThemeColors {
     self.brandPrimary = brandPrimary
     self.brandSecondary = brandSecondary
     self.brandTertiary = brandTertiary
+  }
+
+  static var current: ThemeColors {
+    let selectedTheme = UserDefaults.standard.string(forKey: "selectedTheme") ?? AppTheme.clear.rawValue
+    let theme = AppTheme(rawValue: selectedTheme) ?? .clear
+    return themeColors(
+      for: theme,
+      customPrimaryHex: UserDefaults.standard.string(forKey: "customPrimaryHex"),
+      customSecondaryHex: UserDefaults.standard.string(forKey: "customSecondaryHex"),
+      customTertiaryHex: UserDefaults.standard.string(forKey: "customTertiaryHex")
+    )
+  }
+
+  static func themeColors(
+    for theme: AppTheme,
+    customPrimaryHex: String? = nil,
+    customSecondaryHex: String? = nil,
+    customTertiaryHex: String? = nil
+  ) -> ThemeColors {
+    switch theme {
+    case .clear:
+      return ThemeColors(
+        brandPrimary: Color(hex: "#1F2937"),
+        brandSecondary: Color(hex: "#6B7280"),
+        brandTertiary: Color(hex: "#D1D5DB")
+      )
+    case .claude:
+      return ThemeColors(
+        brandPrimary: Color(hex: "#CC785C"),
+        brandSecondary: Color(hex: "#D4A27F"),
+        brandTertiary: Color(hex: "#EBDBBC")
+      )
+    case .bat:
+      return ThemeColors(
+        brandPrimary: Color(hex: "#7C3AED"),
+        brandSecondary: Color(hex: "#FFB000"),
+        brandTertiary: Color(hex: "#64748B")
+      )
+    case .xcode:
+      return ThemeColors(
+        brandPrimary: Color(nsColor: .systemBlue),
+        brandSecondary: Color(nsColor: .systemIndigo),
+        brandTertiary: Color(nsColor: .systemTeal)
+      )
+    case .custom:
+      return ThemeColors(
+        brandPrimary: Color(hex: customPrimaryHex ?? "#7C3AED"),
+        brandSecondary: Color(hex: customSecondaryHex ?? "#FFB000"),
+        brandTertiary: Color(hex: customTertiaryHex ?? "#64748B")
+      )
+    }
   }
 }
 
@@ -85,58 +139,17 @@ extension Color {
   static let manilla = Color(hex: "#EBDBBC")
   
   // MARK: - Theme-Aware Brand Colors
-  
+
   static var brandPrimary: Color {
-    getCurrentThemeColors().brandPrimary
+    ThemeColors.current.brandPrimary
   }
-  
+
   static var brandSecondary: Color {
-    getCurrentThemeColors().brandSecondary
+    ThemeColors.current.brandSecondary
   }
-  
+
   static var brandTertiary: Color {
-    getCurrentThemeColors().brandTertiary
-  }
-  
-  // MARK: - Theme Colors Helper
-  
-  private static func getCurrentThemeColors() -> ThemeColors {
-    let selectedTheme = UserDefaults.standard.string(forKey: "selectedTheme") ?? "claude"
-    let theme = AppTheme(rawValue: selectedTheme) ?? .claude
-    
-    switch theme {
-    case .claude:
-      return ThemeColors(
-        brandPrimary: Color(hex: "#CC785C"),   // bookCloth
-        brandSecondary: Color(hex: "#D4A27F"), // kraft
-        brandTertiary: Color(hex: "#EBDBBC")   // manilla
-      )
-    case .bat:
-      // Bat: purple primary, real mustard secondary, slate tertiary
-      return ThemeColors(
-        brandPrimary: Color(hex: "#7C3AED"),   // deep purple
-        brandSecondary: Color(hex: "#FFB000"), // mustard
-        brandTertiary: Color(hex: "#64748B")  // slate gray
-      )
-    case .xcode:
-      // Xcode: dynamic system colors inspired by Xcode syntax highlights
-      // Use system variants to adapt to light/dark automatically
-      return ThemeColors(
-        brandPrimary: Color(nsColor: .systemBlue),
-        brandSecondary: Color(nsColor: .systemIndigo),
-        brandTertiary: Color(nsColor: .systemTeal)
-      )
-    case .custom:
-      // Read user-defined custom palette from UserDefaults (hex strings)
-      let primary = UserDefaults.standard.string(forKey: "customPrimaryHex") ?? "#7C3AED"
-      let secondary = UserDefaults.standard.string(forKey: "customSecondaryHex") ?? "#FFB000"
-      let tertiary = UserDefaults.standard.string(forKey: "customTertiaryHex") ?? "#64748B"
-      return ThemeColors(
-        brandPrimary: Color(hex: primary),
-        brandSecondary: Color(hex: secondary),
-        brandTertiary: Color(hex: tertiary)
-      )
-    }
+    ThemeColors.current.brandTertiary
   }
   static let backgroundDark = Color(hex: "#262624")
   static let backgroundLight = Color(hex: "#FAF9F5")

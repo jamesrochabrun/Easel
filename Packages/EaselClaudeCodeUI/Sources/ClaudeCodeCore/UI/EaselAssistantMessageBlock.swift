@@ -18,14 +18,14 @@ struct EaselAssistantMessageBlock<Content: View>: View {
   }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      HStack(spacing: 6) {
+    VStack(alignment: .leading, spacing: EaselChatRuntimeStyle.Spacing.cardContentSpacing) {
+      HStack(spacing: EaselChatRuntimeStyle.Spacing.cardContentSpacing) {
         Circle()
           .fill(.primary)
           .frame(width: 5, height: 5)
 
         Text(assistantName)
-          .font(.caption.bold())
+          .font(EaselChatRuntimeStyle.Typography.assistantLabel)
           .foregroundStyle(EaselChatRuntimeStyle.secondaryText(for: colorScheme))
       }
 

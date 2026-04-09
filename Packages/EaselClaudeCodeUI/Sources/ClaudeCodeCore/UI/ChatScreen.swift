@@ -126,29 +126,10 @@ public struct ChatScreen: View {
   /// Global preferences storage for observing default working directory changes
   @Environment(GlobalPreferencesStorage.self) var globalPreferences
   @Environment(\.colorScheme) var colorScheme
+  @State var appearanceSettings = AppearanceSettings()
 
   public var body: some View {
     VStack(spacing: 0) {
-      EaselChatHeaderView(
-        title: uiConfiguration.appName,
-        canContinueSession: viewModel.activeSessionId != nil,
-        canClearChat: !viewModel.messages.isEmpty,
-        showSettings: uiConfiguration.showSettingsInNavBar,
-        onToggleSidebar: toggleSidebar,
-        onContinueSession: {
-          showSessionOptions = true
-        },
-        onClearChat: {
-          showDeleteConfirmation = true
-        },
-        onShowSettings: {
-          settingsTypeToShow = .global
-          showingSettings = true
-        }
-      )
-
-      Divider()
-
       messagesListView
       
       // Loading indicator
@@ -164,7 +145,8 @@ public struct ChatScreen: View {
         placeholder: "Message \(uiConfiguration.appName)...",
         triggerFocus: $triggerTextEditorFocus)
     }
-    .background(EaselChatRuntimeStyle.appBackground(for: colorScheme))
+    .background(EaselChatRuntimeStyle.appBackground(for: colorScheme, themeColors: appearanceSettings.themeColors))
+    .environment(appearanceSettings)
     .onKeyPress { key in
       // Check for Shift+Tab to cycle permission modes
       if key.modifiers == [.shift] && key.key.character == "\u{19}" {
@@ -427,19 +409,6 @@ public struct ChatScreen: View {
       viewModel.errorInfo = ErrorInfo.fileError(error, fileName: "Terminal launch")
       viewModel.errorQueue.append(viewModel.errorInfo!)
     } else {
-    }
-  }
-  
-  private func toggleSidebar() {
-    withAnimation {
-      switch columnVisibility {
-      case .all:
-        columnVisibility = .detailOnly
-      case .detailOnly:
-        columnVisibility = .all
-      default:
-        columnVisibility = .all
-      }
     }
   }
 }

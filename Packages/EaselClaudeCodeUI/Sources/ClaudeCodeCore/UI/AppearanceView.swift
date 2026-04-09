@@ -152,6 +152,12 @@ struct AppearanceView: View {
   // MARK: - Helper Methods
   private func getThemeColors(for theme: AppTheme) -> ThemeColors {
     switch theme {
+    case .clear:
+      return ThemeColors(
+        brandPrimary: Color(hex: "#1F2937"),
+        brandSecondary: Color(hex: "#6B7280"),
+        brandTertiary: Color(hex: "#D1D5DB")
+      )
     case .claude:
       return ThemeColors(
         brandPrimary: Color(hex: "#CC785C"),

@@ -137,7 +137,7 @@ extension ChatScreen {
   var messagesListView: some View {
     ScrollViewReader { scrollView in
       ScrollView {
-        LazyVStack(alignment: .leading, spacing: 10) {
+        LazyVStack(alignment: .leading, spacing: EaselChatRuntimeStyle.Spacing.messageListSpacing) {
           if viewModel.messages.isEmpty || shouldShowSettingsButton {
             WelcomeRow(
               path: effectiveWorkingDirectory,
@@ -170,7 +170,7 @@ extension ChatScreen {
         .padding(.vertical, 18)
         .frame(maxWidth: .infinity)
       }
-      .background(EaselChatRuntimeStyle.appBackground(for: colorScheme))
+      .background(EaselChatRuntimeStyle.appBackground(for: colorScheme, themeColors: appearanceSettings.themeColors))
       .onChange(of: viewModel.messages) { _,_ in
         // Scroll to bottom when new messages are added
         if let lastMessage = viewModel.messages.last {

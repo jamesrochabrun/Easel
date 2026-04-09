@@ -137,7 +137,7 @@ final class WindowController: NSObject, WindowControlling, NSWindowDelegate {
       contentRect: .zero,
       styleMask: [.titled, .closable, .miniaturizable, .resizable],
       backing: .buffered,
-      defer: false
+      defer: true
     )
     window.title = "Easel"
     window.isReleasedWhenClosed = false

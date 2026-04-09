@@ -32,6 +32,7 @@ struct ChatMessageView: View {
   /// updates for streaming messages. Set to true after the first content ingestion.
   @State private var hasProcessedInitialContent = false
   
+  @Environment(AppearanceSettings.self) private var appearanceSettings
   @Environment(\.colorScheme) private var colorScheme
   
   init(
@@ -101,7 +102,7 @@ struct ChatMessageView: View {
       modernMessageContent
       Spacer(minLength: 0)
     }
-    .padding(.vertical, 2)
+    .padding(.vertical, EaselChatRuntimeStyle.Spacing.messageRowVertical)
     .onHover { hovering in
       withAnimation(.easeInOut(duration: 0.2)) {
         isHovered = hovering
@@ -340,11 +341,11 @@ struct ChatMessageView: View {
   }
   
   private var contentBackgroundColor: SwiftUI.Color {
-    EaselChatRuntimeStyle.subtleCardBackground(for: colorScheme)
+    EaselChatRuntimeStyle.subtleCardBackground(for: colorScheme, themeColors: appearanceSettings.themeColors)
   }
   
   private var borderColor: SwiftUI.Color {
-    EaselChatRuntimeStyle.border(for: colorScheme)
+    EaselChatRuntimeStyle.border(for: colorScheme, themeColors: appearanceSettings.themeColors)
   }
   
   // MARK: - Context Menu

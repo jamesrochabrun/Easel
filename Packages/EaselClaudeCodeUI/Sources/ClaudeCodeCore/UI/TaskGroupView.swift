@@ -18,6 +18,7 @@ struct TaskGroupView: View {
   let viewModel: ChatViewModel
   let showArtifact: ((Artifact) -> Void)?
   
+  @Environment(AppearanceSettings.self) private var appearanceSettings
   @Environment(\.colorScheme) private var colorScheme
   
   /// Gets the latest tool status (either executing or last completed)
@@ -92,41 +93,41 @@ struct TaskGroupView: View {
   }
   
   var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      HStack(spacing: 8) {
+    VStack(alignment: .leading, spacing: EaselChatRuntimeStyle.Spacing.cardContentSpacing) {
+      HStack(spacing: EaselChatRuntimeStyle.Spacing.headerDotSpacing) {
         Circle()
           .fill(EaselChatRuntimeStyle.completed)
-          .frame(width: 6, height: 6)
+          .frame(width: EaselChatRuntimeStyle.Spacing.statusDotSize, height: EaselChatRuntimeStyle.Spacing.statusDotSize)
 
         if let toolInputData = taskMessage.toolInputData,
            let description = toolInputData.parameters["description"] {
           Text(description)
-            .font(.callout.bold())
+            .font(EaselChatRuntimeStyle.Typography.primaryTitle)
             .foregroundStyle(.primary)
         } else {
           Text("Task runner")
-            .font(.callout.bold())
+            .font(EaselChatRuntimeStyle.Typography.primaryTitle)
             .foregroundStyle(.primary)
         }
-        
+
         Spacer()
 
         if let status = latestToolStatus, status.isExecuting {
           Text("running")
-            .font(.caption)
+            .font(EaselChatRuntimeStyle.Typography.secondaryBody)
             .foregroundStyle(EaselChatRuntimeStyle.running)
         } else if pairedToolMessages.count > 0 {
           Text("\(pairedToolMessages.count) tools")
-            .font(.caption)
-            .foregroundStyle(EaselChatRuntimeStyle.secondaryText(for: colorScheme))
+            .font(EaselChatRuntimeStyle.Typography.secondaryBody)
+            .foregroundStyle(EaselChatRuntimeStyle.secondaryText(for: colorScheme, themeColors: appearanceSettings.themeColors))
         }
       }
-      .padding(.horizontal, 12)
-      .padding(.vertical, 10)
-      .background(EaselChatRuntimeStyle.cardBackground(for: colorScheme), in: RoundedRectangle(cornerRadius: EaselChatRuntimeStyle.cardRadius))
+      .padding(.horizontal, EaselChatRuntimeStyle.Spacing.taskHeaderHorizontal)
+      .padding(.vertical, EaselChatRuntimeStyle.Spacing.taskHeaderVertical)
+      .background(EaselChatRuntimeStyle.cardBackground(for: colorScheme, themeColors: appearanceSettings.themeColors), in: RoundedRectangle(cornerRadius: EaselChatRuntimeStyle.cardRadius))
       
       if !groupedMessages.isEmpty {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: EaselChatRuntimeStyle.Spacing.cardContentSpacing) {
           ForEach(Array(pairedToolMessages.enumerated()), id: \.offset) { _, pair in
             EaselToolCardView(
               toolUse: pair.toolUse,
@@ -144,7 +145,7 @@ struct TaskGroupView: View {
       // Show cancelled indicator if the task was cancelled
       if taskMessage.wasCancelled {
         Text("Interrupted by user")
-          .font(.caption)
+          .font(EaselChatRuntimeStyle.Typography.secondaryBody)
           .foregroundStyle(EaselChatRuntimeStyle.failed)
           .padding(.horizontal, 12)
           .padding(.vertical, 4)
