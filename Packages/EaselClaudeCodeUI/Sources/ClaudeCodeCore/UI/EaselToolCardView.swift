@@ -95,22 +95,16 @@ struct EaselToolCardView: View {
 
         Text(presentation.metadata)
           .font(EaselChatRuntimeStyle.Typography.secondaryBody)
-          .foregroundStyle(statusColor)
+          .foregroundStyle(EaselChatRuntimeStyle.secondaryText(for: colorScheme, themeColors: appearanceSettings.themeColors))
       }
 
       Spacer(minLength: 12)
 
-      HStack(spacing: 6) {
-        Image(systemName: statusIcon)
-          .font(EaselChatRuntimeStyle.Typography.statusIcon)
-          .foregroundStyle(statusColor)
-
-        if hasExpandableContent {
-          Image(systemName: "chevron.right")
-            .font(.system(size: EaselChatRuntimeStyle.Spacing.chevronSize, weight: .medium))
-            .foregroundStyle(.secondary)
-            .rotationEffect(.degrees(isExpanded ? 90 : 0))
-        }
+      if hasExpandableContent {
+        Image(systemName: "chevron.right")
+          .font(.system(size: EaselChatRuntimeStyle.Spacing.chevronSize, weight: .medium))
+          .foregroundStyle(EaselChatRuntimeStyle.secondaryText(for: colorScheme, themeColors: appearanceSettings.themeColors))
+          .rotationEffect(.degrees(isExpanded ? 90 : 0))
       }
     }
   }
@@ -170,16 +164,4 @@ struct EaselToolCardView: View {
     }
   }
 
-  private var statusIcon: String {
-    switch presentation.status {
-    case .running:
-      return "circle"
-    case .completed:
-      return "checkmark"
-    case .failed:
-      return "xmark"
-    case .denied:
-      return "minus"
-    }
-  }
 }
