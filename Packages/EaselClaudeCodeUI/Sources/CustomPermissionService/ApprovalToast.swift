@@ -1,5 +1,6 @@
 import CCCustomPermissionServiceInterface
 import SwiftUI
+import AppKit
 import Foundation
 
 // MARK: - ApprovalToast
@@ -37,10 +38,10 @@ public struct ApprovalToast: View {
         expandableDetailsView
       }
     }
-    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+    .background(cardBackground, in: RoundedRectangle(cornerRadius: 8))
     .overlay(
-      RoundedRectangle(cornerRadius: 12)
-        .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+      RoundedRectangle(cornerRadius: 8)
+        .stroke(borderColor, lineWidth: 1)
     )
     .onTapGesture {
       withAnimation(.easeInOut(duration: 0.2)) {
@@ -71,15 +72,14 @@ public struct ApprovalToast: View {
   @State private var denyGuidance = ""
   @FocusState private var isFocused: Bool
   @FocusState private var isGuidanceFocused: Bool
+  @Environment(\.colorScheme) private var colorScheme
 
   private var isEditTool: Bool {
-    // Check if this is an Edit, MultiEdit, or Write tool
     ["Edit", "MultiEdit", "Write"].contains(request.toolName)
   }
 
   /// Extracts the most relevant parameter to display for this tool type
   private func extractRelevantParameter() -> (key: String, value: String)? {
-    // Define tool-specific parameter priorities
     let parameterKey: String
     switch request.toolName.lowercased() {
     case "bash":
@@ -87,14 +87,11 @@ public struct ApprovalToast: View {
     case "edit", "write", "read", "multiedit":
       parameterKey = "file_path"
     default:
-      // For other tools, use the first available parameter
       guard let firstKey = request.input.keys.sorted().first else { return nil }
       parameterKey = firstKey
     }
 
-    // Get the value for the selected parameter
     guard let value = request.input[parameterKey] else {
-      // Fallback to first available parameter if the expected one doesn't exist
       guard let firstKey = request.input.keys.sorted().first,
             let firstValue = request.input[firstKey] else {
         return nil
@@ -105,14 +102,44 @@ public struct ApprovalToast: View {
     return (key: parameterKey, value: value.description)
   }
 
+  // MARK: - Theme Colors (matches EaselChatRuntimeStyle values)
+
+  private var cardBackground: Color {
+    colorScheme == .dark
+      ? Color(nsColor: NSColor(srgbRed: 0.14, green: 0.14, blue: 0.14, alpha: 1))
+      : Color(nsColor: NSColor(srgbRed: 0.95, green: 0.95, blue: 0.95, alpha: 1))
+  }
+
+  private var subtleBackground: Color {
+    colorScheme == .dark
+      ? Color(nsColor: NSColor(srgbRed: 0.11, green: 0.11, blue: 0.11, alpha: 1))
+      : Color(nsColor: NSColor(srgbRed: 0.98, green: 0.98, blue: 0.98, alpha: 1))
+  }
+
+  private var borderColor: Color {
+    colorScheme == .dark
+      ? Color.white.opacity(0.10)
+      : Color.black.opacity(0.06)
+  }
+
+  private var secondaryText: Color {
+    colorScheme == .dark ? Color.white.opacity(0.58) : Color.black.opacity(0.46)
+  }
+
+  private var tertiaryText: Color {
+    colorScheme == .dark ? Color.white.opacity(0.38) : Color.black.opacity(0.28)
+  }
+
+  // MARK: - Main Layout
+
   private var mainCompactView: some View {
-    HStack(spacing: 12) {
+    HStack(spacing: 8) {
       riskIndicator
       toolInfoSection
+      Spacer(minLength: 8)
       actionButtonsSection
     }
-    .padding(.horizontal, 16)
-    .padding(.vertical, 12)
+    .padding(10)
   }
 
   private var riskIndicator: some View {
@@ -122,189 +149,179 @@ public struct ApprovalToast: View {
   }
 
   private var toolInfoSection: some View {
-    VStack(alignment: .leading, spacing: 2) {
-      HStack {
-        Text("Permission Request")
-          .font(.system(size: 13, weight: .medium))
+    VStack(alignment: .leading, spacing: 3) {
+      HStack(spacing: 6) {
+        Text("Allow \(request.toolName)?")
+          .font(.callout.bold())
+          .foregroundStyle(.primary)
 
         if queueCount > 0 {
-          Text("(\(queueCount) more pending)")
-            .font(.system(size: 11))
-            .foregroundColor(.secondary)
-        }
-
-        Spacer()
-
-        if showRiskData {
-          Text(request.context?.riskLevel.displayName ?? "Unknown")
-            .font(.system(size: 11))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(riskColor.opacity(0.2))
-            .foregroundColor(riskColor)
-            .cornerRadius(4)
+          Text("+\(queueCount) pending")
+            .font(.caption2)
+            .foregroundStyle(tertiaryText)
         }
       }
 
-      Text(request.toolName)
-        .font(.system(size: 12))
-        .foregroundColor(.secondary)
-
-      // Show the most relevant parameter detail
       if let parameter = extractRelevantParameter() {
-        parameterDetailView(value: parameter.value)
+        Text(parameter.value)
+          .font(.system(size: 11, design: .monospaced))
+          .foregroundStyle(secondaryText)
+          .lineLimit(2)
+          .truncationMode(.middle)
       }
     }
   }
 
-  /// View for displaying the key parameter detail in collapsed state
-  private func parameterDetailView(value: String) -> some View {
-    Text(value)
-      .font(.system(size: 11, design: .monospaced))
-      .foregroundColor(.secondary.opacity(0.8))
-      .lineLimit(3)
-      .truncationMode(.tail)
-      .padding(.top, 2)
-  }
-
   private var actionButtonsSection: some View {
-    HStack(spacing: 8) {
+    HStack(spacing: 6) {
       Button(action: {
         if isEditTool {
-          // For edit tools, show guidance input
           withAnimation(.easeInOut(duration: 0.2)) {
             showGuidanceInput = true
             showDetails = true
           }
-          // Focus the guidance input field
           DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             isGuidanceFocused = true
           }
         } else {
-          // For other tools, deny immediately
           onDeny()
         }
       }) {
-        HStack(spacing: 4) {
-          Text(isEditTool ? "Deny & Guide" : "Deny")
-          Text("(esc)")
-            .font(.system(size: 10))
-            .foregroundColor(.secondary)
+        HStack(spacing: 3) {
+          Text("Deny")
+            .font(.caption)
+          Text("esc")
+            .font(.caption2)
+            .foregroundStyle(tertiaryText)
         }
       }
-      .buttonStyle(.bordered)
-      .controlSize(.regular)
+      .buttonStyle(.plain)
+      .foregroundStyle(secondaryText)
+      .padding(.horizontal, 10)
+      .padding(.vertical, 6)
+      .background(subtleBackground, in: RoundedRectangle(cornerRadius: 6))
+      .overlay(
+        RoundedRectangle(cornerRadius: 6)
+          .stroke(borderColor, lineWidth: 1)
+      )
       .keyboardShortcut(.escape, modifiers: [])
 
       Button(action: {
         onApprove()
       }) {
-        HStack(spacing: 4) {
-          Text("Approve")
-          Text("(⏎)")
-            .font(.system(size: 10))
-            .foregroundColor(.secondary)
+        HStack(spacing: 3) {
+          Text("Allow")
+            .font(.caption.bold())
+          Text("\u{23CE}")
+            .font(.caption2)
+            .foregroundStyle(.white.opacity(0.6))
         }
       }
       .buttonStyle(.borderedProminent)
-      .controlSize(.regular)
+      .controlSize(.small)
+      .tint(Color(red: 52 / 255, green: 211 / 255, blue: 128 / 255))
       .keyboardShortcut(.defaultAction)
     }
   }
 
+  // MARK: - Expandable Details
+
   private var expandableDetailsView: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Divider()
+    VStack(alignment: .leading, spacing: 6) {
+      Rectangle()
+        .fill(borderColor)
+        .frame(height: 1)
 
       if let description = request.context?.description {
         Text(description)
-          .font(.system(size: 12))
-          .foregroundColor(.secondary)
+          .font(.caption)
+          .foregroundStyle(secondaryText)
       }
 
       if !request.input.isEmpty {
         parametersSection
       }
 
-      // Show guidance input for Edit tools when denying
       if showGuidanceInput && isEditTool {
         guidanceInputSection
       }
     }
-    .padding(.horizontal, 16)
-    .padding(.bottom, 12)
+    .padding(.horizontal, 10)
+    .padding(.bottom, 10)
   }
 
   private var parametersSection: some View {
-    VStack(alignment: .leading, spacing: 4) {
-      Text("Parameters:")
-        .font(.system(size: 11, weight: .medium))
+    VStack(alignment: .leading, spacing: 3) {
+      Text("Parameters")
+        .font(.caption.bold())
+        .foregroundStyle(secondaryText)
 
       ForEach(Array(request.input.keys.prefix(3).sorted()), id: \.self) { key in
-        HStack {
+        HStack(spacing: 4) {
           Text("\(key):")
-            .font(.system(size: 10))
-            .foregroundColor(.secondary)
+            .font(.system(size: 10, design: .monospaced))
+            .foregroundStyle(tertiaryText)
           Text(request.input[key]?.description ?? "")
-            .font(.system(size: 10))
-            .foregroundColor(.secondary)
+            .font(.system(size: 10, design: .monospaced))
+            .foregroundStyle(secondaryText)
             .lineLimit(1)
             .truncationMode(.tail)
         }
       }
 
       if request.input.count > 3 {
-        Text("... and \(request.input.count - 3) more")
-          .font(.system(size: 10))
-          .foregroundColor(Color.secondary)
+        Text("+ \(request.input.count - 3) more")
+          .font(.caption2)
+          .foregroundStyle(tertiaryText)
       }
     }
   }
 
   private var guidanceInputSection: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Text("Tell Claude what to do instead:")
-        .font(.system(size: 11, weight: .medium))
-        .foregroundColor(.secondary)
+    VStack(alignment: .leading, spacing: 6) {
+      Text("What should be done instead?")
+        .font(.caption.bold())
+        .foregroundStyle(secondaryText)
 
-      HStack {
-        TextField("e.g., Create a new file instead, or Use a different approach...", text: $denyGuidance)
+      HStack(spacing: 6) {
+        TextField("e.g., Use a different approach...", text: $denyGuidance)
           .textFieldStyle(.roundedBorder)
-          .font(.system(size: 12))
+          .font(.caption)
           .focused($isGuidanceFocused)
           .onSubmit {
-            // Submit the denial with guidance
-            let guidance = denyGuidance.isEmpty ?
-              "User denied the request but provided no specific guidance" :
-              denyGuidance
+            let guidance = denyGuidance.isEmpty
+              ? "User denied the request but provided no specific guidance"
+              : denyGuidance
             onDenyWithGuidance(guidance)
           }
 
         Button("Cancel") {
           onCancel()
         }
-        .buttonStyle(.bordered)
-        .controlSize(.small)
+        .buttonStyle(.plain)
+        .font(.caption)
+        .foregroundStyle(secondaryText)
 
         Button("Send") {
-          let guidance = denyGuidance.isEmpty ?
-            "User denied the request but provided no specific guidance" :
-            denyGuidance
+          let guidance = denyGuidance.isEmpty
+            ? "User denied the request but provided no specific guidance"
+            : denyGuidance
           onDenyWithGuidance(guidance)
         }
         .buttonStyle(.borderedProminent)
         .controlSize(.small)
+        .tint(Color(red: 52 / 255, green: 211 / 255, blue: 128 / 255))
       }
     }
   }
 
   private var riskColor: Color {
     switch request.context?.riskLevel {
-    case .low: .green
-    case .medium: .yellow
-    case .high: .orange
-    case .critical: .red
-    case .none: .blue
+    case .low: Color(red: 52 / 255, green: 211 / 255, blue: 128 / 255)
+    case .medium: Color(red: 255 / 255, green: 158 / 255, blue: 64 / 255)
+    case .high: Color(red: 255 / 255, green: 158 / 255, blue: 64 / 255)
+    case .critical: Color(red: 242 / 255, green: 77 / 255, blue: 77 / 255)
+    case .none: Color(red: 102 / 255, green: 166 / 255, blue: 255 / 255)
     }
   }
 }
@@ -360,7 +377,7 @@ public struct ToastContainer: View {
 struct ApprovalToast_Previews: PreviewProvider {
   static var previews: some View {
     ZStack {
-      Color.gray.opacity(0.1)
+      Color(nsColor: NSColor(srgbRed: 0.06, green: 0.06, blue: 0.06, alpha: 1))
         .ignoresSafeArea()
 
       VStack {
@@ -392,7 +409,7 @@ struct ApprovalToast_Previews: PreviewProvider {
     .previewDisplayName("Low Risk Toast")
 
     ZStack {
-      Color.gray.opacity(0.1)
+      Color(nsColor: NSColor(srgbRed: 0.06, green: 0.06, blue: 0.06, alpha: 1))
         .ignoresSafeArea()
 
       VStack {
@@ -424,7 +441,7 @@ struct ApprovalToast_Previews: PreviewProvider {
     .previewDisplayName("Critical Risk Toast")
 
     ZStack {
-      Color.gray.opacity(0.1)
+      Color(nsColor: NSColor(srgbRed: 0.06, green: 0.06, blue: 0.06, alpha: 1))
         .ignoresSafeArea()
 
       VStack {
