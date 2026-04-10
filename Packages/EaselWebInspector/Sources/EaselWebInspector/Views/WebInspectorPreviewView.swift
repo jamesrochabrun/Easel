@@ -173,13 +173,21 @@ public struct WebInspectorPreviewView: View {
           return .handled
         }
         if inspectState.cropRect != nil {
-          inspectState.dismissCropRect()
+          clearCropSelection()
           return .handled
         }
         deactivateInspector()
         return .handled
       }
       return .ignored
+    }
+    .onChange(of: inspectState.cropRect) { oldValue, newValue in
+      // When the crop rect is dismissed (either by Esc in the text field,
+      // the X button, or after a submit), Canvas only clears the Swift state.
+      // We also need to tell the JS overlay to remove the crop rectangle visual.
+      if oldValue != nil, newValue == nil, let webView = previewWebView {
+        ElementInspectorBridge.clearCropSelection(in: webView)
+      }
     }
     .onDisappear {
       deactivateInspector()
@@ -413,6 +421,7 @@ public struct WebInspectorPreviewView: View {
     )
     .webInspectorOverlay(
       state: inspectState,
+      inputPlacement: .selectionAnchored,
       onSubmit: { element, instruction in
         handleInspectSubmit(element: element, instruction: instruction)
       },
@@ -465,6 +474,12 @@ public struct WebInspectorPreviewView: View {
         await inspectorViewModel.closePanel()
       }
     }
+  }
+
+  private func clearCropSelection() {
+    inspectState.dismissCropRect()
+    // The onChange observer on cropRect will call
+    // ElementInspectorBridge.clearCropSelection to remove the JS visual.
   }
 
   private func handleElementSelected(_ element: ElementInspectorData) {
