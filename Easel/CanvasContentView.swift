@@ -5,7 +5,7 @@
 
 import EaselChat
 import EaselKit
-import EaselPreview
+import EaselWebInspector
 import SwiftUI
 
 struct CanvasContentView: View {
@@ -39,7 +39,7 @@ struct CanvasContentView: View {
           .fill(.quaternary)
           .frame(width: 1)
 
-        WebPreviewPanel(
+        WebInspectorPreviewView(
           previewURLProvider: chatService,
           inspectorBridge: chatService
         )

@@ -1,0 +1,97 @@
+//
+//  QueuedWebPreviewContextStore.swift
+//  EaselWebInspector
+//
+
+import Canvas
+import CoreGraphics
+import Foundation
+
+/// Holds queued web-preview updates per session until the next submit consumes them.
+public struct QueuedWebPreviewContextStore: Equatable, Sendable {
+  public private(set) var queues: [String: WebPreviewContextQueue] = [:]
+
+  public init() {}
+
+  public func queue(for sessionID: String) -> WebPreviewContextQueue {
+    queues[sessionID] ?? WebPreviewContextQueue()
+  }
+
+  public func count(for sessionID: String) -> Int {
+    queues[sessionID]?.count ?? 0
+  }
+
+  public mutating func append(_ element: ElementInspectorData, for sessionID: String) {
+    var queue = queue(for: sessionID)
+    queue.append(element)
+    queues[sessionID] = queue
+  }
+
+  public mutating func append(_ element: ElementInspectorData, instruction: String?, for sessionID: String) {
+    var queue = queue(for: sessionID)
+    queue.append(element, instruction: instruction)
+    queues[sessionID] = queue
+  }
+
+  public mutating func appendCrop(
+    cropRect: CGRect,
+    elements: [ElementInspectorData],
+    instruction: String,
+    screenshotPath: String?,
+    for sessionID: String
+  ) {
+    var queue = queue(for: sessionID)
+    queue.appendCrop(
+      cropRect: cropRect,
+      elements: elements,
+      instruction: instruction,
+      screenshotPath: screenshotPath
+    )
+    queues[sessionID] = queue
+  }
+
+  public mutating func remove(elementID: UUID, for sessionID: String) {
+    guard var queue = queues[sessionID] else { return }
+    queue.remove(id: elementID)
+
+    if queue.isEmpty {
+      queues.removeValue(forKey: sessionID)
+    } else {
+      queues[sessionID] = queue
+    }
+  }
+
+  public mutating func clear(for sessionID: String) {
+    queues.removeValue(forKey: sessionID)
+  }
+
+  public mutating func transferQueue(from oldSessionID: String, to newSessionID: String) {
+    guard oldSessionID != newSessionID,
+          let sourceQueue = queues.removeValue(forKey: oldSessionID),
+          !sourceQueue.isEmpty else {
+      return
+    }
+
+    var destinationQueue = queue(for: newSessionID)
+    destinationQueue.append(contentsOf: sourceQueue.items)
+    queues[newSessionID] = destinationQueue
+  }
+
+  public func contextPrompt(for sessionID: String) -> String? {
+    queue(for: sessionID).composedContextPrompt()
+  }
+
+  public mutating func consumeContextPrompt(for sessionID: String) -> String? {
+    let q = queue(for: sessionID)
+    guard let prompt = q.composedContextPrompt() else {
+      return nil
+    }
+    let screenshotPaths = q.screenshotPaths()
+    clear(for: sessionID)
+    guard !screenshotPaths.isEmpty else { return prompt }
+    let pathsPrefix = screenshotPaths
+      .map { $0.contains(" ") ? "\"\($0)\"" : $0 }
+      .joined(separator: " ")
+    return "\(pathsPrefix) \(prompt)"
+  }
+}
