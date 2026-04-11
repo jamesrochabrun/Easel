@@ -3,19 +3,32 @@
 //  Easel
 //
 
+import AppKit
 import EaselKit
 import SwiftUI
 
 struct CapsuleInputView: View {
   @Bindable var appState: AppState
+  var onDismiss: () -> Void = {}
   @FocusState private var isFocused: Bool
 
   var body: some View {
     HStack(spacing: 12) {
-      Image(systemName: "sparkles")
-        .font(.system(size: 18, weight: .medium))
-        .foregroundStyle(.secondary)
-        .frame(width: 20)
+      Menu {
+        Button {
+          pickProject()
+        } label: {
+          Label("Select a project…", systemImage: "folder")
+        }
+      } label: {
+        Image(systemName: "plus.circle.fill")
+          .font(.system(size: 20, weight: .medium))
+          .foregroundStyle(.secondary)
+          .frame(width: 20)
+      }
+      .menuStyle(.borderlessButton)
+      .menuIndicator(.hidden)
+      .fixedSize()
 
       TextField("What would you like to build?", text: $appState.promptText)
         .textFieldStyle(.plain)
@@ -37,6 +50,7 @@ struct CapsuleInputView: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .background(GlassBackgroundView(material: .hudWindow))
     .clipShape(Capsule())
+    .onExitCommand(perform: onDismiss)
     .onAppear {
       isFocused = true
     }
@@ -44,5 +58,18 @@ struct CapsuleInputView: View {
 
   private var canSubmit: Bool {
     !appState.promptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  @MainActor
+  private func pickProject() {
+    let panel = NSOpenPanel()
+    panel.canChooseFiles = false
+    panel.canChooseDirectories = true
+    panel.allowsMultipleSelection = false
+    panel.message = "Select a project folder"
+    panel.prompt = "Select"
+    if panel.runModal() == .OK, let url = panel.url {
+      appState.selectedProjectURL = url
+    }
   }
 }

@@ -9,6 +9,7 @@ import Foundation
 public final class AppState: AppStateProtocol {
   public var phase: AppPhase = .capsule
   public var promptText: String = ""
+  public var selectedProjectURL: URL?
 
   public init() {}
 
@@ -20,5 +21,9 @@ public final class AppState: AppStateProtocol {
 
   public func resetToCapsule() {
     phase = .capsule
+  }
+
+  public func openCanvas() {
+    phase = .canvas
   }
 }

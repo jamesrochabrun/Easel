@@ -40,6 +40,17 @@ struct WindowControllerTests {
   }
 
   @Test
+  func hideCapsuleOrdersOutPanel() {
+    let appState = AppState()
+    let controller = WindowController(appState: appState, observesPhaseChanges: false)
+    controller.showCapsule()
+    #expect(controller.capsulePanel.isVisible)
+
+    controller.hideCapsule()
+    #expect(!controller.capsulePanel.isVisible)
+  }
+
+  @Test
   func canvasContentUsesSubmittedPromptSnapshot() {
     let appState = AppState()
     appState.promptText = "Build a dashboard"

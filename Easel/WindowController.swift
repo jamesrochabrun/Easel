@@ -40,6 +40,10 @@ final class WindowController: NSObject, WindowControlling, NSWindowDelegate {
     NSApp.activate(ignoringOtherApps: true)
   }
 
+  func hideCapsule() {
+    capsulePanel.orderOut(nil)
+  }
+
   func animateToCanvas() {
     let generation = nextTransitionGeneration()
     let targetFrame = storedCanvasFrame ?? canvasFrame()
@@ -146,7 +150,10 @@ final class WindowController: NSObject, WindowControlling, NSWindowDelegate {
   }
 
   private func configureCapsulePanel() {
-    let hostingView = NSHostingView(rootView: CapsuleInputView(appState: appState))
+    let rootView = CapsuleInputView(appState: appState) { [weak self] in
+      self?.hideCapsule()
+    }
+    let hostingView = NSHostingView(rootView: rootView)
     hostingView.translatesAutoresizingMaskIntoConstraints = true
     hostingView.autoresizingMask = [.width, .height]
     capsulePanel.contentView = hostingView
