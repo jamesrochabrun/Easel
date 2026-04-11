@@ -17,39 +17,21 @@ struct CanvasContentView: View {
   private let chatPanelWidth: CGFloat = 380
 
   var body: some View {
-    VStack(spacing: 0) {
-      HStack {
-        Button("Back to Prompt", systemImage: "chevron.left", action: resetToCapsule)
-          .buttonStyle(.borderless)
+    HStack(spacing: 1) {
+      ChatPanelView(chatService: chatService, initialPrompt: initialPrompt)
+        .frame(width: chatPanelWidth)
+        .frame(maxHeight: .infinity)
 
-        Spacer()
-      }
-      .padding(.horizontal, 12)
-      .padding(.vertical, 8)
-      .background(.bar)
+      Rectangle()
+        .fill(.quaternary)
+        .frame(width: 1)
 
-      Divider()
-
-      HStack(spacing: 1) {
-        ChatPanelView(chatService: chatService, initialPrompt: initialPrompt)
-          .frame(width: chatPanelWidth)
-          .frame(maxHeight: .infinity)
-
-        Rectangle()
-          .fill(.quaternary)
-          .frame(width: 1)
-
-        WebInspectorPreviewView(
-          previewURLProvider: chatService,
-          inspectorBridge: chatService
-        )
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-      }
+      WebInspectorPreviewView(
+        previewURLProvider: chatService,
+        inspectorBridge: chatService
+      )
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     .background(GlassBackgroundView(material: .sidebar))
-  }
-
-  private func resetToCapsule() {
-    appState.resetToCapsule()
   }
 }
