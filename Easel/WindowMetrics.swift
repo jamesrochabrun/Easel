@@ -10,7 +10,7 @@ enum WindowMetrics {
   static let capsuleHeight: CGFloat = 56
   static let capsuleCornerRadius: CGFloat = 28
 
-  static let canvasWidth: CGFloat = 1200
+  static let canvasWidth: CGFloat = 1420
   static let canvasHeight: CGFloat = 800
 
   static let animationDuration: TimeInterval = 0.5
