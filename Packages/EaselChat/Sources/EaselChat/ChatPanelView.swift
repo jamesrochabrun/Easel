@@ -42,7 +42,8 @@ public struct ChatPanelView: View {
             messageFontSize: 13.0,
             inputCornerRadius: 8.0,
             useMaterialInputBackground: true,
-            showCommandTip: false
+            showCommandTip: false,
+            showWelcomeRow: false
           )
         )
         .environment(globalPreferences)

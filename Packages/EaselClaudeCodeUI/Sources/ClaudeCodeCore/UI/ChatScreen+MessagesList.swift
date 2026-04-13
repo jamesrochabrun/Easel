@@ -138,7 +138,7 @@ extension ChatScreen {
     ScrollViewReader { scrollView in
       ScrollView {
         LazyVStack(alignment: .leading, spacing: EaselChatRuntimeStyle.Spacing.messageListSpacing) {
-          if viewModel.messages.isEmpty || shouldShowSettingsButton {
+          if uiConfiguration.showWelcomeRow && (viewModel.messages.isEmpty || shouldShowSettingsButton) {
             WelcomeRow(
               path: effectiveWorkingDirectory,
               showSettingsButton: shouldShowSettingsButton,

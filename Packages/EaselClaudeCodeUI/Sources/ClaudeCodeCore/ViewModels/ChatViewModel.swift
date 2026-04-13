@@ -844,6 +844,13 @@ EOF
   ///   - workingDirectory: Optional working directory for this session
   /// - Note: The messages are displayed in UI, but Claude CLI won't have the context
   ///         unless it already knows about this sessionId
+  /// Updates the working directory for new sessions without affecting session state.
+  public func setWorkingDirectory(_ directory: String) {
+    claudeClient.configuration.workingDirectory = directory
+    projectPath = directory
+    settingsStorage.setProjectPath(directory)
+  }
+
   public func injectSession(sessionId: String, messages: [ChatMessage], workingDirectory: String? = nil) {
     // Set up the session
     sessionManager.selectSession(id: sessionId)
