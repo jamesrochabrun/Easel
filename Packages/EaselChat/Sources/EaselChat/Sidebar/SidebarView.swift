@@ -79,7 +79,7 @@ public struct SidebarView: View {
 
   private var headerView: some View {
     HStack {
-      Text("Threads")
+      Text("Projects")
         .font(.system(.body, design: .monospaced))
         .foregroundColor(.primary)
 
@@ -107,6 +107,7 @@ public struct SidebarView: View {
     }
     .padding(.horizontal, 12)
     .padding(.vertical, 10)
+    .frame(minHeight: 40)
   }
 
   private func addExistingProject() {
