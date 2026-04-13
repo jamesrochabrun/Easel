@@ -31,9 +31,34 @@ struct CanvasContentView: View {
           .frame(width: 1)
       }
 
-      ChatPanelView(chatService: chatService, initialPrompt: initialPrompt)
-        .frame(width: chatPanelWidth)
-        .frame(maxHeight: .infinity)
+      VStack(spacing: 0) {
+        HStack {
+          Button {
+            sidebarViewModel?.toggleSidebar()
+          } label: {
+            Image(systemName: "sidebar.left")
+              .font(.system(size: 14, weight: .medium))
+              .foregroundColor(.secondary)
+          }
+          .buttonStyle(.plain)
+          .keyboardShortcut("b", modifiers: .command)
+          .help("Toggle Sidebar (⌘B)")
+
+          Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(minHeight: 40)
+
+        Rectangle()
+          .fill(.quaternary)
+          .frame(height: 1)
+
+        ChatPanelView(chatService: chatService, initialPrompt: initialPrompt)
+          .frame(maxHeight: .infinity)
+      }
+      .frame(width: chatPanelWidth)
+      .frame(maxHeight: .infinity)
 
       Rectangle()
         .fill(.quaternary)
