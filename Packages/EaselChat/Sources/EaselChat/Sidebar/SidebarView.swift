@@ -99,7 +99,7 @@ public struct SidebarView: View {
       Button {
         createNewProject()
       } label: {
-        Image(systemName: "folder.badge.plus")
+        Image(systemName: "plus")
           .font(.system(size: 14))
           .foregroundColor(.secondary)
       }
