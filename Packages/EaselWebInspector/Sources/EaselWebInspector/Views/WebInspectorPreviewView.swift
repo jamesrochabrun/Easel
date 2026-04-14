@@ -209,8 +209,9 @@ public struct WebInspectorPreviewView: View {
 
       headerControls
     }
-    .padding(.horizontal)
-    .padding(.vertical, 8)
+    .padding(.horizontal, 12)
+    .padding(.vertical, 10)
+    .frame(minHeight: 40)
     .background(Color.surfaceElevated)
   }
 

@@ -57,6 +57,7 @@ public struct SidebarView: View {
           }
         }
         .padding(.vertical, 8)
+        .padding(.trailing, 4)
       }
     }
     .alert("Delete Session", isPresented: $showDeleteConfirmation) {
@@ -98,7 +99,7 @@ public struct SidebarView: View {
       Button {
         createNewProject()
       } label: {
-        Image(systemName: "folder.badge.plus")
+        Image(systemName: "plus")
           .font(.system(size: 14))
           .foregroundColor(.secondary)
       }
