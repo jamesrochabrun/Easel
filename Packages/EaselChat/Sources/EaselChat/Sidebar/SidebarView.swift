@@ -57,6 +57,7 @@ public struct SidebarView: View {
           }
         }
         .padding(.vertical, 8)
+        .padding(.trailing, 4)
       }
     }
     .alert("Delete Session", isPresented: $showDeleteConfirmation) {
