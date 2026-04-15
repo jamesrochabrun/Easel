@@ -175,6 +175,16 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
     }
   }
 
+  // MARK: - Preview URL
+
+  public func setPreviewURL(_ url: URL) {
+    self.previewURL = url
+  }
+
+  public var currentWorkingDirectory: String? {
+    chatViewModel?.projectPath
+  }
+
   // MARK: - Initial Prompt
 
   public func sendInitialPromptIfNeeded(_ prompt: String) {

@@ -5,6 +5,7 @@
 
 import EaselChat
 import EaselKit
+import EaselServerManager
 import EaselWebInspector
 import SwiftUI
 
@@ -13,6 +14,7 @@ struct CanvasContentView: View {
   let initialPrompt: String
 
   @State private var chatService = ChatService()
+  @State private var serverManager = ProjectServerManager()
   @State private var sidebarViewModel: SidebarViewModel?
 
   private let chatPanelWidth: CGFloat = 380
@@ -73,16 +75,29 @@ struct CanvasContentView: View {
     .animation(.easeInOut(duration: 0.25), value: sidebarViewModel?.isSidebarVisible)
     .background(GlassBackgroundView(material: .sidebar))
     .task {
+      if let appDelegate = NSApp.delegate as? AppDelegate {
+        appDelegate.serverManager = serverManager
+      }
       let vm = SidebarViewModel(sessionStorage: chatService.sessionStorage)
       vm.onSessionSelected = { session in
         Task {
           await chatService.switchToSession(session)
+          if let dir = chatService.currentWorkingDirectory {
+            if let server = try? await serverManager.startServer(for: dir) {
+              chatService.setPreviewURL(server.url)
+            }
+          }
           await vm.loadSessions()
         }
       }
       vm.onNewChatRequested = { workingDirectory in
         Task {
           await chatService.startNewSession(workingDirectory: workingDirectory)
+          if let dir = workingDirectory {
+            if let server = try? await serverManager.startServer(for: dir) {
+              chatService.setPreviewURL(server.url)
+            }
+          }
           await vm.loadSessions()
         }
       }
