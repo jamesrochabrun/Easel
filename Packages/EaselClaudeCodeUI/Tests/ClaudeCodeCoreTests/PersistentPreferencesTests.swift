@@ -45,6 +45,7 @@ final class PersistentPreferencesTests: XCTestCase {
     let generalPrefs = GeneralPreferences(
       autoApproveLowRisk: true,
       claudeCommand: "claude-test",
+      chatProvider: .codex,
       defaultWorkingDirectory: "/test/path",
       appendSystemPrompt: "Test prompt"
     )
@@ -66,6 +67,7 @@ final class PersistentPreferencesTests: XCTestCase {
     XCTAssertEqual(loaded?.generalPreferences.defaultWorkingDirectory, "/test/path")
     XCTAssertEqual(loaded?.generalPreferences.appendSystemPrompt, "Test prompt")
     XCTAssertEqual(loaded?.generalPreferences.autoApproveLowRisk, true)
+    XCTAssertEqual(loaded?.generalPreferences.chatProvider, .codex)
 
     // Verify tool preferences
     XCTAssertEqual(loaded?.toolPreferences.claudeCode["Bash"]?.isAllowed, true)
@@ -94,6 +96,29 @@ final class PersistentPreferencesTests: XCTestCase {
     XCTAssertNotNil(loaded)
     XCTAssertEqual(loaded?.generalPreferences.claudeCommand, "persistent-test")
     XCTAssertEqual(loaded?.generalPreferences.defaultWorkingDirectory, "/persistent/test")
+  }
+
+  func testGeneralPreferencesDecodeDefaultsProviderToClaude() throws {
+    let json = """
+    {
+      "autoApproveLowRisk": false,
+      "claudeCommand": "claude",
+      "claudePath": "",
+      "defaultWorkingDirectory": "",
+      "appendSystemPrompt": "",
+      "systemPrompt": "",
+      "showDetailedPermissionInfo": true,
+      "permissionRequestTimeout": 3600,
+      "permissionTimeoutEnabled": false,
+      "maxConcurrentPermissionRequests": 5,
+      "disallowedTools": []
+    }
+    """
+
+    let data = try XCTUnwrap(json.data(using: .utf8))
+    let preferences = try JSONDecoder().decode(GeneralPreferences.self, from: data)
+
+    XCTAssertEqual(preferences.chatProvider, .claude)
   }
 
   func testToolReconciliation() async throws {

@@ -42,47 +42,42 @@ enum EaselChatRuntimeStyle {
   }
 
   static func appBackground(for colorScheme: ColorScheme, themeColors: ThemeColors = .current) -> Color {
-    switch colorScheme {
-    case .dark:
-      return blend(base: NSColor(srgbRed: 0.06, green: 0.06, blue: 0.06, alpha: 1), tint: themeColors.brandPrimary, amount: 0.08)
-    default:
-      return blend(base: .white, tint: themeColors.brandTertiary, amount: 0.08)
-    }
+    Color.clear
   }
 
   static func panelBackground(for colorScheme: ColorScheme, themeColors: ThemeColors = .current) -> Color {
     switch colorScheme {
     case .dark:
-      return blend(base: NSColor(srgbRed: 0.08, green: 0.08, blue: 0.08, alpha: 1), tint: themeColors.brandSecondary, amount: 0.10)
+      return Color(nsColor: NSColor(srgbRed: 0.12, green: 0.12, blue: 0.12, alpha: 0.86))
     default:
-      return blend(base: NSColor(srgbRed: 0.96, green: 0.96, blue: 0.96, alpha: 1), tint: themeColors.brandTertiary, amount: 0.18)
+      return Color(nsColor: NSColor(srgbRed: 0.96, green: 0.96, blue: 0.96, alpha: 0.92))
     }
   }
 
   static func cardBackground(for colorScheme: ColorScheme, themeColors: ThemeColors = .current) -> Color {
     switch colorScheme {
     case .dark:
-      return blend(base: NSColor(srgbRed: 0.14, green: 0.14, blue: 0.14, alpha: 1), tint: themeColors.brandPrimary, amount: 0.10)
+      return Color(nsColor: NSColor(srgbRed: 0.16, green: 0.16, blue: 0.16, alpha: 0.82))
     default:
-      return blend(base: NSColor(srgbRed: 0.95, green: 0.95, blue: 0.95, alpha: 1), tint: themeColors.brandSecondary, amount: 0.12)
+      return Color(nsColor: NSColor(srgbRed: 0.95, green: 0.95, blue: 0.95, alpha: 0.94))
     }
   }
 
   static func subtleCardBackground(for colorScheme: ColorScheme, themeColors: ThemeColors = .current) -> Color {
     switch colorScheme {
     case .dark:
-      return blend(base: NSColor(srgbRed: 0.11, green: 0.11, blue: 0.11, alpha: 1), tint: themeColors.brandTertiary, amount: 0.08)
+      return Color(nsColor: NSColor(srgbRed: 0.11, green: 0.11, blue: 0.11, alpha: 0.68))
     default:
-      return blend(base: NSColor(srgbRed: 0.98, green: 0.98, blue: 0.98, alpha: 1), tint: themeColors.brandPrimary, amount: 0.05)
+      return Color(nsColor: NSColor(srgbRed: 0.98, green: 0.98, blue: 0.98, alpha: 0.86))
     }
   }
 
   static func border(for colorScheme: ColorScheme, themeColors: ThemeColors = .current) -> Color {
     switch colorScheme {
     case .dark:
-      return blend(base: NSColor(srgbRed: 1, green: 1, blue: 1, alpha: 0.10), tint: themeColors.brandSecondary, amount: 0.15)
+      return Color.white.opacity(0.16)
     default:
-      return blend(base: NSColor(srgbRed: 0, green: 0, blue: 0, alpha: 0.06), tint: themeColors.brandPrimary, amount: 0.20)
+      return Color.black.opacity(0.10)
     }
   }
 
@@ -97,9 +92,9 @@ enum EaselChatRuntimeStyle {
   static func userBubble(for colorScheme: ColorScheme, themeColors: ThemeColors = .current) -> Color {
     switch colorScheme {
     case .dark:
-      return blend(base: .white, tint: themeColors.brandPrimary, amount: 0.28)
+      return Color(nsColor: NSColor(srgbRed: 0.86, green: 0.86, blue: 0.86, alpha: 1))
     default:
-      return themeColors.brandPrimary
+      return Color(nsColor: NSColor(srgbRed: 0.12, green: 0.12, blue: 0.12, alpha: 1))
     }
   }
 
@@ -118,13 +113,6 @@ enum EaselChatRuntimeStyle {
 
   static func successForeground(for colorScheme: ColorScheme, themeColors: ThemeColors = .current) -> Color {
     colorScheme == .dark ? Color(red: 0.70, green: 0.96, blue: 0.74) : Color(red: 0.20, green: 0.58, blue: 0.27)
-  }
-
-  private static func blend(base: NSColor, tint: Color, amount: CGFloat) -> Color {
-    let resolvedBase = base.usingColorSpace(.sRGB) ?? base
-    let resolvedTint = NSColor(tint).usingColorSpace(.sRGB) ?? .controlAccentColor
-    let blended = resolvedBase.blended(withFraction: amount, of: resolvedTint) ?? resolvedBase
-    return Color(nsColor: blended)
   }
 
   private static func readableForeground(for background: Color) -> Color {

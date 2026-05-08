@@ -4,6 +4,7 @@
 //
 
 import AppKit
+import EaselChat
 import EaselKit
 import SwiftUI
 
@@ -13,11 +14,13 @@ final class WindowController: NSObject, WindowControlling, NSWindowDelegate {
   let canvasWindow: NSWindow
 
   private let appState: AppState
+  private let chatService: ChatService
   private var storedCanvasFrame: NSRect?
   private var transitionGeneration = 0
 
-  init(appState: AppState, observesPhaseChanges: Bool = true) {
+  init(appState: AppState, chatService: ChatService, observesPhaseChanges: Bool = true) {
     self.appState = appState
+    self.chatService = chatService
     self.capsulePanel = Self.makeCapsulePanel()
     self.canvasWindow = Self.makeCanvasWindow()
 
@@ -173,7 +176,8 @@ final class WindowController: NSObject, WindowControlling, NSWindowDelegate {
     let hostingView = NSHostingView(
       rootView: CanvasContentView(
         appState: appState,
-        initialPrompt: appState.promptText
+        initialPrompt: appState.promptText,
+        chatService: chatService
       )
     )
     hostingView.translatesAutoresizingMaskIntoConstraints = true

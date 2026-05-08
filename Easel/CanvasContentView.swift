@@ -12,8 +12,8 @@ import SwiftUI
 struct CanvasContentView: View {
   @Bindable var appState: AppState
   let initialPrompt: String
+  let chatService: ChatService
 
-  @State private var chatService = ChatService()
   @State private var serverManager = ProjectServerManager()
   @State private var sidebarViewModel: SidebarViewModel?
 

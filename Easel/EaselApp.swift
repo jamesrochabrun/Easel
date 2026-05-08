@@ -6,6 +6,7 @@
 //
 
 import EaselKit
+import EaselChat
 import SwiftUI
 
 @main
@@ -14,7 +15,7 @@ struct EaselApp: App {
 
   var body: some Scene {
     Settings {
-      EmptyView()
+      EaselChatSettingsView(chatService: appDelegate.chatService)
     }
   }
 }

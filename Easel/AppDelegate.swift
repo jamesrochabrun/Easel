@@ -4,6 +4,7 @@
 //
 
 import AppKit
+import EaselChat
 import EaselKit
 import EaselServerManager
 
@@ -11,10 +12,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var windowController: WindowController?
   private var statusItem: NSStatusItem?
   let appState = AppState()
+  let chatService = ChatService()
   var serverManager: ProjectServerManager?
 
   func applicationDidFinishLaunching(_ notification: Notification) {
-    let controller = WindowController(appState: appState)
+    let controller = WindowController(appState: appState, chatService: chatService)
     self.windowController = controller
     controller.showCapsule()
     configureStatusItem()

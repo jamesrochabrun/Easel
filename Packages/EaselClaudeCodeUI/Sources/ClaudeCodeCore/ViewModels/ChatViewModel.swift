@@ -52,6 +52,8 @@ public final class ChatViewModel {
 
   private let streamProcessor: StreamProcessor
   private let messageStore = MessageStore()
+  @ObservationIgnored private var codexRuntime: CodexChatRuntime?
+  @ObservationIgnored private var codexTask: Task<Void, Never>?
   private var firstMessageInSession: String?
   
   // Session isolation: track if we're in the middle of switching sessions
@@ -99,8 +101,13 @@ public final class ChatViewModel {
   /// This returns the session ID that Claude is actively using, which may be
   /// different from currentSessionId during streaming operations
   var activeSessionId: String? {
-    streamProcessor.activeSessionId
+    if activeProvider == .codex {
+      return sessionManager.currentSessionId
+    }
+    return streamProcessor.activeSessionId
   }
+
+  public private(set) var activeProvider: ChatProvider = .claude
 
   /// Returns all messages currently in memory
   public func getCurrentMessages() -> [ChatMessage] {
@@ -387,6 +394,7 @@ EOF
     self.shouldManageSessions = shouldManageSessions
     self.onSessionChange = onSessionChange
     self.onUserMessageSent = onUserMessageSent
+    self.activeProvider = globalPreferences.chatProvider
     self.sessionManager = SessionManager(sessionStorage: sessionStorage)
     self.streamProcessor = StreamProcessor(
       messageStore: messageStore,
@@ -457,6 +465,33 @@ EOF
       }
     }
   }
+
+  public func switchProvider(to provider: ChatProvider) {
+    guard activeProvider != provider else { return }
+
+    let currentDirectory = projectPath
+    cancelRequest()
+    clearConversation()
+    activeProvider = provider
+    globalPreferences.chatProvider = provider
+
+    if !currentDirectory.isEmpty {
+      setWorkingDirectory(currentDirectory)
+    }
+  }
+
+  private func ensureProviderMatchesPreferences() {
+    let selectedProvider = globalPreferences.chatProvider
+    guard activeProvider != selectedProvider else { return }
+
+    let currentDirectory = projectPath
+    clearConversation()
+    activeProvider = selectedProvider
+
+    if !currentDirectory.isEmpty {
+      setWorkingDirectory(currentDirectory)
+    }
+  }
   
   // MARK: - Public Methods
   /// Retries the last user message with all its original data
@@ -491,6 +526,7 @@ EOF
   ///   - attachments: Optional file attachments (images, PDFs, etc.)
   public func sendMessage(_ text: String, context: String? = nil, hiddenContext: String? = nil, codeSelections: [TextSelection]? = nil, attachments: [FileAttachment]? = nil) {
     guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+    ensureProviderMatchesPreferences()
 
     // Reset cancellation flag for new message
     isCancelled = false
@@ -560,9 +596,11 @@ EOF
     }
     
     // Start conversation
-    Task {
+    let task = Task {
       do {
-        if let sessionId = sessionManager.currentSessionId {
+        if activeProvider == .codex {
+          try await sendCodexMessage(prompt: apiContent, messageId: assistantId)
+        } else if let sessionId = sessionManager.currentSessionId {
           try await continueConversation(sessionId: sessionId, prompt: apiContent, messageId: assistantId)
         } else {
           try await startNewConversation(prompt: apiContent, messageId: assistantId)
@@ -572,6 +610,9 @@ EOF
           self.handleError(error, operation: .apiCall)
         }
       }
+    }
+    if activeProvider == .codex {
+      codexTask = task
     }
   }
   
@@ -584,6 +625,8 @@ EOF
     errorQueue.removeAll()
     firstMessageInSession = nil
     hasSessionStarted = false
+    codexRuntime?.resetSession()
+    codexTask = nil
   }
   
   /// Starts a new session without affecting the current session
@@ -604,10 +647,13 @@ EOF
         // Clear the current path to force user to select a new one
         self.settingsStorage.clearProjectPath()
         self.claudeClient.configuration.workingDirectory = nil
+        self.codexRuntime?.workingDirectory = nil
         self.projectPath = ""
         
         // Clear the session manager's current session
         self.sessionManager.clearSession()
+        self.codexRuntime?.resetSession()
+        self.codexTask = nil
         
         // A new session will be created when the user sends their first message
         // Claude will provide the session ID
@@ -640,11 +686,17 @@ EOF
     // Set cancellation flag
     isCancelled = true
 
-    // IMPORTANT: Terminate the Claude Code subprocess first
-    claudeClient.cancel()
+    if activeProvider == .codex {
+      codexRuntime?.cancel()
+      codexTask?.cancel()
+      codexTask = nil
+    } else {
+      // IMPORTANT: Terminate the Claude Code subprocess first
+      claudeClient.cancel()
 
-    // Cancel the stream subscription
-    streamProcessor.cancelStream()
+      // Cancel the stream subscription
+      streamProcessor.cancelStream()
+    }
 
     // Cancel any pending tool approval requests
     customPermissionService.cancelAllRequests()
@@ -760,6 +812,9 @@ EOF
 
     // Set the session ID
     sessionManager.selectSession(id: sessionId)
+    if activeProvider == .codex {
+      getCodexRuntime().markSessionRestored()
+    }
 
     // Load and set the session's stored path
     if let sessionPath = settingsStorage.getProjectPath(forSessionId: sessionId) {
@@ -771,6 +826,7 @@ EOF
         if FileManager.default.fileExists(atPath: gitPath) {
           // Update ClaudeClient configuration
           claudeClient.configuration.workingDirectory = sessionPath
+          codexRuntime?.workingDirectory = sessionPath
           // Update the observable project path
           projectPath = sessionPath
           if isDebugEnabled {
@@ -788,6 +844,7 @@ EOF
     } else {
       // No stored path for this session
       claudeClient.configuration.workingDirectory = nil
+      codexRuntime?.workingDirectory = nil
       projectPath = ""
       if isDebugEnabled {
         let log = "No stored path for selected session '\(sessionId)'"
@@ -846,9 +903,11 @@ EOF
   ///         unless it already knows about this sessionId
   /// Updates the working directory for new sessions without affecting session state.
   public func setWorkingDirectory(_ directory: String) {
-    claudeClient.configuration.workingDirectory = directory
-    projectPath = directory
-    settingsStorage.setProjectPath(directory)
+    let normalizedDirectory = directory.isEmpty ? nil : directory
+    claudeClient.configuration.workingDirectory = normalizedDirectory
+    codexRuntime?.workingDirectory = normalizedDirectory
+    projectPath = normalizedDirectory ?? ""
+    settingsStorage.setProjectPath(projectPath)
   }
 
   public func injectSession(sessionId: String, messages: [ChatMessage], workingDirectory: String? = nil) {
@@ -859,6 +918,7 @@ EOF
     // Set working directory if provided
     if let dir = workingDirectory {
       claudeClient.configuration.workingDirectory = dir
+      codexRuntime?.workingDirectory = dir
       projectPath = dir
       settingsStorage.setProjectPath(dir)
     }
@@ -868,6 +928,9 @@ EOF
 
     // Mark as active session
     hasSessionStarted = true
+    if activeProvider == .codex {
+      getCodexRuntime().markSessionRestored()
+    }
     errorInfo = nil
     
     if isDebugEnabled {
@@ -886,12 +949,14 @@ EOF
       let defaultDirectory = globalPreferences.defaultWorkingDirectory
       if !defaultDirectory.isEmpty {
         claudeClient.configuration.workingDirectory = defaultDirectory
+        codexRuntime?.workingDirectory = defaultDirectory
         projectPath = defaultDirectory
         settingsStorage.setProjectPath(defaultDirectory)
       } else {
         // Only clear if no default is set
         settingsStorage.clearProjectPath()
         claudeClient.configuration.workingDirectory = nil
+        codexRuntime?.workingDirectory = nil
         projectPath = ""
       }
     }
@@ -976,6 +1041,9 @@ EOF
     
     // Set the session ID BEFORE any async operations
     sessionManager.selectSession(id: id)
+    if activeProvider == .codex {
+      getCodexRuntime().markSessionRestored()
+    }
     
     // Notify settings storage of session change
     onSessionChange?(id)
@@ -984,6 +1052,7 @@ EOF
     if let sessionPath = settingsStorage.getProjectPath(forSessionId: id) {
       // Update ClaudeClient configuration
       claudeClient.configuration.workingDirectory = sessionPath
+      codexRuntime?.workingDirectory = sessionPath
       // Update the observable project path
       projectPath = sessionPath
       if isDebugEnabled {
@@ -993,6 +1062,7 @@ EOF
     } else {
       // No stored path for this session
       claudeClient.configuration.workingDirectory = nil
+      codexRuntime?.workingDirectory = nil
       projectPath = ""
       if isDebugEnabled {
         let log = "No stored path for resumed session '\(id)'"
@@ -1058,6 +1128,11 @@ EOF
     }
     
     do {
+      if activeProvider == .codex {
+        try await sendCodexMessage(prompt: prompt, messageId: assistantId)
+        return
+      }
+
       // Resume the conversation with the provided prompt
       let options = createOptions()
       let result = try await claudeClient.resumeConversation(
@@ -1125,6 +1200,41 @@ EOF
     )
 
     await processResult(result, messageId: messageId)
+  }
+
+  private func sendCodexMessage(prompt: String, messageId: UUID) async throws {
+    try validateWorkingDirectory()
+
+    let runtime = getCodexRuntime()
+    runtime.workingDirectory = claudeClient.configuration.workingDirectory
+    try await runtime.send(
+      prompt: prompt,
+      messageId: messageId,
+      firstMessageInSession: firstMessageInSession
+    )
+
+    await MainActor.run {
+      self.isLoading = false
+      self.streamingStartTime = nil
+      self.firstMessageInSession = nil
+    }
+
+    await saveCurrentSessionMessages()
+  }
+
+  private func getCodexRuntime() -> CodexChatRuntime {
+    if let codexRuntime {
+      return codexRuntime
+    }
+
+    let runtime = CodexChatRuntime(
+      messageDisplay: messageStore,
+      sessionManager: sessionManager,
+      workingDirectory: claudeClient.configuration.workingDirectory,
+      onSessionChange: onSessionChange
+    )
+    codexRuntime = runtime
+    return runtime
   }
   
   private func continueConversation(sessionId: String, prompt: String, messageId: UUID) async throws {
@@ -1428,6 +1538,7 @@ EOF
           isDirectory.boolValue else {
       // Clear the invalid directory immediately
       claudeClient.configuration.workingDirectory = nil
+      codexRuntime?.workingDirectory = nil
       projectPath = ""
       settingsStorage.clearProjectPath()
 
@@ -1481,6 +1592,7 @@ EOF
   /// Handles the case when a path is no longer valid
   private func handleInvalidPath(_ path: String, sessionId: String) {
     claudeClient.configuration.workingDirectory = nil
+    codexRuntime?.workingDirectory = nil
     projectPath = ""
 
     let errorMessage = "The directory '\(path)' no longer exists or is invalid. Please select a new working directory."
@@ -1505,4 +1617,3 @@ EOF
     messageStore.updatePlanApprovalStatus(id: messageId, status: status)
   }
 }
-

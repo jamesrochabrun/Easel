@@ -82,12 +82,12 @@ struct GlobalSettingsView: View {
       ToolbarItem(placement: .confirmationAction) {
         Button("Done") {
           // Update the Claude command in the view model if it exists
-          if let viewModel = chatViewModel {
+          if globalPreferences.chatProvider == .claude, let viewModel = chatViewModel {
             viewModel.updateClaudeCommand(from: globalPreferences)
           }
           dismiss()
         }
-        .disabled(claudePathValidation == .invalid)
+        .disabled(globalPreferences.chatProvider == .claude && claudePathValidation == .invalid)
       }
     }
     .sheet(isPresented: $showingToolsEditor) {
@@ -217,7 +217,7 @@ struct GlobalSettingsView: View {
         if xcodeObservationViewModel != nil && permissionsService != nil {
           xcodeIntegrationSection
         }
-        claudeCodeConfigurationSection
+        providerConfigurationSection
         debugSection
         resetSection
       }
@@ -239,19 +239,61 @@ struct GlobalSettingsView: View {
   }
   
   // MARK: - Configuration Sections
-  private var claudeCodeConfigurationSection: some View {
-    Section("ClaudeCode Configuration") {
+  private var providerConfigurationSection: some View {
+    @Bindable var preferences = globalPreferences
+    return Section("Assistant Configuration") {
+      providerRow
       defaultWorkingDirectoryRow
-      claudeCommandRow
-      claudePathRow
+      if preferences.chatProvider == .claude {
+        claudeCommandRow
+        claudePathRow
+      } else {
+        codexConfigurationRow
+      }
       if uiConfiguration.showSystemPromptFields {
         systemPromptRow
       }
       if uiConfiguration.showAdditionalSystemPromptField {
         appendSystemPromptRow
       }
-      allowedToolsRow
-      mcpConfigurationRow
+      if preferences.chatProvider == .claude {
+        allowedToolsRow
+        mcpConfigurationRow
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var providerRow: some View {
+    @Bindable var preferences = globalPreferences
+    VStack(alignment: .leading, spacing: 8) {
+      Text("Provider")
+      Picker("Provider", selection: $preferences.chatProvider) {
+        ForEach(ChatProvider.allCases) { provider in
+          Text(provider.displayName).tag(provider)
+        }
+      }
+      .pickerStyle(.segmented)
+      .frame(width: 220)
+      .onChange(of: preferences.chatProvider) { _, newProvider in
+        chatViewModel?.switchProvider(to: newProvider)
+      }
+
+      Text("New messages will use \(preferences.chatProvider.displayName). Switching providers starts a fresh conversation.")
+        .font(.caption)
+        .foregroundColor(.secondary)
+    }
+  }
+
+  @ViewBuilder
+  private var codexConfigurationRow: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text("Codex CLI")
+      Text("Command: codex")
+        .font(.system(.body, design: .monospaced))
+      Text("Detected from ~/.codex/local/codex, nvm, Homebrew, or PATH.")
+        .font(.caption)
+        .foregroundColor(.secondary)
     }
   }
 

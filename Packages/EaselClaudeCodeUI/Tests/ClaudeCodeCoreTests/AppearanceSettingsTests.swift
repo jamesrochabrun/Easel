@@ -18,17 +18,21 @@ final class AppearanceSettingsTests: XCTestCase {
     XCTAssertEqual(hexString(for: colors.brandTertiary), "#778899")
   }
 
-  func testRuntimeStyleBackgroundChangesAcrossThemes() {
+  func testRuntimeStyleSurfacesStayNeutralAcrossThemes() {
     let claude = ThemeColors.themeColors(for: .claude)
     let bat = ThemeColors.themeColors(for: .bat)
 
-    XCTAssertNotEqual(
+    XCTAssertEqual(
       hexString(for: EaselChatRuntimeStyle.appBackground(for: .light, themeColors: claude)),
       hexString(for: EaselChatRuntimeStyle.appBackground(for: .light, themeColors: bat))
     )
-    XCTAssertNotEqual(
+    XCTAssertEqual(
       hexString(for: EaselChatRuntimeStyle.cardBackground(for: .dark, themeColors: claude)),
       hexString(for: EaselChatRuntimeStyle.cardBackground(for: .dark, themeColors: bat))
+    )
+    XCTAssertEqual(
+      hexString(for: EaselChatRuntimeStyle.userBubble(for: .dark, themeColors: claude)),
+      hexString(for: EaselChatRuntimeStyle.userBubble(for: .dark, themeColors: bat))
     )
   }
 

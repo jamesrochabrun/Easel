@@ -67,7 +67,7 @@ else
 fi
 
 cd "${SERVER_BUILD_PACKAGE_DIR}"
-swift build -c release --product "${PRODUCT_NAME_IN_PACKAGE}"
+swift build -c release --product "${PRODUCT_NAME_IN_PACKAGE}" -Xswiftc -swift-version -Xswiftc 5
 
 # Find the built executable
 SERVER_SOURCE="${SERVER_BUILD_PACKAGE_DIR}/.build/release/${PRODUCT_NAME_IN_PACKAGE}"

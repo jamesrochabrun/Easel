@@ -75,6 +75,12 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
     }
   }
 
+  public var chatProvider: ChatProvider {
+    didSet {
+      saveToPersistentStorage()
+    }
+  }
+
   public var isClaudeCommandFromConfig: Bool {
     didSet {
       saveToPersistentStorage()
@@ -156,6 +162,7 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
       self.appendSystemPrompt = general.appendSystemPrompt
       self.claudeCommand = general.claudeCommand
       self.claudePath = general.claudePath
+      self.chatProvider = general.chatProvider
       self.defaultWorkingDirectory = general.defaultWorkingDirectory
       self.autoApproveLowRisk = general.autoApproveLowRisk
       self.showDetailedPermissionInfo = general.showDetailedPermissionInfo
@@ -237,6 +244,7 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
       self.defaultWorkingDirectory = ""
       self.claudeCommand = "claude"
       self.claudePath = ""
+      self.chatProvider = .claude
       self.isClaudeCommandFromConfig = false
 
       // Default permission settings
@@ -314,6 +322,7 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
       self.appendSystemPrompt = general.appendSystemPrompt
       self.claudeCommand = general.claudeCommand
       self.claudePath = general.claudePath
+      self.chatProvider = general.chatProvider
       self.defaultWorkingDirectory = general.defaultWorkingDirectory
       self.autoApproveLowRisk = general.autoApproveLowRisk
       self.showDetailedPermissionInfo = general.showDetailedPermissionInfo
@@ -356,6 +365,7 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
     defaultWorkingDirectory = ""
     claudeCommand = "claude"
     claudePath = ""
+    chatProvider = .claude
     isClaudeCommandFromConfig = false
 
     // Reset permission settings
@@ -436,6 +446,7 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
         autoApproveLowRisk: autoApproveLowRisk,
         claudeCommand: claudeCommand,
         claudePath: claudePath,
+        chatProvider: chatProvider,
         defaultWorkingDirectory: defaultWorkingDirectory,
         appendSystemPrompt: appendSystemPrompt,
         systemPrompt: systemPrompt,
@@ -534,6 +545,7 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
         autoApproveLowRisk: autoApproveLowRisk,
         claudeCommand: claudeCommand,
         claudePath: claudePath,
+        chatProvider: chatProvider,
         defaultWorkingDirectory: defaultWorkingDirectory,
         appendSystemPrompt: appendSystemPrompt,
         systemPrompt: systemPrompt,
