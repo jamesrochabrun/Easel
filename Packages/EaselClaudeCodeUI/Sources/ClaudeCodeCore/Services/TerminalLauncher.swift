@@ -77,7 +77,8 @@ public struct TerminalLauncher {
       NSWorkspace.shared.open(url)
       
       // Clean up the script file after a delay
-      DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+      Task {
+        try? await Task.sleep(for: .seconds(5))
         try? FileManager.default.removeItem(atPath: scriptPath)
       }
       

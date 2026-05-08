@@ -3,6 +3,7 @@
 //  EaselChatTests
 //
 
+import ClaudeCodeCore
 import Foundation
 import Testing
 @testable import EaselChat
@@ -47,5 +48,56 @@ struct PreviewURLObserverTests {
     let mock = MockURLExtractor(urlToReturn: URL(string: "http://localhost:8080"))
     let result = mock.extractPreviewURL(from: "No URL here")
     #expect(result == nil)
+  }
+
+  @Test
+  func scanExistingMessagesFindsURLInToolResult() {
+    let observer = PreviewURLObserver(
+      extractor: LocalhostURLExtractor()
+    )
+    let messages: [ChatMessage] = [
+      ChatMessage(role: .user, content: "start the dev server"),
+      ChatMessage(
+        role: .assistant,
+        content: "Server output: http://localhost:4360/AgentHubPage",
+        messageType: .toolResult
+      ),
+    ]
+    let result = observer.scanExistingMessages(messages)
+    #expect(result?.absoluteString == "http://localhost:4360/AgentHubPage")
+  }
+
+  @Test
+  func scanExistingMessagesReturnsNilWhenNoURL() {
+    let observer = PreviewURLObserver(
+      extractor: LocalhostURLExtractor()
+    )
+    let messages: [ChatMessage] = [
+      ChatMessage(role: .user, content: "hello"),
+      ChatMessage(role: .assistant, content: "Hi there!"),
+    ]
+    let result = observer.scanExistingMessages(messages)
+    #expect(result == nil)
+  }
+
+  @Test
+  func scanExistingMessagesPrefersToolResultOverText() {
+    let observer = PreviewURLObserver(
+      extractor: LocalhostURLExtractor()
+    )
+    let messages: [ChatMessage] = [
+      ChatMessage(
+        role: .assistant,
+        content: "Check out http://localhost:3000/old",
+        messageType: .text
+      ),
+      ChatMessage(
+        role: .assistant,
+        content: "Local: http://localhost:4360/AgentHubPage",
+        messageType: .toolResult
+      ),
+    ]
+    let result = observer.scanExistingMessages(messages)
+    #expect(result?.absoluteString == "http://localhost:4360/AgentHubPage")
   }
 }

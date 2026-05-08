@@ -50,12 +50,27 @@ fi
 echo "Found package at: ${PACKAGE_DIR}"
 echo "Building ${PRODUCT_NAME_IN_PACKAGE} from source..."
 
-# Build the executable using swift build
-cd "${PACKAGE_DIR}"
+# Build from a temporary copy so we can use Easel's resolved dependency graph
+# without mutating Xcode's SourcePackages checkout.
+SERVER_BUILD_PACKAGE_DIR="${TARGET_TEMP_DIR}/ClaudeCodeApprovalServer"
+APP_PACKAGE_RESOLVED="${SRCROOT}/Easel.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+
+rm -rf "${SERVER_BUILD_PACKAGE_DIR}"
+mkdir -p "${SERVER_BUILD_PACKAGE_DIR}"
+rsync -a --exclude .build "${PACKAGE_DIR}/" "${SERVER_BUILD_PACKAGE_DIR}/"
+
+if [ -f "${APP_PACKAGE_RESOLVED}" ]; then
+    chmod u+w "${SERVER_BUILD_PACKAGE_DIR}/Package.resolved" 2>/dev/null || true
+    cp "${APP_PACKAGE_RESOLVED}" "${SERVER_BUILD_PACKAGE_DIR}/Package.resolved"
+else
+    rm -f "${SERVER_BUILD_PACKAGE_DIR}/Package.resolved"
+fi
+
+cd "${SERVER_BUILD_PACKAGE_DIR}"
 swift build -c release --product "${PRODUCT_NAME_IN_PACKAGE}" -Xswiftc -swift-version -Xswiftc 5
 
 # Find the built executable
-SERVER_SOURCE="${PACKAGE_DIR}/.build/release/${PRODUCT_NAME_IN_PACKAGE}"
+SERVER_SOURCE="${SERVER_BUILD_PACKAGE_DIR}/.build/release/${PRODUCT_NAME_IN_PACKAGE}"
 
 if [ ! -f "${SERVER_SOURCE}" ]; then
     echo "Error: Failed to build ClaudeCodeApprovalServer"

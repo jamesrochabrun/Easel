@@ -81,7 +81,8 @@ public final class ApprovalBridge: ObservableObject {
       NSRunningApplication.current.activate()
       
       // Ensure window comes to front after a brief delay
-      DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+      Task { @MainActor in
+        try? await Task.sleep(for: .milliseconds(100))
         // Find and activate the key window to ensure proper focus
         if let keyWindow = NSApplication.shared.keyWindow ?? NSApplication.shared.windows.first {
           keyWindow.makeKeyAndOrderFront(nil)

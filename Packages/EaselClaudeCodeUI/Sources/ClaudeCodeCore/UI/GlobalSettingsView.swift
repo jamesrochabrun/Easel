@@ -840,7 +840,8 @@ struct GlobalSettingsView: View {
     NSPasteboard.general.setString(command, forType: .string)
 
     commandCopied = true
-    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+    Task { @MainActor in
+      try? await Task.sleep(for: .seconds(2))
       commandCopied = false
     }
   }
@@ -851,7 +852,8 @@ struct GlobalSettingsView: View {
     NSPasteboard.general.setString(report, forType: .string)
 
     reportCopied = true
-    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+    Task { @MainActor in
+      try? await Task.sleep(for: .seconds(2))
       reportCopied = false
     }
   }

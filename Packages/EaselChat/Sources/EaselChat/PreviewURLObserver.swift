@@ -5,6 +5,9 @@
 
 import ClaudeCodeCore
 import Foundation
+import OSLog
+
+private let previewLog = Logger(subsystem: "com.easel.chat", category: "PreviewURLObserver")
 
 @MainActor
 final class PreviewURLObserver {
@@ -22,6 +25,7 @@ final class PreviewURLObserver {
   ) {
     guard !isObserving else { return }
     isObserving = true
+    previewLog.info("Started observing for preview URLs")
     observe(messages: messages, onURLDetected: onURLDetected)
   }
 
@@ -45,26 +49,35 @@ final class PreviewURLObserver {
     }
   }
 
+  /// Performs an immediate scan of the given messages for a localhost URL.
+  /// Returns the detected URL, or nil if none found.
+  func scanExistingMessages(_ messages: [ChatMessage]) -> URL? {
+    previewLog.info("Scanning \(messages.count) messages for preview URL")
+    let rescanStart = max(0, messages.count - 5)
+    let recentMessages = Array(messages.suffix(from: rescanStart))
+
+    for messageType: MessageType in [.toolResult, .text] {
+      for message in recentMessages.reversed() {
+        guard message.messageType == messageType else { continue }
+        let preview = message.content.prefix(200)
+        previewLog.debug("Checking [\(messageType.rawValue)] content: \(preview)")
+        if let url = extractor.extractPreviewURL(from: message.content) {
+          previewLog.info("Detected preview URL: \(url.absoluteString)")
+          return url
+        }
+      }
+    }
+    previewLog.info("No preview URL found in messages")
+    return nil
+  }
+
   private func scanForURLs(
     in messages: [ChatMessage],
     onURLDetected: @escaping @MainActor (URL) -> Void
   ) {
     lastScannedCount = messages.count
-
-    // Scan recent messages in reverse (most recent first)
-    let rescanStart = max(0, messages.count - 5)
-    let recentMessages = Array(messages.suffix(from: rescanStart))
-
-    // Prefer tool results (raw command output) — they have clean URLs
-    // Fall back to text messages (Claude's prose) which may have extra formatting
-    for messageType: MessageType in [.toolResult, .text] {
-      for message in recentMessages.reversed() {
-        guard message.messageType == messageType else { continue }
-        if let url = extractor.extractPreviewURL(from: message.content) {
-          onURLDetected(url)
-          return
-        }
-      }
+    if let url = scanExistingMessages(messages) {
+      onURLDetected(url)
     }
   }
 }

@@ -52,7 +52,7 @@ class KeyboardShortcutManager {
   private func setupXcodeObservation() {
     // Subscribe to Xcode state changes to enable/disable cmd+i hotkey
     stateSubscription = xcodeObserver.statePublisher
-      .receive(on: DispatchQueue.main)
+      .receive(on: RunLoop.main)
       .sink { [weak self] state in
         Task { @MainActor in
           self?.updateHotkeyState(for: state)
@@ -88,19 +88,18 @@ class KeyboardShortcutManager {
   private func captureSelectedText() {
     // Small delay to allow Xcode observation to update before clipboard capture
     // This ensures .focusedUIElementChanged notifications have time to process
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) { [weak self] in
+    Task { @MainActor [weak self] in
+      try? await Task.sleep(for: .milliseconds(20))
       guard let self = self else { return }
 
       // Guard: Ensure all conditions are met before proceeding
       // This prevents crashes if handler fires during state transitions
-      Task { @MainActor in
-        guard self.xcodeObservationViewModel.hasAccessibilityPermission,
-              self.globalPreferences.enableXcodeShortcut else {
-          return
-        }
-
-        self.performClipboardCapture()
+      guard self.xcodeObservationViewModel.hasAccessibilityPermission,
+            self.globalPreferences.enableXcodeShortcut else {
+        return
       }
+
+      self.performClipboardCapture()
     }
   }
 
@@ -121,17 +120,21 @@ class KeyboardShortcutManager {
     keyUp?.post(tap: .cghidEventTap)
 
     // Wait for clipboard to update
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+    Task { @MainActor [weak self] in
+      try? await Task.sleep(for: .milliseconds(100))
+      let pasteboard = NSPasteboard.general
       if let selectedText = pasteboard.string(forType: .string),
          selectedText != oldContents {
-        self?.capturedText = selectedText
-        self?.showCaptureAnimation = true
+        guard let self else { return }
+        self.capturedText = selectedText
+        self.showCaptureAnimation = true
 
         // Activate the app more reliably
         NSRunningApplication.current.activate()
 
         // Ensure window comes to front
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+        Task { @MainActor in
+          try? await Task.sleep(for: .milliseconds(100))
           // Find and activate the key window
           if let keyWindow = NSApplication.shared.keyWindow ?? NSApplication.shared.windows.first {
             keyWindow.makeKeyAndOrderFront(nil)
@@ -139,10 +142,11 @@ class KeyboardShortcutManager {
         }
 
         // Trigger focus on text editor
-        self?.shouldFocusTextEditor = true
+        self.shouldFocusTextEditor = true
 
         // Hide animation after 2 seconds
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+        Task { @MainActor [weak self] in
+          try? await Task.sleep(for: .seconds(2))
           self?.showCaptureAnimation = false
         }
 
@@ -169,4 +173,3 @@ extension KeyboardShortcuts.Name {
     )
   )
 }
-
