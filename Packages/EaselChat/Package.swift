@@ -32,7 +32,11 @@ let package = Package(
     ),
     .testTarget(
       name: "EaselChatTests",
-      dependencies: ["EaselChat", "EaselKit"],
+      dependencies: [
+        "EaselChat",
+        "EaselKit",
+        .product(name: "ClaudeCodeCore", package: "EaselClaudeCodeUI"),
+      ],
       swiftSettings: [
         .swiftLanguageMode(.v5)
       ]

@@ -180,7 +180,8 @@ public struct ApprovalToast: View {
             showGuidanceInput = true
             showDetails = true
           }
-          DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+          Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(300))
             isGuidanceFocused = true
           }
         } else {

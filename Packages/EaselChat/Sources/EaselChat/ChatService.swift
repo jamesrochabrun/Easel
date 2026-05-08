@@ -7,6 +7,9 @@ import ClaudeCodeCore
 import ClaudeCodeSDK
 import EaselKit
 import Foundation
+import OSLog
+
+private let chatLog = Logger(subsystem: "com.easel.chat", category: "ChatService")
 
 @Observable @MainActor
 public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, PreviewURLProviding {
@@ -141,6 +144,12 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
 
     currentSessionId = session.id
     previewURL = nil
+
+    // Immediately scan loaded messages for a dev server URL
+    if let detectedURL = previewURLObserver.scanExistingMessages(sessionToLoad.messages) {
+      previewURL = detectedURL
+    }
+
     startPreviewObservation()
   }
 
@@ -164,6 +173,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
 
     currentSessionId = nil
     previewURL = nil
+    hasSentInitialPrompt = false
     startPreviewObservation()
   }
 
@@ -173,6 +183,17 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
       currentSessionId = nil
       chatViewModel?.clearConversation()
     }
+  }
+
+  // MARK: - Preview URL
+
+  public func setPreviewURL(_ url: URL) {
+    chatLog.info("Preview URL set: \(url.absoluteString)")
+    self.previewURL = url
+  }
+
+  public var currentWorkingDirectory: String? {
+    chatViewModel?.projectPath
   }
 
   // MARK: - Initial Prompt
@@ -191,6 +212,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
         self?.chatViewModel?.messages ?? []
       },
       onURLDetected: { [weak self] url in
+        chatLog.info("Live observation detected URL: \(url.absoluteString)")
         self?.previewURL = url
       }
     )

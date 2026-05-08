@@ -175,7 +175,7 @@ public final class XcodeObservationViewModel {
   private func setupObservation() {
     // Subscribe to state changes
     stateSubscription = xcodeObserver.statePublisher
-      .receive(on: DispatchQueue.main)
+      .receive(on: RunLoop.main)
       .sink { [weak self] state in
         self?.updateWorkspaceModel(from: state)
       }

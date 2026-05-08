@@ -196,7 +196,8 @@ public final class ContextManager {
     }
     
     // Hide animation after delay
-    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+    Task { @MainActor [weak self] in
+      try? await Task.sleep(for: .seconds(1))
       withAnimation(.easeInOut(duration: 0.3)) {
         self?.showCaptureAnimation = false
       }

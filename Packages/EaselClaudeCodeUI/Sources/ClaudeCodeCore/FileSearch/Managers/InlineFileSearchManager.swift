@@ -33,97 +33,12 @@ final class InlineFileSearchManager: InlineFileSearchProtocol {
     existingFiles: Set<FileResult>,
     maxResults: Int
   ) async throws -> [FileResult] {
-    // Trim the query string to remove leading and trailing whitespace
-    let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-    // Cancel previous query if any and clean up
-    cleanup()
-    
-    // Check if the task was cancelled before starting
-    if Task.isCancelled {
-      throw CancellationError()
-    }
-    
-    var isContinuationResumed = false
-    var continuation: CheckedContinuation<[FileResult], Error>?
-    
-    return try await withTaskCancellationHandler(operation: {
-      try await withCheckedThrowingContinuation { (cont: CheckedContinuation<[FileResult], Error>) in
-        continuation = cont
-        let queryObject = NSMetadataQuery()
-        
-        // Set search scope using the same pattern as the working implementation
-        queryObject.searchScopes = [projectPath as Any].compactMap { $0 }
-        
-        // Build the base predicate: Name contains query
-        let namePredicate = NSPredicate(format: "%K CONTAINS[cd] %@", NSMetadataItemFSNameKey, trimmedQuery)
-        var predicates = [namePredicate]
-        
-        let excludeDirectoriesPredicate = NSPredicate(format: "%K != %@", NSMetadataItemContentTypeKey, "public.folder")
-        predicates.append(excludeDirectoriesPredicate)
-        
-        // Combine predicates
-        let compoundPredicate = NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
-        queryObject.predicate = compoundPredicate
-        
-        let sortDescriptor = NSSortDescriptor(
-          key: NSMetadataItemFSNameKey,
-          ascending: true,
-          selector: #selector(NSString.localizedCaseInsensitiveCompare(_:))
-        )
-        queryObject.sortDescriptors = [sortDescriptor]
-        
-        isContinuationResumed = false
-        
-        // Observe when the query finishes gathering results
-        observer = NotificationCenter.default.addObserver(
-          forName: .NSMetadataQueryDidFinishGathering,
-          object: queryObject,
-          queue: .main
-        ) { [weak self] notification in
-            guard let self else {
-              if !isContinuationResumed {
-                isContinuationResumed = true
-                continuation?.resume(returning: [])
-              }
-              return
-            }
-            
-            // Get the query object from the notification to avoid capturing it
-            guard let query = notification.object as? NSMetadataQuery else {
-              if !isContinuationResumed {
-                isContinuationResumed = true
-                continuation?.resume(returning: [])
-              }
-              return
-            }
-            
-            query.disableUpdates()
-            MainActor.assumeIsolated {
-              let results = self.processQueryResults(query, existingFiles: existingFiles, maxResults: maxResults)
-
-              self.cleanup()
-              if !isContinuationResumed {
-                isContinuationResumed = true
-                continuation?.resume(returning: results)
-              }
-            }
-        }
-        
-        // Start the query
-        metadataQuery = queryObject
-        queryObject.start()
-      }
-    }, onCancel: {
-      // Cancellation handler
-      Task { @MainActor [weak self] in
-        guard let self else { return }
-        cleanup()
-        if !isContinuationResumed {
-          isContinuationResumed = true
-          continuation?.resume(throwing: CancellationError())
-        }
-      }
-    })
+    try await performMetadataSearch(
+      query: query,
+      existingFiles: existingFiles,
+      maxResults: maxResults,
+      mode: .filename
+    )
   }
   
   func performContentSearch(
@@ -131,119 +46,110 @@ final class InlineFileSearchManager: InlineFileSearchProtocol {
     existingFiles: Set<FileResult>,
     maxResults: Int
   ) async throws -> [FileResult] {
-    // Trim the query string to remove leading and trailing whitespace
-    let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-    
-    // Cancel previous query if any and clean up
-    cleanup()
-    
-    // Check if the task was cancelled before starting
-    if Task.isCancelled {
-      throw CancellationError()
-    }
-    
-    var isContinuationResumed = false
-    var continuation: CheckedContinuation<[FileResult], Error>?
-    
-    return try await withTaskCancellationHandler(operation: {
-      try await withCheckedThrowingContinuation { (cont: CheckedContinuation<[FileResult], Error>) in
-        continuation = cont
-        let queryObject = NSMetadataQuery()
-        
-        // Set search scope using the same pattern as the working implementation
-        queryObject.searchScopes = [projectPath as Any].compactMap { $0 }
-        
-        // Build the predicate to search file contents
-        let contentPredicate = NSPredicate(format: "%K CONTAINS[cd] %@", NSMetadataItemTextContentKey, trimmedQuery)
-        var predicates = [contentPredicate]
-        
-        // Exclude directories
-        let excludeDirectoriesPredicate = NSPredicate(format: "%K != %@", NSMetadataItemContentTypeKey, "public.folder")
-        predicates.append(excludeDirectoriesPredicate)
-        
-        // Combine predicates
-        let compoundPredicate = NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
-        queryObject.predicate = compoundPredicate
-        
-        let sortDescriptor = NSSortDescriptor(
-          key: NSMetadataItemFSNameKey,
-          ascending: true,
-          selector: #selector(NSString.localizedCaseInsensitiveCompare(_:))
-        )
-        queryObject.sortDescriptors = [sortDescriptor]
-        
-        isContinuationResumed = false
-        
-        // Observe when the query finishes gathering results
-        observer = NotificationCenter.default.addObserver(
-          forName: .NSMetadataQueryDidFinishGathering,
-          object: queryObject,
-          queue: .main
-        ) { [weak self] notification in
-            guard let self else {
-              if !isContinuationResumed {
-                isContinuationResumed = true
-                continuation?.resume(returning: [])
-              }
-              return
-            }
-            
-            // Get the query object from the notification to avoid capturing it
-            guard let query = notification.object as? NSMetadataQuery else {
-              if !isContinuationResumed {
-                isContinuationResumed = true
-                continuation?.resume(returning: [])
-              }
-              return
-            }
-            
-            query.disableUpdates()
-            MainActor.assumeIsolated {
-              let results = self.processQueryResultsWithContent(
-                query,
-                existingFiles: existingFiles,
-                maxResults: maxResults,
-                queryString: trimmedQuery
-              )
-
-              self.cleanup()
-              if !isContinuationResumed {
-                isContinuationResumed = true
-                continuation?.resume(returning: results)
-              }
-            }
-        }
-        
-        // Start the query
-        metadataQuery = queryObject
-        queryObject.start()
-      }
-    }, onCancel: {
-      // Cancellation handler
-      Task { @MainActor [weak self] in
-        guard let self else { return }
-        cleanup()
-        if !isContinuationResumed {
-          isContinuationResumed = true
-          continuation?.resume(throwing: CancellationError())
-        }
-      }
-    })
+    try await performMetadataSearch(
+      query: query,
+      existingFiles: existingFiles,
+      maxResults: maxResults,
+      mode: .content
+    )
   }
   
   // MARK: Private
   
+  private enum SearchMode {
+    case filename
+    case content
+  }
+
   private var projectPath: String?
   private var metadataQuery: NSMetadataQuery?
-  private var observer: NSObjectProtocol?
   
   private func cleanup() {
     metadataQuery?.stop()
     metadataQuery = nil
-    if let observer {
-      NotificationCenter.default.removeObserver(observer)
-      self.observer = nil
+  }
+
+  private func performMetadataSearch(
+    query: String,
+    existingFiles: Set<FileResult>,
+    maxResults: Int,
+    mode: SearchMode
+  ) async throws -> [FileResult] {
+    let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    cleanup()
+    try Task.checkCancellation()
+
+    let queryObject = makeMetadataQuery(query: trimmedQuery, mode: mode)
+    let notifications = NotificationCenter.default.notifications(
+      named: .NSMetadataQueryDidFinishGathering
+    )
+
+    metadataQuery = queryObject
+    queryObject.start()
+    defer { cleanup() }
+
+    for await notification in notifications {
+      try Task.checkCancellation()
+
+      guard let query = notification.object as? NSMetadataQuery else {
+        continue
+      }
+      guard query === queryObject else {
+        continue
+      }
+
+      query.disableUpdates()
+      switch mode {
+      case .filename:
+        return processQueryResults(
+          query,
+          existingFiles: existingFiles,
+          maxResults: maxResults
+        )
+      case .content:
+        return processQueryResultsWithContent(
+          query,
+          existingFiles: existingFiles,
+          maxResults: maxResults,
+          queryString: trimmedQuery
+        )
+      }
     }
+
+    throw CancellationError()
+  }
+
+  private func makeMetadataQuery(
+    query trimmedQuery: String,
+    mode: SearchMode
+  ) -> NSMetadataQuery {
+    let queryObject = NSMetadataQuery()
+    queryObject.searchScopes = [projectPath as Any].compactMap { $0 }
+
+    let searchPredicate: NSPredicate
+    switch mode {
+    case .filename:
+      searchPredicate = NSPredicate(format: "%K CONTAINS[cd] %@", NSMetadataItemFSNameKey, trimmedQuery)
+    case .content:
+      searchPredicate = NSPredicate(format: "%K CONTAINS[cd] %@", NSMetadataItemTextContentKey, trimmedQuery)
+    }
+
+    let excludeDirectoriesPredicate = NSPredicate(format: "%K != %@", NSMetadataItemContentTypeKey, "public.folder")
+    queryObject.predicate = NSCompoundPredicate(
+      andPredicateWithSubpredicates: [
+        searchPredicate,
+        excludeDirectoriesPredicate,
+      ]
+    )
+    queryObject.sortDescriptors = [
+      NSSortDescriptor(
+        key: NSMetadataItemFSNameKey,
+        ascending: true,
+        selector: #selector(NSString.localizedCaseInsensitiveCompare(_:))
+      )
+    ]
+
+    return queryObject
   }
   
   private func processQueryResults(

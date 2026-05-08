@@ -217,8 +217,8 @@ public enum RiskLevel: String, Codable, CaseIterable, Sendable {
 @MainActor
 public final class ApprovalPromptState: ObservableObject {
   public let request: ApprovalRequest
-  public let onApprove: ([String: Any]?) async -> Void
-  public let onDeny: (String) async -> Void
+  public let onApprove: @MainActor ([String: Any]?) async -> Void
+  public let onDeny: @MainActor (String) async -> Void
   
   @Published public var modifiedInput: [String: SendableValue]
   @Published public var denyReason: String = ""
@@ -226,8 +226,8 @@ public final class ApprovalPromptState: ObservableObject {
   
   public init(
     request: ApprovalRequest,
-    onApprove: @escaping ([String: Any]?) async -> Void,
-    onDeny: @escaping (String) async -> Void
+    onApprove: @escaping @MainActor ([String: Any]?) async -> Void,
+    onDeny: @escaping @MainActor (String) async -> Void
   ) {
     self.request = request
     self.onApprove = onApprove
@@ -238,7 +238,7 @@ public final class ApprovalPromptState: ObservableObject {
   public func approve() {
     isProcessing = true
     let convertedInput = modifiedInput.mapValues { $0.anyValue }
-    Task {
+    Task { @MainActor in
       await onApprove(convertedInput)
     }
   }
@@ -246,7 +246,7 @@ public final class ApprovalPromptState: ObservableObject {
   public func deny() {
     isProcessing = true
     let reason = denyReason.isEmpty ? "Denied by user" : denyReason
-    Task {
+    Task { @MainActor in
       await onDeny(reason)
     }
   }
@@ -308,4 +308,3 @@ public enum ApprovalBehavior: String, Codable, Sendable {
   case allow = "allow"
   case deny = "deny"
 }
-

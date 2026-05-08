@@ -5,6 +5,7 @@
 
 import EaselChat
 import EaselKit
+import EaselServerManager
 import EaselWebInspector
 import SwiftUI
 
@@ -13,6 +14,7 @@ struct CanvasContentView: View {
   let initialPrompt: String
 
   @State private var chatService = ChatService()
+  @State private var serverManager = ProjectServerManager()
   @State private var sidebarViewModel: SidebarViewModel?
 
   private let chatPanelWidth: CGFloat = 380
@@ -73,16 +75,26 @@ struct CanvasContentView: View {
     .animation(.easeInOut(duration: 0.25), value: sidebarViewModel?.isSidebarVisible)
     .background(GlassBackgroundView(material: .sidebar))
     .task {
+      if let appDelegate = NSApp.delegate as? AppDelegate {
+        appDelegate.serverManager = serverManager
+      }
       let vm = SidebarViewModel(sessionStorage: chatService.sessionStorage)
       vm.onSessionSelected = { session in
         Task {
           await chatService.switchToSession(session)
+          // Use running dev server URL if available, otherwise start one
+          if let dir = chatService.currentWorkingDirectory {
+            await startDevServer(for: dir)
+          }
           await vm.loadSessions()
         }
       }
       vm.onNewChatRequested = { workingDirectory in
         Task {
           await chatService.startNewSession(workingDirectory: workingDirectory)
+          if let dir = workingDirectory {
+            await startDevServer(for: dir)
+          }
           await vm.loadSessions()
         }
       }
@@ -98,6 +110,27 @@ struct CanvasContentView: View {
         }
       }
       sidebarViewModel = vm
+
+      // Auto-start dev server for the default working directory
+      if let dir = chatService.currentWorkingDirectory {
+        await startDevServer(for: dir)
+      }
+    }
+  }
+
+  private func startDevServer(for workingDirectory: String) async {
+    // If server already running, use its URL instantly
+    if let existingURL = serverManager.serverURL(for: workingDirectory) {
+      chatService.setPreviewURL(existingURL)
+      return
+    }
+    // Start new dev server process
+    do {
+      let server = try await serverManager.startServer(for: workingDirectory)
+      chatService.setPreviewURL(server.url)
+    } catch {
+      // Dev server failed — preview stays in "waiting" state
+      // PreviewURLObserver can still detect URLs from chat messages as fallback
     }
   }
 }
