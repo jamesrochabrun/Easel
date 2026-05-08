@@ -234,8 +234,13 @@ extension ErrorInfo {
       suggestion = "Rate limit exceeded. Please wait before trying again."
     } else if errorMessage.contains("timeout") {
       suggestion = "Request timed out. Try again with a simpler request."
+    } else if errorMessage.contains("model_reasoning_effort") ||
+                (errorMessage.contains("unknown variant") && errorMessage.contains("xhigh")) {
+      suggestion = "Codex config contains an unsupported reasoning effort. Use none, low, medium, or high."
+    } else if errorMessage.contains("disable_mouse_capture") {
+      suggestion = "Codex config contains TUI settings that require disable_mouse_capture. Easel will normalize this for Codex runs."
     } else {
-      suggestion = "Check your connection and Claude service status."
+      suggestion = "Check your connection and assistant service status."
     }
 
     return ErrorInfo(

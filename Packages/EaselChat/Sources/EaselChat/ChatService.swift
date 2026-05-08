@@ -26,6 +26,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
   public var onSessionChanged: (() -> Void)?
 
   private var hasSentInitialPrompt = false
+  private var isInitializing = false
   private let previewURLObserver = PreviewURLObserver()
 
   // MARK: - Init
@@ -37,6 +38,10 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
   // MARK: - Initialization
 
   public func initialize() async {
+    guard !isInitialized && !isInitializing else { return }
+    isInitializing = true
+    defer { isInitializing = false }
+
     do {
       let globalPrefs = GlobalPreferencesStorage()
       let container = DependencyContainer(

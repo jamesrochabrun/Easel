@@ -52,7 +52,7 @@ echo "Building ${PRODUCT_NAME_IN_PACKAGE} from source..."
 
 # Build the executable using swift build
 cd "${PACKAGE_DIR}"
-swift build -c release --product "${PRODUCT_NAME_IN_PACKAGE}"
+swift build -c release --product "${PRODUCT_NAME_IN_PACKAGE}" -Xswiftc -swift-version -Xswiftc 5
 
 # Find the built executable
 SERVER_SOURCE="${PACKAGE_DIR}/.build/release/${PRODUCT_NAME_IN_PACKAGE}"

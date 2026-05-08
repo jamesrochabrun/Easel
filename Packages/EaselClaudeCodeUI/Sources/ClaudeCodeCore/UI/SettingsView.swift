@@ -27,6 +27,28 @@ struct SettingsView: View {
     NavigationStack {
       VStack(spacing: 0) {
         Form {
+          Section("Assistant") {
+            VStack(alignment: .leading, spacing: 8) {
+              Text("Provider")
+                .font(.headline)
+
+              Picker("Provider", selection: providerSelection) {
+                ForEach(ChatProvider.allCases) { provider in
+                  Text(provider.displayName)
+                    .tag(provider)
+                }
+              }
+              .pickerStyle(.segmented)
+              .labelsHidden()
+              .frame(width: 220)
+
+              Text("Switching providers starts a fresh conversation.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            }
+            .padding(.vertical, 8)
+          }
+
           Section("Working Directory") {
             VStack(alignment: .leading, spacing: 12) {
               Text("Project Path")
@@ -61,7 +83,7 @@ struct SettingsView: View {
               //     .font(.caption)
               //     .foregroundColor(.orange)
               // } else {
-              Text("This working directory is specific to this session. Other settings are configured globally via ⌘⇧,")
+              Text("This working directory is specific to this session.")
                 .font(.caption)
                 .foregroundColor(.secondary)
               // }
@@ -85,11 +107,18 @@ struct SettingsView: View {
         .padding()
       }
       .navigationTitle("Session Settings")
-      .frame(width: 600, height: 350)
+      .frame(width: 600, height: 430)
     }
     .onAppear {
       loadProjectPath()
     }
+  }
+
+  private var providerSelection: Binding<ChatProvider> {
+    Binding(
+      get: { chatViewModel.globalPreferences.chatProvider },
+      set: { chatViewModel.switchProvider(to: $0) }
+    )
   }
   
   private func loadProjectPath() {
@@ -100,7 +129,7 @@ struct SettingsView: View {
       print("[SettingsView] Loaded project path '\(sessionPath)' for session '\(sessionId)'")
     } else {
       // Fall back to current working directory
-      projectPath = chatViewModel.claudeClient.configuration.workingDirectory ?? ""
+      projectPath = chatViewModel.projectPath.isEmpty ? (chatViewModel.claudeClient.configuration.workingDirectory ?? "") : chatViewModel.projectPath
       print("[SettingsView] No session ID or no saved path. Session ID: \(chatViewModel.currentSessionId ?? "nil"), using working directory: '\(projectPath)'")
     }
   }
@@ -146,7 +175,7 @@ struct SettingsView: View {
   private func showDirectoryPicker() {
     let panel = NSOpenPanel()
     panel.title = "Select Project Directory"
-    panel.message = "Choose a project directory to use with ClaudeCode"
+    panel.message = "Choose a project directory to use with \(chatViewModel.activeProvider.displayName)"
     panel.prompt = "Select"
     panel.allowsMultipleSelection = false
     panel.canChooseFiles = false
@@ -176,11 +205,11 @@ struct SettingsView: View {
   }
   
   private func updateClaudeClient() {
-    // Update the ClaudeCode client configuration directly
+    // Update the active provider configuration directly
     let workingDirectory = projectPath
 
     // Check if working directory changed
-    let currentWorkingDir = chatViewModel.claudeClient.configuration.workingDirectory
+    let currentWorkingDir = chatViewModel.projectPath.isEmpty ? chatViewModel.claudeClient.configuration.workingDirectory : chatViewModel.projectPath
     let newWorkingDir = workingDirectory.isEmpty ? nil : workingDirectory
 
     if currentWorkingDir != newWorkingDir && !chatViewModel.messages.isEmpty {
@@ -188,11 +217,7 @@ struct SettingsView: View {
       chatViewModel.clearConversation()
     }
 
-    // Update configuration properties
-    chatViewModel.claudeClient.configuration.workingDirectory = newWorkingDir
-
-    // Update the observable project path in the view model
-    chatViewModel.refreshProjectPath()
+    chatViewModel.setWorkingDirectory(newWorkingDir ?? "")
   }
 
 }

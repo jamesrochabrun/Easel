@@ -383,9 +383,7 @@ public struct ChatScreen: View {
 
     // Set the working directory
     if !workingDirectory.isEmpty {
-      viewModel.claudeClient.configuration.workingDirectory = workingDirectory
-      viewModel.projectPath = workingDirectory
-      viewModel.settingsStorage.setProjectPath(workingDirectory)
+      viewModel.setWorkingDirectory(workingDirectory)
     }
 
     // Show success alert
@@ -400,6 +398,17 @@ public struct ChatScreen: View {
   }
 
   private func launchTerminalWithSession(_ sessionId: String) {
+    guard viewModel.activeProvider == .claude else {
+      let error = NSError(
+        domain: "ChatScreen",
+        code: 1002,
+        userInfo: [NSLocalizedDescriptionKey: "Terminal handoff is only available for Claude sessions."]
+      )
+      viewModel.errorInfo = ErrorInfo.fileError(error, fileName: "Terminal launch")
+      viewModel.errorQueue.append(viewModel.errorInfo!)
+      return
+    }
+
     // Use the TerminalLauncher helper to launch Terminal
     if let error = TerminalLauncher.launchTerminalWithSession(
       sessionId,

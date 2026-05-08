@@ -153,9 +153,7 @@ extension ChatScreen {
               },
               onWorktreeSelected: { worktreePath in
                 // Update the current session's working directory to the selected worktree
-                viewModel.claudeClient.configuration.workingDirectory = worktreePath
-                viewModel.projectPath = worktreePath
-                viewModel.settingsStorage.setProjectPath(worktreePath)
+                viewModel.setWorkingDirectory(worktreePath)
               }
             )
             .id("welcome-row")
@@ -184,9 +182,7 @@ extension ChatScreen {
         let newDefault = globalPreferences.defaultWorkingDirectory
         if viewModel.projectPath.isEmpty && !newDefault.isEmpty {
           // Update all components to use the new default directory
-          viewModel.projectPath = newDefault
-          viewModel.claudeClient.configuration.workingDirectory = newDefault
-          viewModel.settingsStorage.setProjectPath(newDefault)
+          viewModel.setWorkingDirectory(newDefault)
         }
       }
     }
