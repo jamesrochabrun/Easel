@@ -82,10 +82,9 @@ struct CanvasContentView: View {
       vm.onSessionSelected = { session in
         Task {
           await chatService.switchToSession(session)
+          // Use running dev server URL if available, otherwise start one
           if let dir = chatService.currentWorkingDirectory {
-            if let server = try? await serverManager.startServer(for: dir) {
-              chatService.setPreviewURL(server.url)
-            }
+            await startDevServer(for: dir)
           }
           await vm.loadSessions()
         }
@@ -94,9 +93,7 @@ struct CanvasContentView: View {
         Task {
           await chatService.startNewSession(workingDirectory: workingDirectory)
           if let dir = workingDirectory {
-            if let server = try? await serverManager.startServer(for: dir) {
-              chatService.setPreviewURL(server.url)
-            }
+            await startDevServer(for: dir)
           }
           await vm.loadSessions()
         }
@@ -113,6 +110,27 @@ struct CanvasContentView: View {
         }
       }
       sidebarViewModel = vm
+
+      // Auto-start dev server for the default working directory
+      if let dir = chatService.currentWorkingDirectory {
+        await startDevServer(for: dir)
+      }
+    }
+  }
+
+  private func startDevServer(for workingDirectory: String) async {
+    // If server already running, use its URL instantly
+    if let existingURL = serverManager.serverURL(for: workingDirectory) {
+      chatService.setPreviewURL(existingURL)
+      return
+    }
+    // Start new dev server process
+    do {
+      let server = try await serverManager.startServer(for: workingDirectory)
+      chatService.setPreviewURL(server.url)
+    } catch {
+      // Dev server failed — preview stays in "waiting" state
+      // PreviewURLObserver can still detect URLs from chat messages as fallback
     }
   }
 }

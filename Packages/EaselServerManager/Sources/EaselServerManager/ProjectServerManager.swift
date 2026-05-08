@@ -21,69 +21,65 @@ public final class ProjectServerManager: ServerManaging {
 
   // MARK: - Private State
 
-  private var runningServers: [String: StaticFileServer] = [:]
-  private var portAssignments: [String: UInt16]
+  private var runningProcesses: [String: DevServerProcess] = [:]
 
   // MARK: - Init
 
-  public init() {
-    self.portAssignments = PortAllocator.loadAssignments()
-  }
+  public init() {}
 
   // MARK: - ServerManaging
 
   public func startServer(
     for workingDirectory: String
   ) async throws -> ProjectServer {
+    // Return existing server if running
     if let existing = activeServers[workingDirectory] {
-      return existing
+      let process = runningProcesses[workingDirectory]
+      if process?.isRunning == true {
+        managerLog.info("Reusing running server for \(workingDirectory)")
+        return existing
+      }
+      // Process died — clean up and restart
+      managerLog.info("Server process died for \(workingDirectory), restarting")
+      runningProcesses.removeValue(forKey: workingDirectory)
+      activeServers.removeValue(forKey: workingDirectory)
     }
 
-    let port = PortAllocator.assignPort(
-      for: workingDirectory,
-      existingAssignments: portAssignments
-    )
-    portAssignments[workingDirectory] = port
-    PortAllocator.saveAssignments(portAssignments)
+    let devProcess = DevServerProcess(workingDirectory: workingDirectory)
+    runningProcesses[workingDirectory] = devProcess
 
-    let server = try StaticFileServer(
-      port: port,
-      rootDirectory: workingDirectory
-    )
-    server.start()
+    let detectedURL: URL
+    do {
+      detectedURL = try await devProcess.start()
+    } catch {
+      runningProcesses.removeValue(forKey: workingDirectory)
+      managerLog.error("Failed to start dev server for \(workingDirectory): \(error.localizedDescription)")
+      throw error
+    }
 
     let projectServer = ProjectServer(
       workingDirectory: workingDirectory,
-      port: port
+      url: detectedURL
     )
-
-    runningServers[workingDirectory] = server
     activeServers[workingDirectory] = projectServer
 
-    managerLog.info("Started server for \(workingDirectory) on port \(port)")
-
+    managerLog.info("Dev server ready for \(workingDirectory) at \(detectedURL.absoluteString)")
     return projectServer
   }
 
   public func stopServer(for workingDirectory: String) async {
-    runningServers[workingDirectory]?.stop()
-    runningServers.removeValue(forKey: workingDirectory)
+    runningProcesses[workingDirectory]?.stop()
+    runningProcesses.removeValue(forKey: workingDirectory)
     activeServers.removeValue(forKey: workingDirectory)
-    PortAllocator.removeAssignment(
-      for: workingDirectory,
-      from: &portAssignments
-    )
-
     managerLog.info("Stopped server for \(workingDirectory)")
   }
 
   public func stopAllServers() async {
-    for (_, server) in runningServers {
-      server.stop()
+    for (_, process) in runningProcesses {
+      process.stop()
     }
-    runningServers.removeAll()
+    runningProcesses.removeAll()
     activeServers.removeAll()
-
     managerLog.info("All servers stopped")
   }
 

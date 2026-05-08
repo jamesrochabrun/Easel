@@ -16,6 +16,12 @@ public struct ProjectServer: Sendable, Equatable {
     self.port = port
     self.url = URL(string: "http://localhost:\(port)")!
   }
+
+  public init(workingDirectory: String, url: URL) {
+    self.workingDirectory = workingDirectory
+    self.port = UInt16(url.port ?? 0)
+    self.url = url
+  }
 }
 
 /// Manages per-project localhost servers with automatic port assignment.

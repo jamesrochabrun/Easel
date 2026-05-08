@@ -131,7 +131,7 @@ final class StreamProcessor {
       }
       
       subscription = publisher
-        .receive(on: DispatchQueue.main)
+        .receive(on: RunLoop.main)
         .sink(
           receiveCompletion: { [weak self] completion in
             timeoutTask?.cancel() // Cancel timeout on completion

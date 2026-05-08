@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/jamesrochabrun/ClaudeCodeApprovalServer",
       "state" : {
-        "revision" : "6584ea156411d7955fb9dff8a4488af15fce5a24",
-        "version" : "1.1.0"
+        "revision" : "32679325e423072a3f04204a770edffa8393e879",
+        "version" : "1.2.0"
       }
     },
     {
