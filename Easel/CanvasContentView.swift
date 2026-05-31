@@ -16,6 +16,8 @@ struct CanvasContentView: View {
 
   @State private var serverManager = ProjectServerManager()
   @State private var sidebarViewModel: SidebarViewModel?
+  @State private var resourcesViewModel = ProjectResourcesViewModel()
+  @State private var selectedCanvasSurface: CanvasSurface = .canvas
   @State private var didHandleInitialPrompt = false
   @Environment(\.colorScheme) private var colorScheme
 
@@ -70,11 +72,7 @@ struct CanvasContentView: View {
         .fill(EaselDesignSystem.Palette.border(for: colorScheme))
         .frame(width: 1)
 
-      WebInspectorPreviewView(
-        previewURLProvider: chatService,
-        inspectorBridge: chatService
-      )
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      canvasSurfacePanel
     }
     .animation(.easeInOut(duration: 0.25), value: sidebarViewModel?.isSidebarVisible)
     .background(EaselDesignSystem.Palette.canvas(for: colorScheme))
@@ -155,6 +153,90 @@ struct CanvasContentView: View {
     } catch {
       // Dev server failed — preview stays in "waiting" state
       // PreviewURLObserver can still detect URLs from chat messages as fallback
+    }
+  }
+
+  private var canvasSurfacePanel: some View {
+    VStack(spacing: 0) {
+      canvasSurfaceTopBar
+
+      Rectangle()
+        .fill(.quaternary)
+        .frame(height: 1)
+
+      ZStack {
+        WebInspectorPreviewView(
+          previewURLProvider: chatService,
+          inspectorBridge: chatService
+        )
+        .opacity(selectedCanvasSurface == .canvas ? 1 : 0)
+        .allowsHitTesting(selectedCanvasSurface == .canvas)
+        .accessibilityHidden(selectedCanvasSurface != .canvas)
+
+        ProjectResourcesView(
+          viewModel: resourcesViewModel,
+          currentProjectPath: chatService.currentWorkingDirectory
+        )
+        .opacity(selectedCanvasSurface == .resources ? 1 : 0)
+        .allowsHitTesting(selectedCanvasSurface == .resources)
+        .accessibilityHidden(selectedCanvasSurface != .resources)
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+  }
+
+  private var canvasSurfaceTopBar: some View {
+    HStack(spacing: 12) {
+      Picker("Canvas surface", selection: $selectedCanvasSurface) {
+        ForEach(CanvasSurface.allCases) { surface in
+          Label(surface.displayName, systemImage: surface.systemImage)
+            .tag(surface)
+        }
+      }
+      .pickerStyle(.segmented)
+      .labelsHidden()
+      .frame(width: 250)
+
+      Spacer()
+
+      if let currentWorkingDirectory = chatService.currentWorkingDirectory {
+        Label(URL(fileURLWithPath: currentWorkingDirectory).lastPathComponent, systemImage: "folder")
+          .font(.caption.weight(.medium))
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+          .truncationMode(.middle)
+          .help(currentWorkingDirectory)
+      }
+    }
+    .padding(.horizontal, 16)
+    .padding(.vertical, 10)
+    .frame(minHeight: 52)
+    .background(.regularMaterial)
+  }
+}
+
+private enum CanvasSurface: String, CaseIterable, Identifiable {
+  case canvas
+  case resources
+
+  var id: String { rawValue }
+
+  var displayName: String {
+    switch self {
+    case .canvas:
+      return "Canvas"
+    case .resources:
+      return "Resources"
+    }
+  }
+
+  var systemImage: String {
+    switch self {
+    case .canvas:
+      return "rectangle.inset.filled"
+    case .resources:
+      return "photo.on.rectangle.angled"
     }
   }
 }

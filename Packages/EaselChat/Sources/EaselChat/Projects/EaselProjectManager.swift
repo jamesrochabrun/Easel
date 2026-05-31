@@ -120,6 +120,10 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
   }
 
   private func writeScaffold(for project: EaselDesignProject, at directoryURL: URL) throws {
+    try fileManager.createDirectory(
+      at: directoryURL.appendingPathComponent(ProjectResource.resourcesDirectoryName, isDirectory: true),
+      withIntermediateDirectories: true
+    )
     try write(packageJSON(for: project), to: directoryURL.appendingPathComponent("package.json"))
     try write(readme(for: project), to: directoryURL.appendingPathComponent("README.md"))
     try write(indexHTML(for: project), to: directoryURL.appendingPathComponent("index.html"))
@@ -199,6 +203,8 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
     - Type: \(project.kind.displayName)
     - Fidelity: \(project.fidelity.displayName)
     - Design system: \(project.designSystem.displayName)
+
+    Add project assets to `resources/` so Codex can inspect and use them while designing.
 
     Run `npm run dev` to preview this folder in Easel.
     """

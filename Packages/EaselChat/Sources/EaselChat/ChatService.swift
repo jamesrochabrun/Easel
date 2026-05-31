@@ -23,6 +23,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
   public private(set) var initError: Error?
   public private(set) var previewURL: URL?
   public private(set) var currentSessionId: String?
+  public private(set) var currentWorkingDirectory: String?
   public private(set) var sessionStorage: SessionStorageProtocol
   public var mcpToolsDiscoveryService: MCPToolsDiscoveryService { mcpToolsDiscovery }
 
@@ -105,7 +106,9 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
 
       if let dir = config.workingDirectory {
         vm.projectPath = dir
+        setCurrentWorkingDirectory(dir)
       }
+      setCurrentWorkingDirectory(vm.projectPath)
 
       self.chatViewModel = vm
       self.deps = container
@@ -174,6 +177,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
     )
 
     currentSessionId = session.id
+    setCurrentWorkingDirectory(chatViewModel?.projectPath)
     previewURL = nil
 
     // Immediately scan loaded messages for a dev server URL
@@ -200,6 +204,9 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
     // Set the working directory for the new chat
     if let dir = workingDirectory, !dir.isEmpty {
       chatViewModel?.setWorkingDirectory(dir)
+      setCurrentWorkingDirectory(dir)
+    } else {
+      setCurrentWorkingDirectory(chatViewModel?.projectPath)
     }
 
     currentSessionId = nil
@@ -223,10 +230,6 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
     self.previewURL = url
   }
 
-  public var currentWorkingDirectory: String? {
-    chatViewModel?.projectPath
-  }
-
   // MARK: - Initial Prompt
 
   public func sendInitialPromptIfNeeded(_ prompt: String) {
@@ -247,5 +250,10 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
         self?.previewURL = url
       }
     )
+  }
+
+  private func setCurrentWorkingDirectory(_ path: String?) {
+    let normalized = path?.trimmingCharacters(in: .whitespacesAndNewlines)
+    currentWorkingDirectory = normalized?.isEmpty == false ? normalized : nil
   }
 }
