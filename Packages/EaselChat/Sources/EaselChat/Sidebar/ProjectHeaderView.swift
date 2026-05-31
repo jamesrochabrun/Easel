@@ -14,18 +14,25 @@ struct ProjectHeaderView: View {
   @State private var isHovering = false
 
   var body: some View {
-    HStack(spacing: 8) {
+    HStack(alignment: .center, spacing: 8) {
       Button(action: onToggle) {
         HStack(spacing: 8) {
-          Image(systemName: project.isExpanded ? "folder.fill" : "folder")
-            .font(.system(size: 14))
-            .foregroundColor(.secondary)
-            .frame(width: 18)
+          Image(systemName: project.kind?.systemImage ?? (project.isExpanded ? "folder.fill" : "folder"))
+            .font(.system(size: 14, weight: .medium))
+            .foregroundStyle(project.project == nil ? Color.secondary : Color.accentColor)
+            .frame(width: 20)
 
-          Text(project.displayName)
-            .font(.system(.body, design: .monospaced))
-            .foregroundColor(.primary)
-            .lineLimit(1)
+          VStack(alignment: .leading, spacing: 2) {
+            Text(project.displayName)
+              .font(.callout.weight(.medium))
+              .foregroundStyle(.primary)
+              .lineLimit(1)
+
+            Text(project.subtitle)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .lineLimit(1)
+          }
         }
         .contentShape(Rectangle())
       }
@@ -37,13 +44,19 @@ struct ProjectHeaderView: View {
         Button(action: onNewChat) {
           Image(systemName: "plus")
             .font(.caption)
-            .foregroundColor(.secondary)
+            .foregroundStyle(.secondary)
         }
         .buttonStyle(.plain)
+        .help("New Codex session")
       }
     }
-    .padding(.horizontal, 12)
+    .padding(.horizontal, 10)
     .padding(.vertical, 8)
+    .background(Color.primary.opacity(isHovering ? 0.06 : 0.03), in: RoundedRectangle(cornerRadius: 8))
+    .overlay {
+      RoundedRectangle(cornerRadius: 8)
+        .stroke(.quaternary, lineWidth: 1)
+    }
     .contentShape(Rectangle())
     .onHover { hovering in
       isHovering = hovering

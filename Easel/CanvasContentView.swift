@@ -16,9 +16,10 @@ struct CanvasContentView: View {
 
   @State private var serverManager = ProjectServerManager()
   @State private var sidebarViewModel: SidebarViewModel?
+  @State private var didHandleInitialPrompt = false
 
   private let chatPanelWidth: CGFloat = 380
-  private let sidebarWidth: CGFloat = 220
+  private let sidebarWidth: CGFloat = 340
 
   var body: some View {
     HStack(spacing: 0) {
@@ -40,7 +41,7 @@ struct CanvasContentView: View {
           } label: {
             Image(systemName: "sidebar.left")
               .font(.system(size: 14, weight: .medium))
-              .foregroundColor(.secondary)
+              .foregroundStyle(.secondary)
           }
           .buttonStyle(.plain)
           .keyboardShortcut("b", modifiers: .command)
@@ -56,7 +57,7 @@ struct CanvasContentView: View {
           .fill(.quaternary)
           .frame(height: 1)
 
-        ChatPanelView(chatService: chatService, initialPrompt: initialPrompt)
+        ChatPanelView(chatService: chatService)
           .frame(maxHeight: .infinity)
       }
       .frame(width: chatPanelWidth)
@@ -81,6 +82,7 @@ struct CanvasContentView: View {
       let vm = SidebarViewModel(sessionStorage: chatService.sessionStorage)
       vm.onSessionSelected = { session in
         Task {
+          await chatService.initialize()
           await chatService.switchToSession(session)
           // Use running dev server URL if available, otherwise start one
           if let dir = chatService.currentWorkingDirectory {
@@ -91,10 +93,20 @@ struct CanvasContentView: View {
       }
       vm.onNewChatRequested = { workingDirectory in
         Task {
+          await chatService.initialize()
           await chatService.startNewSession(workingDirectory: workingDirectory)
           if let dir = workingDirectory {
             await startDevServer(for: dir)
           }
+          await vm.loadSessions()
+        }
+      }
+      vm.onProjectLaunchRequested = { launch in
+        Task {
+          await chatService.initialize()
+          await chatService.startNewSession(workingDirectory: launch.project.workingDirectory)
+          await startDevServer(for: launch.project.workingDirectory)
+          chatService.sendInitialPromptIfNeeded(launch.prompt)
           await vm.loadSessions()
         }
       }
@@ -110,6 +122,14 @@ struct CanvasContentView: View {
         }
       }
       sidebarViewModel = vm
+
+      if !didHandleInitialPrompt {
+        didHandleInitialPrompt = true
+        let trimmedPrompt = initialPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedPrompt.isEmpty {
+          await vm.createPrototypeProject(fromPrompt: trimmedPrompt)
+        }
+      }
 
       // Auto-start dev server for the default working directory
       if let dir = chatService.currentWorkingDirectory {

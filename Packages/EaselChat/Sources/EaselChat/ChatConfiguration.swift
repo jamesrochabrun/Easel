@@ -12,7 +12,7 @@ public enum ChatConfiguration {
     var config = ClaudeCodeConfiguration.withNvmSupport()
     config.enableDebugLogging = true
     let homeDir = NSHomeDirectory()
-    config.workingDirectory = "\(homeDir)/Desktop/git/AgentHubPage"
+    config.workingDirectory = nil
 
     let localClaudePath = "\(homeDir)/.claude/local"
     if FileManager.default.fileExists(atPath: localClaudePath) {

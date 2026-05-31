@@ -14,25 +14,36 @@ public final class SidebarViewModel {
   private(set) var projectGroups: [ProjectGroup] = []
   public var selectedSessionId: String?
   public var isSidebarVisible: Bool = true
+  var selectedProjectKind: EaselProjectKind = .prototype
+  var projectName: String = ""
+  var selectedDesignSystem: EaselDesignSystemPreset = .airbnb
+  var selectedFidelity: EaselProjectFidelity = .highFidelity
+  var isCreatingProject = false
+  var creationError: String?
 
   // MARK: - Callbacks
 
   public var onSessionSelected: ((StoredSession) -> Void)?
   public var onNewChatRequested: ((String?) -> Void)?
+  public var onProjectLaunchRequested: ((EaselProjectLaunch) -> Void)?
   public var onDeleteSession: ((StoredSession) -> Void)?
 
   // MARK: - Private
 
   private let sessionStorage: SessionStorageProtocol
-  private var addedProjectDirectories: [String]
+  private let projectManager: any EaselProjectManaging
 
-  private static let projectDirectoriesKey = "easel.addedProjectDirectories"
+  private static let legacyProjectDirectoriesKey = "easel.addedProjectDirectories"
 
   // MARK: - Init
 
-  public init(sessionStorage: SessionStorageProtocol) {
+  public init(
+    sessionStorage: SessionStorageProtocol,
+    projectManager: any EaselProjectManaging = LocalEaselProjectManager()
+  ) {
     self.sessionStorage = sessionStorage
-    self.addedProjectDirectories = UserDefaults.standard.stringArray(forKey: Self.projectDirectoriesKey) ?? []
+    self.projectManager = projectManager
+    UserDefaults.standard.removeObject(forKey: Self.legacyProjectDirectoriesKey)
   }
 
   // MARK: - Public Methods
@@ -40,42 +51,13 @@ public final class SidebarViewModel {
   public func loadSessions() async {
     do {
       let sessions = try await sessionStorage.getAllSessions()
-      let dbGroups = ProjectGroup.groupByProject(sessions)
-
-      // Build final list following addedProjectDirectories order
-      var result: [ProjectGroup] = []
-      var usedDirs = Set<String>()
-
-      for dir in addedProjectDirectories {
-        if let existing = dbGroups.first(where: { $0.id == dir }) {
-          result.append(existing)
-        } else {
-          let displayName = URL(fileURLWithPath: dir).lastPathComponent
-          result.append(ProjectGroup(
-            id: dir,
-            displayName: displayName,
-            workingDirectory: dir,
-            sessions: [],
-            isExpanded: true
-          ))
-        }
-        usedDirs.insert(dir)
-      }
-
-      // Append any DB groups not in addedProjectDirectories (e.g., from other sources)
-      for group in dbGroups where !usedDirs.contains(group.id) {
-        result.append(group)
-      }
-
-      // Preserve expansion state from previous load
       let previousExpansion = Dictionary(uniqueKeysWithValues: projectGroups.map { ($0.id, $0.isExpanded) })
-      for i in result.indices {
-        if let wasExpanded = previousExpansion[result[i].id] {
-          result[i].isExpanded = wasExpanded
-        }
-      }
-
-      projectGroups = result
+      let projects = (try? await projectManager.loadProjects()) ?? []
+      projectGroups = ProjectGroup.groups(
+        projects: projects,
+        sessions: sessions,
+        previousExpansion: previousExpansion
+      )
     } catch {
       projectGroups = []
     }
@@ -90,16 +72,22 @@ public final class SidebarViewModel {
     isSidebarVisible.toggle()
   }
 
+  public func createPrototypeProject(fromPrompt prompt: String) async {
+    let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return }
+
+    selectedProjectKind = .prototype
+    selectedFidelity = .highFidelity
+    projectName = Self.suggestedProjectName(from: trimmed)
+    await createProjectAndStartSession(seedPrompt: trimmed)
+  }
+
   func selectSession(_ session: StoredSession) {
     selectedSessionId = session.id
     onSessionSelected?(session)
   }
 
   func requestNewChat(workingDirectory: String?) {
-    if let dir = workingDirectory, !addedProjectDirectories.contains(dir) {
-      addedProjectDirectories.append(dir)
-      persistProjectDirectories()
-    }
     selectedSessionId = nil
     onNewChatRequested?(workingDirectory)
   }
@@ -108,9 +96,46 @@ public final class SidebarViewModel {
     onDeleteSession?(session)
   }
 
+  func createProjectAndStartSession(seedPrompt: String? = nil) async {
+    let name = projectName.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !name.isEmpty else { return }
+
+    isCreatingProject = true
+    creationError = nil
+    defer { isCreatingProject = false }
+
+    let request = EaselProjectCreateRequest(
+      name: name,
+      kind: selectedProjectKind,
+      designSystem: selectedDesignSystem,
+      fidelity: selectedFidelity
+    )
+
+    do {
+      let project = try await projectManager.createProject(from: request)
+      projectName = ""
+      selectedSessionId = nil
+      await loadSessions()
+      onProjectLaunchRequested?(EaselProjectLaunch(
+        project: project,
+        prompt: project.launchPrompt(seedPrompt: seedPrompt)
+      ))
+    } catch {
+      creationError = error.localizedDescription
+    }
+  }
+
   // MARK: - Private
 
-  private func persistProjectDirectories() {
-    UserDefaults.standard.set(Array(addedProjectDirectories), forKey: Self.projectDirectoriesKey)
+  private static func suggestedProjectName(from prompt: String) -> String {
+    let collapsed = prompt
+      .split(whereSeparator: \.isWhitespace)
+      .joined(separator: " ")
+    let limit = 48
+    if collapsed.count <= limit {
+      return collapsed
+    }
+
+    return String(collapsed.prefix(limit)).trimmingCharacters(in: .whitespacesAndNewlines)
   }
 }

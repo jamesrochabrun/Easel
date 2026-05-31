@@ -8,13 +8,11 @@ import SwiftUI
 
 public struct ChatPanelView: View {
   let chatService: ChatService
-  let initialPrompt: String
 
   @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
 
-  public init(chatService: ChatService, initialPrompt: String) {
+  public init(chatService: ChatService) {
     self.chatService = chatService
-    self.initialPrompt = initialPrompt
   }
 
   public var body: some View {
@@ -47,9 +45,6 @@ public struct ChatPanelView: View {
           )
         )
         .environment(globalPreferences)
-        .onAppear {
-          chatService.sendInitialPromptIfNeeded(initialPrompt)
-        }
       } else {
         ProgressView("Initializing...")
           .frame(maxWidth: .infinity, maxHeight: .infinity)
