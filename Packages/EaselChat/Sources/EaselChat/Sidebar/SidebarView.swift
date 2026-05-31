@@ -4,6 +4,7 @@
 //
 
 import ClaudeCodeCore
+import EaselKit
 import SwiftUI
 
 public struct SidebarView: View {
@@ -11,6 +12,7 @@ public struct SidebarView: View {
 
   @State private var showDeleteConfirmation = false
   @State private var sessionToDelete: StoredSession?
+  @Environment(\.colorScheme) private var colorScheme
 
   public init(sidebarViewModel: SidebarViewModel) {
     self.sidebarViewModel = sidebarViewModel
@@ -21,7 +23,7 @@ public struct SidebarView: View {
       headerView
 
       Rectangle()
-        .fill(.quaternary)
+        .fill(EaselDesignSystem.Palette.border(for: colorScheme))
         .frame(height: 1)
 
       ScrollView {
@@ -32,6 +34,8 @@ public struct SidebarView: View {
         .padding(12)
       }
     }
+    .background(EaselDesignSystem.Palette.canvas(for: colorScheme))
+    .tint(EaselDesignSystem.Palette.accent)
     .alert("Delete Session", isPresented: $showDeleteConfirmation) {
       Button("Cancel", role: .cancel) {
         sessionToDelete = nil
@@ -53,26 +57,30 @@ public struct SidebarView: View {
   private var headerView: some View {
     VStack(alignment: .leading, spacing: 6) {
       HStack(alignment: .firstTextBaseline, spacing: 8) {
-        Image(systemName: "paintpalette")
-          .font(.system(size: 18, weight: .medium))
-          .foregroundStyle(Color(red: 0.83, green: 0.39, blue: 0.25))
+        Image(systemName: "sparkles")
+          .font(EaselDesignSystem.Typography.interface(size: 15, weight: .semibold))
+          .foregroundStyle(EaselDesignSystem.Palette.accent)
 
-        Text("Codex Design")
-          .font(.system(size: 22, weight: .semibold, design: .serif))
+        Text("Easel")
+          .font(EaselDesignSystem.Typography.interface(size: 22, weight: .semibold))
           .foregroundStyle(.primary)
           .lineLimit(1)
 
-        Text("Research Preview")
-          .font(.caption.weight(.medium))
-          .foregroundStyle(.secondary)
+        Text("Codex")
+          .font(EaselDesignSystem.Typography.interface(size: 11, weight: .medium))
+          .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
           .padding(.horizontal, 7)
           .padding(.vertical, 3)
-          .background(.thinMaterial, in: Capsule())
+          .background(EaselDesignSystem.Palette.subtleSurface(for: colorScheme), in: Capsule())
+          .overlay {
+            Capsule()
+              .stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1)
+          }
       }
 
-      Text("by Easel Labs")
+      Text("Prototype workspace")
         .font(.callout)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
         .lineLimit(1)
     }
     .padding(.horizontal, 16)
@@ -91,7 +99,7 @@ public struct SidebarView: View {
       .labelsHidden()
 
       Text(sidebarViewModel.selectedProjectKind.creationTitle)
-        .font(.title3.weight(.semibold))
+        .font(EaselDesignSystem.Typography.interface(size: 16, weight: .semibold))
         .foregroundStyle(.primary)
 
       TextField(
@@ -99,19 +107,19 @@ public struct SidebarView: View {
         text: $sidebarViewModel.projectName
       )
       .textFieldStyle(.plain)
-      .font(.system(size: 15))
+      .font(EaselDesignSystem.Typography.interface(size: 14))
       .padding(.horizontal, 12)
       .frame(height: 42)
-      .background(.background, in: RoundedRectangle(cornerRadius: 8))
+      .background(EaselDesignSystem.Palette.subtleSurface(for: colorScheme), in: RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.card))
       .overlay {
-        RoundedRectangle(cornerRadius: 8)
-          .stroke(.quaternary, lineWidth: 1)
+        RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.card)
+          .stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1)
       }
 
       VStack(alignment: .leading, spacing: 8) {
         Text("Design system")
           .font(.callout.weight(.medium))
-          .foregroundStyle(.secondary)
+          .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
 
         Picker("Design system", selection: $sidebarViewModel.selectedDesignSystem) {
           ForEach(EaselDesignSystemPreset.allCases) { system in
@@ -128,7 +136,7 @@ public struct SidebarView: View {
       if let creationError = sidebarViewModel.creationError {
         Text(creationError)
           .font(.caption)
-          .foregroundStyle(.red)
+          .foregroundStyle(EaselDesignSystem.Palette.danger)
           .fixedSize(horizontal: false, vertical: true)
       }
 
@@ -144,14 +152,15 @@ public struct SidebarView: View {
         .frame(maxWidth: .infinity)
       }
       .buttonStyle(.borderedProminent)
+      .tint(EaselDesignSystem.Palette.primaryAction(for: colorScheme))
       .controlSize(.large)
       .disabled(!canCreateProject || sidebarViewModel.isCreatingProject)
     }
     .padding(12)
-    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+    .background(EaselDesignSystem.Palette.surface(for: colorScheme), in: RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.card))
     .overlay {
-      RoundedRectangle(cornerRadius: 8)
-        .stroke(.quaternary, lineWidth: 1)
+      RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.card)
+        .stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1)
     }
   }
 
@@ -159,7 +168,7 @@ public struct SidebarView: View {
     VStack(alignment: .leading, spacing: 8) {
       Text("Fidelity")
         .font(.callout.weight(.medium))
-        .foregroundStyle(.secondary)
+        .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
 
       HStack(spacing: 10) {
         ForEach(EaselProjectFidelity.allCases) { fidelity in
@@ -177,12 +186,12 @@ public struct SidebarView: View {
             }
             .padding(8)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.background, in: RoundedRectangle(cornerRadius: 8))
+            .background(EaselDesignSystem.Palette.subtleSurface(for: colorScheme), in: RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.card))
             .overlay {
-              RoundedRectangle(cornerRadius: 8)
+              RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.card)
                 .stroke(
-                  sidebarViewModel.selectedFidelity == fidelity ? Color.accentColor : Color.clear,
-                  lineWidth: 3
+                  sidebarViewModel.selectedFidelity == fidelity ? EaselDesignSystem.Palette.accent : Color.clear,
+                  lineWidth: 2
                 )
             }
           }
@@ -196,13 +205,13 @@ public struct SidebarView: View {
   private func fidelityThumbnail(for fidelity: EaselProjectFidelity) -> some View {
     ZStack {
       RoundedRectangle(cornerRadius: 7)
-        .fill(Color(red: 0.93, green: 0.91, blue: 0.86))
+        .fill(EaselDesignSystem.Palette.surfaceElevated(for: colorScheme))
 
       RoundedRectangle(cornerRadius: 6)
-        .fill(.white)
+        .fill(EaselDesignSystem.Palette.surface(for: colorScheme))
         .overlay {
           RoundedRectangle(cornerRadius: 6)
-            .stroke(Color.black.opacity(0.12), lineWidth: 1)
+            .stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1)
         }
         .padding(8)
 
@@ -233,7 +242,7 @@ public struct SidebarView: View {
     VStack(alignment: .leading, spacing: 7) {
       HStack {
         Circle()
-          .fill(Color(red: 0.83, green: 0.39, blue: 0.25))
+          .fill(EaselDesignSystem.Palette.accent)
           .frame(width: 8, height: 8)
 
         RoundedRectangle(cornerRadius: 3)
@@ -243,7 +252,7 @@ public struct SidebarView: View {
         Spacer()
 
         RoundedRectangle(cornerRadius: 4)
-          .fill(Color(red: 0.83, green: 0.39, blue: 0.25))
+          .fill(EaselDesignSystem.Palette.accent)
           .frame(width: 32, height: 10)
       }
 
@@ -257,13 +266,13 @@ public struct SidebarView: View {
 
       HStack {
         RoundedRectangle(cornerRadius: 6)
-          .fill(Color(red: 0.83, green: 0.39, blue: 0.25))
+          .fill(EaselDesignSystem.Palette.accent)
           .frame(width: 46, height: 15)
 
         Spacer()
 
         Image(systemName: "photo")
-          .foregroundStyle(Color(red: 0.83, green: 0.39, blue: 0.25).opacity(0.65))
+          .foregroundStyle(EaselDesignSystem.Palette.accent.opacity(0.65))
       }
     }
   }
@@ -272,7 +281,7 @@ public struct SidebarView: View {
     VStack(alignment: .leading, spacing: 8) {
       HStack {
         Text("Projects")
-          .font(.headline)
+          .font(EaselDesignSystem.Typography.interface(size: 14, weight: .semibold))
           .foregroundStyle(.primary)
 
         Spacer()
@@ -286,14 +295,14 @@ public struct SidebarView: View {
             .font(.system(size: 13, weight: .medium))
         }
         .buttonStyle(.plain)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
         .help("Refresh projects")
       }
 
       if sidebarViewModel.projectGroups.isEmpty {
         Text("No projects yet")
           .font(.callout)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
           .fixedSize(horizontal: false, vertical: true)
           .frame(maxWidth: .infinity, alignment: .leading)
           .padding(.vertical, 8)

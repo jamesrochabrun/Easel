@@ -1,3 +1,4 @@
+import EaselKit
 import SwiftUI
 
 struct AttachmentsSectionView: View {
@@ -24,7 +25,7 @@ struct StoredAttachmentView: View {
     VStack(spacing: 4) {
       Image(systemName: iconName)
         .font(.system(size: 24))
-        .foregroundColor(.accentColor)
+        .foregroundColor(EaselDesignSystem.Palette.accent)
       
       Text(attachment.fileName)
         .font(.caption)
@@ -32,8 +33,12 @@ struct StoredAttachmentView: View {
         .truncationMode(.middle)
     }
     .frame(width: 80, height: 80)
-    .background(Color.gray.opacity(colorScheme == .dark ? 0.1 : 0.05))
-    .cornerRadius(8)
+    .background(EaselDesignSystem.Palette.subtleSurface(for: colorScheme))
+    .clipShape(RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.card))
+    .overlay {
+      RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.card)
+        .stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1)
+    }
   }
   
   private var iconName: String {

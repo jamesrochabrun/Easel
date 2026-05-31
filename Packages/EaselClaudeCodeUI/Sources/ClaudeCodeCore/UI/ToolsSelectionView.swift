@@ -5,11 +5,13 @@
 //  Created on 12/6/2025.
 //
 
+import EaselKit
 import SwiftUI
 
 struct ToolsSelectionView: View {
   @Environment(\.dismiss) private var dismiss
   @Environment(GlobalPreferencesStorage.self) private var globalPreferences
+  @Environment(\.colorScheme) private var colorScheme
   @Binding var selectedTools: Set<String>
   @Binding var selectedMCPTools: [String: Set<String>]
   let availableToolsByServer: [String: [String]]
@@ -23,7 +25,7 @@ struct ToolsSelectionView: View {
         if globalPreferences.hasCorruptedPreferences {
           HStack(spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
-              .foregroundColor(.orange)
+              .foregroundColor(EaselDesignSystem.Palette.warning)
               .imageScale(.large)
             VStack(alignment: .leading, spacing: 4) {
               Text("Recovering from Corrupted Preferences")
@@ -39,11 +41,11 @@ struct ToolsSelectionView: View {
             Spacer()
           }
           .padding()
-          .background(Color.orange.opacity(0.15))
+          .background(EaselDesignSystem.Palette.warning.opacity(0.15))
           .overlay(
             Rectangle()
               .frame(height: 1)
-              .foregroundColor(Color.orange.opacity(0.3)),
+              .foregroundColor(EaselDesignSystem.Palette.warning.opacity(0.3)),
             alignment: .bottom
           )
         }
@@ -61,7 +63,7 @@ struct ToolsSelectionView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(NSColor.controlBackgroundColor))
+        .background(EaselDesignSystem.Palette.surface(for: colorScheme))
         
         Divider()
         
@@ -76,7 +78,7 @@ struct ToolsSelectionView: View {
                   Spacer()
                   if isToolSelected(tool, server: serverName) {
                     Image(systemName: "checkmark.circle.fill")
-                      .foregroundColor(.accentColor)
+                      .foregroundColor(EaselDesignSystem.Palette.accent)
                   } else {
                     Image(systemName: "circle")
                       .foregroundColor(.secondary)
@@ -134,6 +136,7 @@ struct ToolsSelectionView: View {
       }
       .navigationTitle("Auto-Approved Tools")
       .frame(width: 500, height: 600)
+      .tint(EaselDesignSystem.Palette.accent)
     }
   }
   

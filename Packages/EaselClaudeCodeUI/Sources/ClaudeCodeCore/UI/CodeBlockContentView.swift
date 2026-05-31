@@ -1,3 +1,4 @@
+import EaselKit
 import SwiftUI
 
 struct CodeBlockContentView: View {
@@ -52,9 +53,9 @@ struct CodeBlockContentView: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(Color.blue.opacity(0.1))
-            .foregroundColor(.blue)
-            .cornerRadius(4)
+            .background(EaselDesignSystem.Palette.accent.opacity(0.10))
+            .foregroundColor(EaselDesignSystem.Palette.accent)
+            .clipShape(RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.control))
           }
           .buttonStyle(.plain)
           .help("View Mermaid Diagram")

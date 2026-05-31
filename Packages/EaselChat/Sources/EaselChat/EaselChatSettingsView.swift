@@ -4,6 +4,7 @@
 //
 
 import ClaudeCodeCore
+import EaselKit
 import SwiftUI
 
 public struct EaselChatSettingsView: View {
@@ -22,7 +23,7 @@ public struct EaselChatSettingsView: View {
         showTokenCount: true,
         messageFontSize: 13.0,
         inputCornerRadius: 8.0,
-        useMaterialInputBackground: true,
+        useMaterialInputBackground: false,
         showCommandTip: false,
         showWelcomeRow: false
       ),
@@ -32,5 +33,6 @@ public struct EaselChatSettingsView: View {
       globalPreferences: chatService?.globalPreferences,
       mcpToolsDiscovery: chatService?.mcpToolsDiscoveryService
     )
+    .tint(EaselDesignSystem.Palette.accent)
   }
 }

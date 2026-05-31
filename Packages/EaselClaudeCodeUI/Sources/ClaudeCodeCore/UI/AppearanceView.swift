@@ -152,32 +152,8 @@ struct AppearanceView: View {
   // MARK: - Helper Methods
   private func getThemeColors(for theme: AppTheme) -> ThemeColors {
     switch theme {
-    case .clear:
-      return ThemeColors(
-        brandPrimary: Color(hex: "#1F2937"),
-        brandSecondary: Color(hex: "#6B7280"),
-        brandTertiary: Color(hex: "#D1D5DB")
-      )
-    case .claude:
-      return ThemeColors(
-        brandPrimary: Color(hex: "#CC785C"),
-        brandSecondary: Color(hex: "#D4A27F"),
-        brandTertiary: Color(hex: "#EBDBBC")
-      )
-    case .bat:
-      // Bat: purple primary, real mustard secondary, slate tertiary
-      return ThemeColors(
-        brandPrimary: Color(hex: "#7C3AED"),
-        brandSecondary: Color(hex: "#FFB000"),
-        brandTertiary: Color(hex: "#64748B")
-      )
-    case .xcode:
-      // Xcode: dynamic system colors akin to Xcode highlights
-      return ThemeColors(
-        brandPrimary: Color(nsColor: .systemBlue),
-        brandSecondary: Color(nsColor: .systemIndigo),
-        brandTertiary: Color(nsColor: .systemTeal)
-      )
+    case .codex, .clear, .claude, .bat, .xcode:
+      return ThemeColors.themeColors(for: theme)
     case .custom:
       return ThemeColors(
         brandPrimary: Color(hex: appearanceSettings.customPrimaryHex),

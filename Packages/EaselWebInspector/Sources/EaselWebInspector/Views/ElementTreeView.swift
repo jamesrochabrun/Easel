@@ -6,6 +6,7 @@
 //
 
 import Canvas
+import EaselKit
 import SwiftUI
 
 public struct ElementTreeView: View {
@@ -14,6 +15,7 @@ public struct ElementTreeView: View {
 
   @State private var showsChildren = true
   @State private var showsSiblings = true
+  @Environment(\.colorScheme) private var colorScheme
 
   public init(children: ElementRelationships, siblings: ElementRelationships) {
     self.children = children
@@ -43,9 +45,13 @@ public struct ElementTreeView: View {
     .padding(12)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(
-      RoundedRectangle(cornerRadius: 12)
-        .fill(Color.surfaceElevated)
+      RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.preview)
+        .fill(EaselDesignSystem.Palette.surface(for: colorScheme))
     )
+    .overlay {
+      RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.preview)
+        .stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1)
+    }
   }
 
   private func relationshipSection(

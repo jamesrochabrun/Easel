@@ -1,118 +1,94 @@
 import SwiftUI
 import AppKit
+import EaselKit
 
 enum EaselChatRuntimeStyle {
-  static let maxContentWidth: CGFloat = 420
-  static let cardRadius: CGFloat = 8
-  static let compactRadius: CGFloat = 6
+  static let maxContentWidth: CGFloat = 432
+  static let cardRadius: CGFloat = EaselDesignSystem.Radius.card
+  static let compactRadius: CGFloat = EaselDesignSystem.Radius.control
 
   // MARK: - Typography
 
   enum Typography {
-    static let primaryTitle: Font = .callout.bold()
-    static let secondaryBody: Font = .caption
-    static let tertiaryCaption: Font = .caption2
-    static let assistantLabel: Font = .caption.bold()
-    static let statusIcon: Font = .system(size: 10, weight: .semibold)
-    static let toolIcon: Font = .system(size: 13)
+    static let primaryTitle: Font = EaselDesignSystem.Typography.interface(size: 13, weight: .semibold)
+    static let secondaryBody: Font = EaselDesignSystem.Typography.interface(size: 12)
+    static let tertiaryCaption: Font = EaselDesignSystem.Typography.interface(size: 11)
+    static let assistantLabel: Font = EaselDesignSystem.Typography.interface(size: 12, weight: .semibold)
+    static let statusIcon: Font = EaselDesignSystem.Typography.interface(size: 10, weight: .semibold)
+    static let toolIcon: Font = EaselDesignSystem.Typography.interface(size: 13)
 
     static func code(size: CGFloat) -> Font {
-      .system(size: size, design: .monospaced)
+      EaselDesignSystem.Typography.code(size: size)
     }
 
     static func codeBold(size: CGFloat) -> Font {
-      .system(size: size, weight: .semibold, design: .monospaced)
+      EaselDesignSystem.Typography.code(size: size, weight: .semibold)
     }
   }
 
   // MARK: - Spacing
 
   enum Spacing {
-    static let cardPadding: CGFloat = 10
-    static let cardPaddingCompact: CGFloat = 8
-    static let previewPadding: CGFloat = 10
-    static let cardContentSpacing: CGFloat = 6
-    static let messageListSpacing: CGFloat = 6
+    static let cardPadding: CGFloat = EaselDesignSystem.Spacing.large
+    static let cardPaddingCompact: CGFloat = EaselDesignSystem.Spacing.medium
+    static let previewPadding: CGFloat = EaselDesignSystem.Spacing.large
+    static let cardContentSpacing: CGFloat = EaselDesignSystem.Spacing.small
+    static let messageListSpacing: CGFloat = EaselDesignSystem.Spacing.medium
     static let messageRowVertical: CGFloat = 1
-    static let taskHeaderHorizontal: CGFloat = 10
-    static let taskHeaderVertical: CGFloat = 8
-    static let headerDotSpacing: CGFloat = 8
+    static let taskHeaderHorizontal: CGFloat = EaselDesignSystem.Spacing.large
+    static let taskHeaderVertical: CGFloat = EaselDesignSystem.Spacing.medium
+    static let headerDotSpacing: CGFloat = EaselDesignSystem.Spacing.medium
     static let statusDotSize: CGFloat = 8
     static let chevronSize: CGFloat = 10
   }
 
   static func appBackground(for colorScheme: ColorScheme, themeColors: ThemeColors = .current) -> Color {
-    Color.clear
+    EaselDesignSystem.Palette.canvas(for: colorScheme)
   }
 
   static func panelBackground(for colorScheme: ColorScheme, themeColors: ThemeColors = .current) -> Color {
-    switch colorScheme {
-    case .dark:
-      return Color(nsColor: NSColor(srgbRed: 0.12, green: 0.12, blue: 0.12, alpha: 0.86))
-    default:
-      return Color(nsColor: NSColor(srgbRed: 0.96, green: 0.96, blue: 0.96, alpha: 0.92))
-    }
+    EaselDesignSystem.Palette.surface(for: colorScheme)
   }
 
   static func cardBackground(for colorScheme: ColorScheme, themeColors: ThemeColors = .current) -> Color {
-    switch colorScheme {
-    case .dark:
-      return Color(nsColor: NSColor(srgbRed: 0.16, green: 0.16, blue: 0.16, alpha: 0.82))
-    default:
-      return Color(nsColor: NSColor(srgbRed: 0.95, green: 0.95, blue: 0.95, alpha: 0.94))
-    }
+    EaselDesignSystem.Palette.surface(for: colorScheme)
   }
 
   static func subtleCardBackground(for colorScheme: ColorScheme, themeColors: ThemeColors = .current) -> Color {
-    switch colorScheme {
-    case .dark:
-      return Color(nsColor: NSColor(srgbRed: 0.11, green: 0.11, blue: 0.11, alpha: 0.68))
-    default:
-      return Color(nsColor: NSColor(srgbRed: 0.98, green: 0.98, blue: 0.98, alpha: 0.86))
-    }
+    EaselDesignSystem.Palette.subtleSurface(for: colorScheme)
   }
 
   static func border(for colorScheme: ColorScheme, themeColors: ThemeColors = .current) -> Color {
-    switch colorScheme {
-    case .dark:
-      return Color.white.opacity(0.16)
-    default:
-      return Color.black.opacity(0.10)
-    }
+    EaselDesignSystem.Palette.border(for: colorScheme)
   }
 
   static func secondaryText(for colorScheme: ColorScheme, themeColors: ThemeColors = .current) -> Color {
-    colorScheme == .dark ? Color.white.opacity(0.58) : Color.black.opacity(0.46)
+    EaselDesignSystem.Palette.secondaryText(for: colorScheme)
   }
 
   static func tertiaryText(for colorScheme: ColorScheme, themeColors: ThemeColors = .current) -> Color {
-    colorScheme == .dark ? Color.white.opacity(0.38) : Color.black.opacity(0.28)
+    EaselDesignSystem.Palette.tertiaryText(for: colorScheme)
   }
 
   static func userBubble(for colorScheme: ColorScheme, themeColors: ThemeColors = .current) -> Color {
-    switch colorScheme {
-    case .dark:
-      return Color(nsColor: NSColor(srgbRed: 0.86, green: 0.86, blue: 0.86, alpha: 1))
-    default:
-      return Color(nsColor: NSColor(srgbRed: 0.12, green: 0.12, blue: 0.12, alpha: 1))
-    }
+    EaselDesignSystem.Palette.primaryAction(for: colorScheme)
   }
 
   static func userText(for colorScheme: ColorScheme, themeColors: ThemeColors = .current) -> Color {
     readableForeground(for: userBubble(for: colorScheme, themeColors: themeColors))
   }
 
-  static let completed = Color(red: 52, green: 211, blue: 128)
-  static let running = Color(red: 102, green: 166, blue: 255)
-  static let failed = Color(red: 242, green: 77, blue: 77)
-  static let denied = Color(red: 255, green: 158, blue: 64)
+  static let completed = EaselDesignSystem.Palette.success
+  static let running = EaselDesignSystem.Palette.running
+  static let failed = EaselDesignSystem.Palette.danger
+  static let denied = EaselDesignSystem.Palette.warning
 
   static func successBackground(for colorScheme: ColorScheme, themeColors: ThemeColors = .current) -> Color {
-    colorScheme == .dark ? Color(red: 0.08, green: 0.20, blue: 0.11) : Color(red: 0.91, green: 0.98, blue: 0.93)
+    colorScheme == .dark ? EaselDesignSystem.Palette.accent.opacity(0.16) : EaselDesignSystem.Palette.accent.opacity(0.10)
   }
 
   static func successForeground(for colorScheme: ColorScheme, themeColors: ThemeColors = .current) -> Color {
-    colorScheme == .dark ? Color(red: 0.70, green: 0.96, blue: 0.74) : Color(red: 0.20, green: 0.58, blue: 0.27)
+    colorScheme == .dark ? EaselDesignSystem.Palette.accent : EaselDesignSystem.Palette.accentMuted
   }
 
   private static func readableForeground(for background: Color) -> Color {

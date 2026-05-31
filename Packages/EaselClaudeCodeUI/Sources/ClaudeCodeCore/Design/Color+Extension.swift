@@ -5,9 +5,11 @@
 
 import SwiftUI
 import AppKit
+import EaselKit
 
 /// Available app themes
 public enum AppTheme: String, CaseIterable, Identifiable {
+  case codex = "codex"
   case clear = "clear"
   case claude = "claude"
   case bat = "bat"
@@ -18,6 +20,7 @@ public enum AppTheme: String, CaseIterable, Identifiable {
   
   public var displayName: String {
     switch self {
+    case .codex: return "Codex"
     case .clear: return "Clear"
     case .claude: return "Claude"
     case .bat: return "Bat"
@@ -28,6 +31,7 @@ public enum AppTheme: String, CaseIterable, Identifiable {
   
   public var description: String {
     switch self {
+    case .codex: return "OpenAI-inspired neutrals with a focused green accent"
     case .clear: return "Clean neutral grays"
     case .claude: return "Warm earth tones"
     case .bat: return "Purple with mustard accents"
@@ -50,8 +54,8 @@ public struct ThemeColors {
   }
 
   static var current: ThemeColors {
-    let selectedTheme = UserDefaults.standard.string(forKey: "selectedTheme") ?? AppTheme.clear.rawValue
-    let theme = AppTheme(rawValue: selectedTheme) ?? .clear
+    let selectedTheme = UserDefaults.standard.string(forKey: "selectedTheme") ?? AppTheme.codex.rawValue
+    let theme = AppTheme(rawValue: selectedTheme) ?? .codex
     return themeColors(
       for: theme,
       customPrimaryHex: UserDefaults.standard.string(forKey: "customPrimaryHex"),
@@ -67,6 +71,12 @@ public struct ThemeColors {
     customTertiaryHex: String? = nil
   ) -> ThemeColors {
     switch theme {
+    case .codex:
+      return ThemeColors(
+        brandPrimary: EaselDesignSystem.Palette.ink,
+        brandSecondary: EaselDesignSystem.Palette.accent,
+        brandTertiary: EaselDesignSystem.Palette.border(for: .light)
+      )
     case .clear:
       return ThemeColors(
         brandPrimary: Color(hex: "#1F2937"),
@@ -93,9 +103,9 @@ public struct ThemeColors {
       )
     case .custom:
       return ThemeColors(
-        brandPrimary: Color(hex: customPrimaryHex ?? "#7C3AED"),
-        brandSecondary: Color(hex: customSecondaryHex ?? "#FFB000"),
-        brandTertiary: Color(hex: customTertiaryHex ?? "#64748B")
+        brandPrimary: Color(hex: customPrimaryHex ?? EaselDesignSystem.Palette.inkHex),
+        brandSecondary: Color(hex: customSecondaryHex ?? EaselDesignSystem.Palette.accentHex),
+        brandTertiary: Color(hex: customTertiaryHex ?? EaselDesignSystem.Palette.borderLightHex)
       )
     }
   }
@@ -134,9 +144,9 @@ extension Color {
   
   // MARK: - Named Colors (Legacy - use brand colors instead)
   
-  static let bookCloth = Color(hex: "#CC785C")
-  static let kraft = Color(hex: "#D4A27F")
-  static let manilla = Color(hex: "#EBDBBC")
+  static let bookCloth = EaselDesignSystem.Palette.ink
+  static let kraft = EaselDesignSystem.Palette.accent
+  static let manilla = EaselDesignSystem.Palette.border(for: .light)
   
   // MARK: - Theme-Aware Brand Colors
 
@@ -151,10 +161,10 @@ extension Color {
   static var brandTertiary: Color {
     ThemeColors.current.brandTertiary
   }
-  static let backgroundDark = Color(hex: "#262624")
-  static let backgroundLight = Color(hex: "#FAF9F5")
-  static let expandedContentBackgroundDark = Color(hex: "#1F2421")
-  static let expandedContentBackgroundLight = Color.white//(hex: "#F8F4E3")
+  static let backgroundDark = EaselDesignSystem.Palette.canvas(for: .dark)
+  static let backgroundLight = EaselDesignSystem.Palette.canvas(for: .light)
+  static let expandedContentBackgroundDark = EaselDesignSystem.Palette.surface(for: .dark)
+  static let expandedContentBackgroundLight = EaselDesignSystem.Palette.surface(for: .light)
   
   // MARK: - Adaptive Colors
   
@@ -191,7 +201,7 @@ extension NSColor {
     case 6:
       (r, g, b) = ((int >> 16) & 0xFF, (int >> 8) & 0xFF, int & 0xFF)
     default:
-      (r, g, b) = (124, 58, 237) // fallback purple
+      (r, g, b) = (16, 163, 127)
     }
     return NSColor(srgbRed: CGFloat(r) / 255.0,
                    green: CGFloat(g) / 255.0,

@@ -5,11 +5,13 @@
 //  Bottom update bar for the web preview inspector rail.
 //
 
+import EaselKit
 import SwiftUI
 
 public struct WebPreviewUpdateBar: View {
   let state: WebPreviewUpdateState
   let onUpdate: () -> Void
+  @Environment(\.colorScheme) private var colorScheme
 
   public init(state: WebPreviewUpdateState, onUpdate: @escaping () -> Void) {
     self.state = state
@@ -37,12 +39,12 @@ public struct WebPreviewUpdateBar: View {
 
           Text("\u{2318}\u{21A9}")
             .font(.system(size: 11, weight: .semibold, design: .monospaced))
-            .foregroundStyle(.secondary)
+            .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
             .background(
               Capsule()
-                .fill(Color.secondary.opacity(0.15))
+                .fill(EaselDesignSystem.Palette.subtleSurface(for: colorScheme))
             )
         }
       }
@@ -52,7 +54,7 @@ public struct WebPreviewUpdateBar: View {
     }
     .padding(.horizontal, 12)
     .padding(.vertical, 10)
-    .background(Color.surfaceElevated)
+    .background(EaselDesignSystem.Palette.surface(for: colorScheme))
     .overlay(alignment: .top) {
       Divider()
     }

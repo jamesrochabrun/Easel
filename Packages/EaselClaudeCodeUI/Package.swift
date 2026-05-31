@@ -20,6 +20,7 @@ let package = Package(
         .package(url: "https://github.com/jamesrochabrun/PierreDiffsSwift", exact: "1.1.3"),
         .package(path: "../../../ClaudeCodeSDK"),
         .package(path: "../../../CodexSDK"),
+        .package(path: "../EaselKit"),
         .package(url: "https://github.com/jamesrochabrun/SwiftAnthropic", exact: "2.2.0"),
         .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", from: "2.3.0"),
         .package(url: "https://github.com/jamesrochabrun/Down", exact: "1.0.0"),
@@ -105,6 +106,7 @@ let package = Package(
             dependencies: [
                 .product(name: "ClaudeCodeSDK", package: "ClaudeCodeSDK"),
                 .product(name: "CodexSDK", package: "CodexSDK"),
+                .product(name: "EaselKit", package: "EaselKit"),
                 .product(name: "SwiftAnthropic", package: "SwiftAnthropic"),
                 .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
                 .product(name: "Down", package: "Down"),

@@ -4,6 +4,7 @@
 //
 
 import ClaudeCodeCore
+import EaselKit
 import SwiftUI
 
 struct ProjectHeaderView: View {
@@ -12,6 +13,7 @@ struct ProjectHeaderView: View {
   let onNewChat: () -> Void
 
   @State private var isHovering = false
+  @Environment(\.colorScheme) private var colorScheme
 
   var body: some View {
     HStack(alignment: .center, spacing: 8) {
@@ -19,7 +21,7 @@ struct ProjectHeaderView: View {
         HStack(spacing: 8) {
           Image(systemName: project.kind?.systemImage ?? (project.isExpanded ? "folder.fill" : "folder"))
             .font(.system(size: 14, weight: .medium))
-            .foregroundStyle(project.project == nil ? Color.secondary : Color.accentColor)
+            .foregroundStyle(project.project == nil ? EaselDesignSystem.Palette.secondaryText(for: colorScheme) : EaselDesignSystem.Palette.accent)
             .frame(width: 20)
 
           VStack(alignment: .leading, spacing: 2) {
@@ -30,7 +32,7 @@ struct ProjectHeaderView: View {
 
             Text(project.subtitle)
               .font(.caption)
-              .foregroundStyle(.secondary)
+              .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
               .lineLimit(1)
           }
         }
@@ -44,7 +46,7 @@ struct ProjectHeaderView: View {
         Button(action: onNewChat) {
           Image(systemName: "plus")
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
         }
         .buttonStyle(.plain)
         .help("New Codex session")
@@ -52,10 +54,15 @@ struct ProjectHeaderView: View {
     }
     .padding(.horizontal, 10)
     .padding(.vertical, 8)
-    .background(Color.primary.opacity(isHovering ? 0.06 : 0.03), in: RoundedRectangle(cornerRadius: 8))
+    .background(
+      isHovering
+        ? EaselDesignSystem.Palette.hoverSurface(for: colorScheme)
+        : EaselDesignSystem.Palette.subtleSurface(for: colorScheme),
+      in: RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.card)
+    )
     .overlay {
-      RoundedRectangle(cornerRadius: 8)
-        .stroke(.quaternary, lineWidth: 1)
+      RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.card)
+        .stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1)
     }
     .contentShape(Rectangle())
     .onHover { hovering in

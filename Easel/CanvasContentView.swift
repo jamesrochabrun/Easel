@@ -17,6 +17,7 @@ struct CanvasContentView: View {
   @State private var serverManager = ProjectServerManager()
   @State private var sidebarViewModel: SidebarViewModel?
   @State private var didHandleInitialPrompt = false
+  @Environment(\.colorScheme) private var colorScheme
 
   private let chatPanelWidth: CGFloat = 380
   private let sidebarWidth: CGFloat = 340
@@ -30,7 +31,7 @@ struct CanvasContentView: View {
           .transition(.move(edge: .leading))
 
         Rectangle()
-          .fill(.quaternary)
+          .fill(EaselDesignSystem.Palette.border(for: colorScheme))
           .frame(width: 1)
       }
 
@@ -41,7 +42,8 @@ struct CanvasContentView: View {
           } label: {
             Image(systemName: "sidebar.left")
               .font(.system(size: 14, weight: .medium))
-              .foregroundStyle(.secondary)
+              .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
+              .frame(width: 28, height: 28)
           }
           .buttonStyle(.plain)
           .keyboardShortcut("b", modifiers: .command)
@@ -49,12 +51,13 @@ struct CanvasContentView: View {
 
           Spacer()
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .frame(minHeight: 40)
+        .padding(.horizontal, EaselDesignSystem.Spacing.large)
+        .padding(.vertical, EaselDesignSystem.Spacing.small)
+        .frame(minHeight: EaselDesignSystem.Spacing.toolbarHeight)
+        .background(EaselDesignSystem.Palette.surface(for: colorScheme))
 
         Rectangle()
-          .fill(.quaternary)
+          .fill(EaselDesignSystem.Palette.border(for: colorScheme))
           .frame(height: 1)
 
         ChatPanelView(chatService: chatService)
@@ -64,7 +67,7 @@ struct CanvasContentView: View {
       .frame(maxHeight: .infinity)
 
       Rectangle()
-        .fill(.quaternary)
+        .fill(EaselDesignSystem.Palette.border(for: colorScheme))
         .frame(width: 1)
 
       WebInspectorPreviewView(
@@ -74,7 +77,8 @@ struct CanvasContentView: View {
       .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     .animation(.easeInOut(duration: 0.25), value: sidebarViewModel?.isSidebarVisible)
-    .background(GlassBackgroundView(material: .sidebar))
+    .background(EaselDesignSystem.Palette.canvas(for: colorScheme))
+    .tint(EaselDesignSystem.Palette.accent)
     .task {
       if let appDelegate = NSApp.delegate as? AppDelegate {
         appDelegate.serverManager = serverManager

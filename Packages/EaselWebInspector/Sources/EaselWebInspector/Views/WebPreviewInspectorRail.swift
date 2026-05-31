@@ -7,6 +7,7 @@
 
 import AppKit
 import Canvas
+import EaselKit
 import SwiftUI
 
 public struct WebPreviewInspectorRail: View {
@@ -14,6 +15,7 @@ public struct WebPreviewInspectorRail: View {
   let updateState: WebPreviewUpdateState
   let onUpdate: () -> Void
   let onClose: () -> Void
+  @Environment(\.colorScheme) private var colorScheme
 
   public init(
     viewModel: WebPreviewInspectorViewModel,
@@ -32,7 +34,7 @@ public struct WebPreviewInspectorRail: View {
       header
 
       if let errorMessage = viewModel.errorMessage {
-        statusBanner(errorMessage, color: .red)
+        statusBanner(errorMessage, color: EaselDesignSystem.Palette.danger)
           .padding(.horizontal, 12)
           .padding(.top, 10)
       }
@@ -42,7 +44,7 @@ public struct WebPreviewInspectorRail: View {
           viewModel.needsSourceConfirmation
             ? "Low-confidence match. Choose a source file before live editing is enabled."
             : "Low-confidence match. Review the selected file before editing.",
-          color: .orange
+          color: EaselDesignSystem.Palette.warning
         )
         .padding(.horizontal, 12)
         .padding(.top, viewModel.errorMessage == nil ? 10 : 8)
@@ -60,7 +62,7 @@ public struct WebPreviewInspectorRail: View {
         inspectorContent
       }
     }
-    .background(Color(NSColor.windowBackgroundColor))
+    .background(EaselDesignSystem.Palette.canvas(for: colorScheme))
     .safeAreaInset(edge: .bottom, spacing: 0) {
       if updateState.isVisible {
         WebPreviewUpdateBar(
@@ -74,14 +76,14 @@ public struct WebPreviewInspectorRail: View {
   private var header: some View {
     HStack(alignment: .top, spacing: 10) {
       if let snapshot = viewModel.selectedElementSnapshot {
-        Image(nsImage: snapshot)
+      Image(nsImage: snapshot)
           .resizable()
           .scaledToFill()
           .frame(width: 72, height: 72)
           .clipShape(RoundedRectangle(cornerRadius: 10))
           .overlay(
             RoundedRectangle(cornerRadius: 10)
-              .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+              .stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1)
           )
       }
 
@@ -135,14 +137,14 @@ public struct WebPreviewInspectorRail: View {
       } label: {
         Image(systemName: "xmark")
           .font(.system(size: 11, weight: .medium))
-          .foregroundStyle(.secondary)
+          .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
           .frame(width: 24, height: 24)
       }
       .buttonStyle(.plain)
     }
     .padding(.horizontal, 12)
     .padding(.vertical, 12)
-    .background(Color.surfaceElevated)
+    .background(EaselDesignSystem.Palette.surface(for: colorScheme))
   }
 
   private var inspectorContent: some View {
@@ -169,12 +171,12 @@ public struct WebPreviewInspectorRail: View {
         } label: {
           Text(tab.title)
             .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(viewModel.selectedTab == tab ? Color.primary : Color.secondary)
+            .foregroundStyle(viewModel.selectedTab == tab ? Color.primary : EaselDesignSystem.Palette.secondaryText(for: colorScheme))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)
             .background(
-              RoundedRectangle(cornerRadius: 8)
-                .fill(viewModel.selectedTab == tab ? Color.primary.opacity(0.08) : Color.clear)
+              RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.card)
+                .fill(viewModel.selectedTab == tab ? EaselDesignSystem.Palette.selectedSurface(for: colorScheme) : Color.clear)
             )
             .contentShape(Rectangle())
         }
@@ -190,7 +192,7 @@ public struct WebPreviewInspectorRail: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 14) {
         if let message = viewModel.designTabMessage {
-          statusBanner(message, color: .secondary)
+          statusBanner(message, color: EaselDesignSystem.Palette.secondaryText(for: colorScheme))
         }
 
         layoutSection
@@ -268,8 +270,8 @@ public struct WebPreviewInspectorRail: View {
       }
       .padding(10)
       .background(
-        RoundedRectangle(cornerRadius: 10)
-          .fill(Color.primary.opacity(0.04))
+        RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.panel)
+          .fill(EaselDesignSystem.Palette.subtleSurface(for: colorScheme))
       )
     }
   }
@@ -345,7 +347,7 @@ public struct WebPreviewInspectorRail: View {
       }
       .padding(.horizontal, 12)
       .padding(.vertical, 10)
-      .background(Color.surfaceElevated.opacity(0.75))
+      .background(EaselDesignSystem.Palette.surface(for: colorScheme))
 
       if viewModel.shouldShowLowConfidenceFallback, !viewModel.candidateFilePaths.isEmpty {
         Picker(
@@ -410,9 +412,13 @@ public struct WebPreviewInspectorRail: View {
     .padding(12)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(
-      RoundedRectangle(cornerRadius: 12)
-        .fill(Color.surfaceElevated)
+      RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.preview)
+        .fill(EaselDesignSystem.Palette.surface(for: colorScheme))
     )
+    .overlay {
+      RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.preview)
+        .stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1)
+    }
   }
 
   private func editableValueRow(
@@ -508,11 +514,11 @@ public struct WebPreviewInspectorRail: View {
       .padding(10)
       .frame(maxWidth: .infinity, alignment: .leading)
       .background(
-        RoundedRectangle(cornerRadius: 10)
+        RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.panel)
           .fill(color.opacity(0.08))
       )
       .overlay(
-        RoundedRectangle(cornerRadius: 10)
+        RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.panel)
           .stroke(color.opacity(0.18), lineWidth: 1)
       )
   }
@@ -525,17 +531,17 @@ public struct WebPreviewInspectorRail: View {
       .padding(.vertical, 3)
       .background(
         Capsule()
-          .fill(Color.brandPrimary.opacity(0.9))
+          .fill(EaselDesignSystem.Palette.accent)
       )
   }
 
   private var statusColor: Color {
     if viewModel.writeErrorMessage != nil {
-      return .red
+      return EaselDesignSystem.Palette.danger
     }
     if viewModel.isWriting || viewModel.hasUnsavedChanges {
-      return .orange
+      return EaselDesignSystem.Palette.warning
     }
-    return .secondary
+    return EaselDesignSystem.Palette.secondaryText(for: colorScheme)
   }
 }

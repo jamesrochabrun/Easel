@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import EaselKit
 import SwiftUI
 import AppKit
 
@@ -51,7 +52,7 @@ private struct NoDirectoryView: View {
     VStack(alignment: .leading, spacing: 8) {
       Text("No working directory selected")
         .font(.system(.caption, design: .monospaced))
-        .foregroundColor(.orange)
+        .foregroundColor(EaselDesignSystem.Palette.warning)
       
       if let toolTip = toolTip {
         Text(toolTip)
