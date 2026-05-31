@@ -14,7 +14,7 @@ struct CompactToolResultView: View {
   let message: ChatMessage
   let fontSize: Double
 
-  private let toolRegistry = ToolRegistry.shared
+  private let toolRegistry = ToolRegistry()
   private let formatter = ToolDisplayFormatter()
 
   @Environment(\.colorScheme) private var colorScheme

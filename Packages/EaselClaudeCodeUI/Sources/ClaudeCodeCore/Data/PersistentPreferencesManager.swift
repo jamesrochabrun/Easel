@@ -11,13 +11,12 @@ import Foundation
 /// These preferences survive app deletion and reinstallation
 @MainActor
 public final class PersistentPreferencesManager {
-  
-  /// Singleton instance
-  public static let shared = PersistentPreferencesManager()
+  private let logger: ClaudeCodeLogger
+  private let applicationSupportDirectoryURL: URL?
   
   /// Application Support directory URL
   private var applicationSupportURL: URL? {
-    FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+    applicationSupportDirectoryURL ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
   }
   
   /// Directory for storing ClaudeCodeUI preferences
@@ -35,14 +34,19 @@ public final class PersistentPreferencesManager {
     preferencesDirectoryURL?.appendingPathComponent("preferences.backup.json")
   }
   
-  private init() {
+  public init(
+    applicationSupportURL: URL? = nil,
+    logger: ClaudeCodeLogger = ClaudeCodeLogger()
+  ) {
+    self.applicationSupportDirectoryURL = applicationSupportURL
+    self.logger = logger
     ensureDirectoryExists()
   }
   
   /// Ensures the preferences directory exists
   private func ensureDirectoryExists() {
     guard let directoryURL = preferencesDirectoryURL else {
-      ClaudeCodeLogger.shared.preferences("ERROR: Could not determine preferences directory URL")
+      logger.preferences("ERROR: Could not determine preferences directory URL")
       return
     }
     
@@ -53,7 +57,7 @@ public final class PersistentPreferencesManager {
         attributes: nil
       )
     } catch {
-      ClaudeCodeLogger.shared.preferences("ERROR: Failed to create preferences directory - \(error.localizedDescription)")
+      logger.preferences("ERROR: Failed to create preferences directory - \(error.localizedDescription)")
     }
   }
   
@@ -73,7 +77,7 @@ public final class PersistentPreferencesManager {
       
       // Check for empty file
       if data.isEmpty {
-        ClaudeCodeLogger.shared.preferences("ERROR: Preferences file is empty")
+        logger.preferences("ERROR: Preferences file is empty")
         return .failure(.emptyFile)
       }
       
@@ -96,7 +100,7 @@ public final class PersistentPreferencesManager {
       @unknown default:
         formatDetails = "Unknown format issue"
       }
-      ClaudeCodeLogger.shared.preferences("ERROR: JSON decoding failed - \(formatDetails)")
+      logger.preferences("ERROR: JSON decoding failed - \(formatDetails)")
       return .failure(.invalidFormat(details: formatDetails))
     } catch {
       // Check if it's a file system error
@@ -134,7 +138,7 @@ public final class PersistentPreferencesManager {
         }
         try FileManager.default.copyItem(at: fileURL, to: backupURL)
       } catch {
-        ClaudeCodeLogger.shared.preferences("ERROR: Failed to create backup - \(error.localizedDescription)")
+        logger.preferences("ERROR: Failed to create backup - \(error.localizedDescription)")
       }
     }
   }
@@ -142,7 +146,7 @@ public final class PersistentPreferencesManager {
   /// Save preferences to persistent storage
   public func savePreferences(_ preferences: PersistentPreferences) {
     guard let fileURL = preferencesFileURL else {
-      ClaudeCodeLogger.shared.preferences("ERROR: Could not determine preferences file URL for saving")
+      logger.preferences("ERROR: Could not determine preferences file URL for saving")
       return
     }
     
@@ -159,7 +163,7 @@ public final class PersistentPreferencesManager {
       // Write atomically to prevent corruption
       try data.write(to: fileURL, options: .atomic)
     } catch {
-      ClaudeCodeLogger.shared.preferences("ERROR: Failed to save preferences - \(error.localizedDescription)")
+      logger.preferences("ERROR: Failed to save preferences - \(error.localizedDescription)")
     }
   }
   
@@ -177,10 +181,10 @@ public final class PersistentPreferencesManager {
       }
       if FileManager.default.fileExists(atPath: fileURL.path) {
         try FileManager.default.moveItem(at: fileURL, to: corruptedURL)
-        ClaudeCodeLogger.shared.preferences("Moved corrupted preferences to backup")
+        logger.preferences("Moved corrupted preferences to backup")
       }
     } catch {
-      ClaudeCodeLogger.shared.preferences("ERROR: Failed to handle corrupted file - \(error.localizedDescription)")
+      logger.preferences("ERROR: Failed to handle corrupted file - \(error.localizedDescription)")
     }
   }
   
@@ -204,10 +208,10 @@ public final class PersistentPreferencesManager {
         try FileManager.default.removeItem(at: fileURL)
       }
       try FileManager.default.copyItem(at: backupURL, to: fileURL)
-      ClaudeCodeLogger.shared.preferences("Successfully restored from backup")
+      logger.preferences("Successfully restored from backup")
       return preferences
     } catch {
-      ClaudeCodeLogger.shared.preferences("ERROR: Failed to restore from backup - \(error.localizedDescription)")
+      logger.preferences("ERROR: Failed to restore from backup - \(error.localizedDescription)")
       return nil
     }
   }
@@ -221,7 +225,7 @@ public final class PersistentPreferencesManager {
     do {
       try FileManager.default.removeItem(at: fileURL)
     } catch {
-      ClaudeCodeLogger.shared.preferences("ERROR: Failed to delete preferences - \(error.localizedDescription)")
+      logger.preferences("ERROR: Failed to delete preferences - \(error.localizedDescription)")
     }
   }
   
@@ -238,7 +242,7 @@ public final class PersistentPreferencesManager {
     let data = try encoder.encode(preferences)
     try data.write(to: url)
     
-    ClaudeCodeLogger.shared.preferences("Exported preferences to: \(url.lastPathComponent)")
+    logger.preferences("Exported preferences to: \(url.lastPathComponent)")
   }
   
   /// Import preferences from a specific location
@@ -249,7 +253,7 @@ public final class PersistentPreferencesManager {
     let preferences = try decoder.decode(PersistentPreferences.self, from: data)
     
     savePreferences(preferences)
-    ClaudeCodeLogger.shared.preferences("Imported preferences from: \(url.lastPathComponent)")
+    logger.preferences("Imported preferences from: \(url.lastPathComponent)")
   }
 }
 

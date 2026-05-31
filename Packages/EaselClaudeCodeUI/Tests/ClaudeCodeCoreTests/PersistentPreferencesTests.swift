@@ -12,10 +12,13 @@ import XCTest
 final class PersistentPreferencesTests: XCTestCase {
 
   var manager: PersistentPreferencesManager!
+  var preferencesRoot: URL!
 
   override func setUp() async throws {
     try! await super.setUp()
-    manager = PersistentPreferencesManager.shared
+    preferencesRoot = FileManager.default.temporaryDirectory
+      .appendingPathComponent("PersistentPreferencesTests-\(UUID().uuidString)", isDirectory: true)
+    manager = PersistentPreferencesManager(applicationSupportURL: preferencesRoot)
     // Clean up any existing preferences for testing
     manager.deleteAllPreferences()
   }
@@ -23,6 +26,7 @@ final class PersistentPreferencesTests: XCTestCase {
   override func tearDown() async throws {
     // Clean up after tests
     manager.deleteAllPreferences()
+    try? FileManager.default.removeItem(at: preferencesRoot)
     try await super.tearDown()
   }
 
@@ -87,7 +91,7 @@ final class PersistentPreferencesTests: XCTestCase {
     manager.savePreferences(preferences)
 
     // Create a new manager instance (simulating app restart)
-    let newManager = PersistentPreferencesManager.shared
+    let newManager = PersistentPreferencesManager(applicationSupportURL: preferencesRoot)
 
     // Load preferences with new manager
     let loaded = newManager.loadPreferences()

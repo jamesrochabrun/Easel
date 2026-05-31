@@ -16,13 +16,14 @@ public struct ClaudeCodeContainer: View {
     self.claudeCodeConfiguration = claudeCodeConfiguration
     self.uiConfiguration = uiConfiguration
     self.onUserMessageSent = onUserMessageSent
+    let logger = ClaudeCodeLogger(isEnabled: claudeCodeConfiguration.enableDebugLogging)
+    self.logger = logger
     customStorage = SimplifiedClaudeCodeSQLiteStorage()
     // SessionManager will be initialized in initializeClaudeCodeUI with proper globalPreferences
     sessionManager = SimplifiedSessionManager(
       claudeCodeStorage: customStorage,
-      globalPreferences: GlobalPreferencesStorage() // Temporary, will be replaced
+      globalPreferences: GlobalPreferencesStorage(logger: logger) // Temporary, will be replaced
     )
-    ClaudeCodeLogger.shared.configure(enableDebugLogging: claudeCodeConfiguration.enableDebugLogging)
   }
   
   // MARK: Public
@@ -65,6 +66,7 @@ public struct ClaudeCodeContainer: View {
   let claudeCodeConfiguration: ClaudeCodeConfiguration
   let uiConfiguration: UIConfiguration
   let onUserMessageSent: ((String, [TextSelection]?, [FileAttachment]?) -> Void)?
+  let logger: ClaudeCodeLogger
   
   // MARK: Private
   
@@ -89,7 +91,7 @@ public struct ClaudeCodeContainer: View {
   
   private func initializeClaudeCodeUI() async throws {
     
-    let globalPrefs = GlobalPreferencesStorage()
+    let globalPrefs = GlobalPreferencesStorage(logger: logger)
     
     // Update MCP configuration to ensure approval server path is correct
     await MainActor.run {
@@ -100,7 +102,7 @@ public struct ClaudeCodeContainer: View {
       if globalPrefs.mcpConfigPath.isEmpty {
         if let configPath = mcpConfigManager.getConfigurationPath() {
           globalPrefs.mcpConfigPath = configPath
-          ClaudeCodeLogger.shared.log(.container, "[ClaudeCodeContainer] Set MCP config path to: \(configPath)")
+          logger.log(.container, "[ClaudeCodeContainer] Set MCP config path to: \(configPath)")
         }
       }
     }
@@ -129,6 +131,7 @@ public struct ClaudeCodeContainer: View {
     let deps = ClaudeCodeCore.DependencyContainer(
       globalPreferences: globalPrefs,
       customSessionStorage: customStorage,
+      logger: logger
     )
     
     var config = claudeCodeConfiguration
@@ -149,15 +152,15 @@ public struct ClaudeCodeContainer: View {
     if !globalPrefs.defaultWorkingDirectory.isEmpty {
       // User has explicitly set a working directory in preferences
       workingDirectory = globalPrefs.defaultWorkingDirectory
-      ClaudeCodeLogger.shared.log(.container, "[ClaudeCodeContainer] Using working directory from preferences: \(workingDirectory)")
+      logger.log(.container, "[ClaudeCodeContainer] Using working directory from preferences: \(workingDirectory)")
     } else if let configPath = claudeCodeConfiguration.workingDirectory, !configPath.isEmpty {
       // Config provides a default working directory (but don't save to preferences - let user explicitly set it)
       workingDirectory = configPath
-      ClaudeCodeLogger.shared.log(.container, "[ClaudeCodeContainer] Using working directory from config: \(workingDirectory)")
+      logger.log(.container, "[ClaudeCodeContainer] Using working directory from config: \(workingDirectory)")
     } else {
       // Fallback to home directory if no working directory is configured
       workingDirectory = NSHomeDirectory()
-      ClaudeCodeLogger.shared.log(.container, "[ClaudeCodeContainer] No working directory set, using home directory: \(workingDirectory)")
+      logger.log(.container, "[ClaudeCodeContainer] No working directory set, using home directory: \(workingDirectory)")
     }
 
     // Apply working directory to config before creating client
@@ -171,6 +174,8 @@ public struct ClaudeCodeContainer: View {
       settingsStorage: deps.settingsStorage,
       globalPreferences: globalPrefs,
       customPermissionService: deps.customPermissionService,
+      mcpToolsDiscovery: deps.mcpToolsDiscovery,
+      logger: logger,
       systemPromptPrefix: uiConfiguration.initialAdditionalSystemPromptPrefix,
       onSessionChange: { newSessionId in
         Task { @MainActor in
@@ -438,7 +443,7 @@ public struct ClaudeCodeContainer: View {
         deleteAllError = error
         showDeleteAllError = true
       }
-      ClaudeCodeLogger.shared.log(.container, "[ClaudeCodeContainer] Error deleting all sessions: \(error.localizedDescription)")
+      logger.log(.container, "[ClaudeCodeContainer] Error deleting all sessions: \(error.localizedDescription)")
     }
   }
 }

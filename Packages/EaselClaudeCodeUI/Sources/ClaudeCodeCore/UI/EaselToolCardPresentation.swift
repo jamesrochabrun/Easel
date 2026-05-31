@@ -30,7 +30,7 @@ struct EaselToolCardPresentation: Equatable {
   @MainActor
   init(toolUse: ChatMessage, toolResult: ChatMessage?) {
     let toolName = toolUse.toolName ?? toolResult?.toolName ?? "Tool"
-    let tool = ToolRegistry.shared.tool(for: toolName)
+    let tool = ToolRegistry().tool(for: toolName)
     let status = Self.status(for: toolUse, toolResult: toolResult)
     let resultContent = toolResult?.content ?? (toolUse.messageType == .toolResult ? toolUse.content : "")
     let url = Self.localhostURL(in: resultContent)

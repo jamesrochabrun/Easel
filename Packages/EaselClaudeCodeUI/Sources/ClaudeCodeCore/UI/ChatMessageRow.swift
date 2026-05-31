@@ -32,8 +32,9 @@ struct ChatMessageRow: View {
     var defaultExpanded = false
     
     // Check if it's a tool that should be expanded by default
+    let toolRegistry = ToolRegistry()
     if let toolName = message.toolName,
-       let tool = ToolRegistry.shared.tool(for: toolName) {
+       let tool = toolRegistry.tool(for: toolName) {
       defaultExpanded = tool.defaultExpandedState
     }
     

@@ -18,6 +18,8 @@ final class StreamProcessor {
   private let messageStore: MessageStore
   private let sessionManager: SessionManager
   private let globalPreferences: GlobalPreferencesStorage?
+  private let mcpToolsDiscovery: MCPToolsDiscoveryService
+  private let debugLogger: ClaudeCodeLogger
   private let onSessionChange: ((String) -> Void)?
   private var cancellables = Set<AnyCancellable>()
   private let formatter = DynamicContentFormatter()
@@ -51,10 +53,20 @@ final class StreamProcessor {
     var isInTaskExecution = false    // Track if we're currently in a Task execution
   }
   
-  init(messageStore: MessageStore, sessionManager: SessionManager, globalPreferences: GlobalPreferencesStorage? = nil, onSessionChange: ((String) -> Void)? = nil, getCurrentWorkingDirectory: (() -> String?)? = nil) {
+  init(
+    messageStore: MessageStore,
+    sessionManager: SessionManager,
+    globalPreferences: GlobalPreferencesStorage? = nil,
+    mcpToolsDiscovery: MCPToolsDiscoveryService = MCPToolsDiscoveryService(),
+    logger: ClaudeCodeLogger = ClaudeCodeLogger(),
+    onSessionChange: ((String) -> Void)? = nil,
+    getCurrentWorkingDirectory: (() -> String?)? = nil
+  ) {
     self.messageStore = messageStore
     self.sessionManager = sessionManager
     self.globalPreferences = globalPreferences
+    self.mcpToolsDiscovery = mcpToolsDiscovery
+    self.debugLogger = logger
     self.onSessionChange = onSessionChange
     self.getCurrentWorkingDirectory = getCurrentWorkingDirectory
   }
@@ -115,7 +127,7 @@ final class StreamProcessor {
 
           // Clear any pending session ID since the stream timed out
           if let pending = self.pendingSessionId {
-            ClaudeCodeLogger.shared.stream("Timeout occurred - discarding pending session ID: \(pending)")
+            self.debugLogger.stream("Timeout occurred - discarding pending session ID: \(pending)")
             self.pendingSessionId = nil
           }
 
@@ -154,12 +166,12 @@ final class StreamProcessor {
               
               // Commit the pending session ID now that stream completed successfully
               if let pending = self.pendingSessionId {
-                ClaudeCodeLogger.shared.stream("Stream finished. Committing pending session ID: \(pending)")
+                self.debugLogger.stream("Stream finished. Committing pending session ID: \(pending)")
                 self.sessionManager.updateCurrentSession(id: pending)
                 self.onSessionChange?(pending)
                 self.pendingSessionId = nil
               } else {
-                ClaudeCodeLogger.shared.stream("Stream finished. No pending session ID to commit")
+                self.debugLogger.stream("Stream finished. No pending session ID to commit")
               }
               
               // End any active task execution
@@ -271,13 +283,13 @@ final class StreamProcessor {
     let tools = initMessage.tools
     if !tools.isEmpty {
       // Only process if tools have changed since last discovery
-      if MCPToolsDiscoveryService.shared.shouldUpdateTools(from: tools) {
+      if mcpToolsDiscovery.shouldUpdateTools(from: tools) {
         let mcpServers = initMessage.mcpServers.map { (name: $0.name, status: $0.status) }
-        MCPToolsDiscoveryService.shared.parseToolsFromInitMessage(tools: tools, mcpServers: mcpServers)
+        mcpToolsDiscovery.parseToolsFromInitMessage(tools: tools, mcpServers: mcpServers)
 
         // Reconcile discovered tools with stored preferences
         if let preferences = globalPreferences {
-          preferences.reconcileTools(with: MCPToolsDiscoveryService.shared)
+          preferences.reconcileTools(with: mcpToolsDiscovery)
         }
 
         logger.info("Discovered tools from init message: \(tools.count) tools (hash changed)")
@@ -292,7 +304,7 @@ final class StreamProcessor {
       if sessionManager.currentSessionId == nil {
         // This is a new conversation - can update immediately since there's no previous session
         let firstMessage = firstMessageInSession ?? "New conversation"
-        ClaudeCodeLogger.shared.stream("handleInit - Starting NEW session with ID: \(initMessage.sessionId)")
+        debugLogger.stream("handleInit - Starting NEW session with ID: \(initMessage.sessionId)")
         let log = "Starting new session with ID: \(initMessage.sessionId)"
         logger.info("\(log)")
         let workingDirectory = getCurrentWorkingDirectory?()
@@ -303,13 +315,13 @@ final class StreamProcessor {
         // Claude has created a new session ID in the chain
         // DON'T update immediately - wait for successful completion
         // Store as pending - will only commit if stream completes successfully
-        ClaudeCodeLogger.shared.stream("handleInit - Claude returned different session ID. Current: \(sessionManager.currentSessionId ?? "nil"), New: \(initMessage.sessionId). Setting as pending...")
+        debugLogger.stream("handleInit - Claude returned different session ID. Current: \(sessionManager.currentSessionId ?? "nil"), New: \(initMessage.sessionId). Setting as pending...")
         
         // Check if this is likely a restored session scenario
         // In restored sessions, Claude doesn't know about our local session ID
         let isLikelyRestoredSession = sessionManager.currentSessionId != nil
         if isLikelyRestoredSession {
-          ClaudeCodeLogger.shared.stream("handleInit - WARNING: This appears to be a restored session. Claude doesn't recognize our local ID.")
+          debugLogger.stream("handleInit - WARNING: This appears to be a restored session. Claude doesn't recognize our local ID.")
         }
         
         pendingSessionId = initMessage.sessionId
@@ -318,7 +330,7 @@ final class StreamProcessor {
       }
     } else {
       // Session IDs match as expected
-      ClaudeCodeLogger.shared.stream("handleInit - Session ID confirmed (match): \(initMessage.sessionId)")
+      debugLogger.stream("handleInit - Session ID confirmed (match): \(initMessage.sessionId)")
       let log = "Session ID confirmed: \(initMessage.sessionId)"
       logger.debug("\(log)")
     }
@@ -404,7 +416,7 @@ final class StreamProcessor {
         }
         
       case .toolUse(let toolUse):
-        ClaudeCodeLogger.shared.stream("Handling toolUse: \(toolUse.name)")
+        debugLogger.stream("Handling toolUse: \(toolUse.name)")
 
         // Check for ExitPlanMode tool
         if toolUse.name == "ExitPlanMode" || toolUse.name == "exit_plan_mode" {
@@ -489,13 +501,13 @@ final class StreamProcessor {
           taskGroupId: state.currentTaskGroupId,
           isTaskContainer: isTaskTool
         )
-        ClaudeCodeLogger.shared.stream("Creating tool message: type=\(toolMessage.messageType), toolName=\(toolMessage.toolName ?? "nil"), isTaskContainer=\(toolMessage.isTaskContainer)")
+        debugLogger.stream("Creating tool message: type=\(toolMessage.messageType), toolName=\(toolMessage.toolName ?? "nil"), isTaskContainer=\(toolMessage.isTaskContainer)")
         messageStore.addMessage(toolMessage)
         
       case .toolResult(let toolResult):
         // Check if we should skip this tool result (for ExitPlanMode)
         if skipNextToolResult {
-          ClaudeCodeLogger.shared.stream("Skipping tool result for ExitPlanMode")
+          debugLogger.stream("Skipping tool result for ExitPlanMode")
           skipNextToolResult = false
           break  // Skip creating a message for this result
         }
@@ -504,7 +516,7 @@ final class StreamProcessor {
         var shouldSkip = false
         if case .string(let content) = toolResult.content {
           if content.lowercased().contains("exit plan mode") || content == "Exit plan mode?" {
-            ClaudeCodeLogger.shared.stream("Skipping ExitPlanMode tool result based on content: \(content)")
+            debugLogger.stream("Skipping ExitPlanMode tool result based on content: \(content)")
             shouldSkip = true
           }
         }
@@ -513,13 +525,13 @@ final class StreamProcessor {
           break  // Skip creating a message for this result
         }
 
-        ClaudeCodeLogger.shared.stream("Handling toolResult")
+        debugLogger.stream("Handling toolResult")
         let resultMessage = MessageFactory.toolResultMessage(
           content: toolResult.content,
           isError: toolResult.isError == true,
           taskGroupId: state.currentTaskGroupId
         )
-        ClaudeCodeLogger.shared.stream("Creating tool result message")
+        debugLogger.stream("Creating tool result message")
         messageStore.addMessage(resultMessage)
         
       case .thinking(let thinking):
@@ -533,7 +545,7 @@ final class StreamProcessor {
         let searchMessage = MessageFactory.webSearchMessage(resultCount: searchResult.content.count)
         messageStore.addMessage(searchMessage)
       case .codeExecutionToolResult(let executionResult):
-        ClaudeCodeLogger.shared.stream("Handling codeExecutionToolResult: \(executionResult.type)")
+        debugLogger.stream("Handling codeExecutionToolResult: \(executionResult.type)")
         let codeExecutionMessage = MessageFactory.codeExecutionMessage(
           content: executionResult.content,
           type: executionResult.type,
@@ -553,7 +565,7 @@ final class StreamProcessor {
       case .toolResult(let toolResult):
         // Check if we should skip this tool result (for ExitPlanMode)
         if skipNextToolResult {
-          ClaudeCodeLogger.shared.stream("Skipping tool result for ExitPlanMode (in user message)")
+          debugLogger.stream("Skipping tool result for ExitPlanMode (in user message)")
           skipNextToolResult = false
           break  // Skip creating a message for this result
         }
@@ -562,7 +574,7 @@ final class StreamProcessor {
         var shouldSkip = false
         if case .string(let content) = toolResult.content {
           if content.lowercased().contains("exit plan mode") || content == "Exit plan mode?" {
-            ClaudeCodeLogger.shared.stream("Skipping ExitPlanMode tool result based on content (user): \(content)")
+            debugLogger.stream("Skipping ExitPlanMode tool result based on content (user): \(content)")
             shouldSkip = true
           }
         }
@@ -586,12 +598,12 @@ final class StreamProcessor {
   
   private func handleResult(_ resultMessage: ResultMessage, firstMessageInSession: String?, onTokenUsageUpdate: ((Int, Int) -> Void)?, onCostUpdate: ((Double) -> Void)?, onResultReceived: (() -> Void)?) {
     if sessionManager.currentSessionId == nil {
-      ClaudeCodeLogger.shared.stream("handleResult - No current session, starting new with ID: \(resultMessage.sessionId)")
+      debugLogger.stream("handleResult - No current session, starting new with ID: \(resultMessage.sessionId)")
       let firstMessage = firstMessageInSession ?? "New conversation"
       let workingDirectory = getCurrentWorkingDirectory?()
       sessionManager.startNewSession(id: resultMessage.sessionId, firstMessage: firstMessage, workingDirectory: workingDirectory)
     } else {
-      ClaudeCodeLogger.shared.stream("handleResult - Result received for session: \(resultMessage.sessionId), current: \(sessionManager.currentSessionId ?? "nil")")
+      debugLogger.stream("handleResult - Result received for session: \(resultMessage.sessionId), current: \(sessionManager.currentSessionId ?? "nil")")
     }
 
     // Update token usage if available
@@ -621,7 +633,7 @@ final class StreamProcessor {
   }
 
   private func handleExitPlanMode(_ toolUse: MessageResponse.Content.ToolUse, state: StreamState) {
-    ClaudeCodeLogger.shared.stream("Handling ExitPlanMode tool")
+    debugLogger.stream("Handling ExitPlanMode tool")
 
     // Extract the plan content from tool parameters
     var parameters: [String: String] = [:]
@@ -653,7 +665,7 @@ final class StreamProcessor {
 
     // Set flag to skip the next tool result (which will be for this ExitPlanMode)
     skipNextToolResult = true
-    ClaudeCodeLogger.shared.stream("Setting flag to skip next tool result for ExitPlanMode")
+    debugLogger.stream("Setting flag to skip next tool result for ExitPlanMode")
   }
 
   // Callback to get parent view model - needs to be set during initialization

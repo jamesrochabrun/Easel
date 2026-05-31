@@ -36,6 +36,11 @@ public final class ChatViewModel {
   
   /// Service for handling custom tool permission requests and user approvals
   var customPermissionService: CustomPermissionService
+
+  /// Tracks tools discovered during runtime for preference reconciliation.
+  let mcpToolsDiscovery: MCPToolsDiscoveryService
+
+  private let debugLogger: ClaudeCodeLogger
   
   /// Optional callback invoked when session changes, used for external state synchronization
   private let onSessionChange: ((String) -> Void)?
@@ -358,7 +363,8 @@ EOF
     let claudeClient = (try? ClaudeCodeClient()) ?? (try! ClaudeCodeClient(configuration: .default))
     let sessionStorage = NoOpSessionStorage()
     let settingsStorage = SettingsStorageManager()
-    let globalPreferences = GlobalPreferencesStorage()
+    let logger = ClaudeCodeLogger()
+    let globalPreferences = GlobalPreferencesStorage(logger: logger)
     let permissionService = DefaultCustomPermissionService()
 
     self.init(
@@ -367,6 +373,8 @@ EOF
       settingsStorage: settingsStorage,
       globalPreferences: globalPreferences,
       customPermissionService: permissionService,
+      mcpToolsDiscovery: MCPToolsDiscoveryService(),
+      logger: logger,
       systemPromptPrefix: nil,
       shouldManageSessions: false,
       onSessionChange: nil,
@@ -380,6 +388,8 @@ EOF
     settingsStorage: SettingsStorage,
     globalPreferences: GlobalPreferencesStorage,
     customPermissionService: CustomPermissionService,
+    mcpToolsDiscovery: MCPToolsDiscoveryService = MCPToolsDiscoveryService(),
+    logger: ClaudeCodeLogger = ClaudeCodeLogger(),
     systemPromptPrefix: String? = nil,
     shouldManageSessions: Bool = true,
     onSessionChange: ((String) -> Void)? = nil,
@@ -390,16 +400,20 @@ EOF
     self.settingsStorage = settingsStorage
     self.globalPreferences = globalPreferences
     self.customPermissionService = customPermissionService
+    self.mcpToolsDiscovery = mcpToolsDiscovery
+    self.debugLogger = logger
     self.systemPromptPrefix = systemPromptPrefix
     self.shouldManageSessions = shouldManageSessions
     self.onSessionChange = onSessionChange
     self.onUserMessageSent = onUserMessageSent
     self.activeProvider = globalPreferences.chatProvider
-    self.sessionManager = SessionManager(sessionStorage: sessionStorage)
+    self.sessionManager = SessionManager(sessionStorage: sessionStorage, logger: logger)
     self.streamProcessor = StreamProcessor(
       messageStore: messageStore,
       sessionManager: sessionManager,
       globalPreferences: globalPreferences,
+      mcpToolsDiscovery: mcpToolsDiscovery,
+      logger: logger,
       onSessionChange: onSessionChange,
       getCurrentWorkingDirectory: {
         claudeClient.configuration.workingDirectory
@@ -676,7 +690,7 @@ EOF
         logger.debug("\(log)")
       }
     } catch {
-      ClaudeCodeLogger.shared.chat("saveCurrentSessionMessages - ERROR: Failed to save messages: \(error)")
+      debugLogger.chat("saveCurrentSessionMessages - ERROR: Failed to save messages: \(error)")
       logger.error("Failed to save messages for session \(sessionId): \(error)")
     }
   }
@@ -1528,7 +1542,7 @@ EOF
   private func validateWorkingDirectory() throws {
     guard let workingDir = claudeClient.configuration.workingDirectory, !workingDir.isEmpty else {
       // No working directory set - this should not happen as we always set a fallback
-      ClaudeCodeLogger.shared.log(.chat, "[ChatViewModel] WARNING: No working directory configured")
+      debugLogger.log(.chat, "[ChatViewModel] WARNING: No working directory configured")
       throw ClaudeCodeError.executionFailed("No working directory set. Please select a directory in Settings or restart the application.")
     }
 

@@ -247,13 +247,10 @@ public struct MCPTool: ToolType {
 }
 
 /// Registry for managing all available tools
-@MainActor
 public final class ToolRegistry {
-  public static let shared = ToolRegistry()
-  
   private var tools: [String: ToolType] = [:]
   
-  private init() {
+  public init() {
     // Register all standard tools
     for tool in ClaudeCodeTool.allCases {
       register(tool)

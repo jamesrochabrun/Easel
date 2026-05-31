@@ -12,8 +12,10 @@ public struct ClaudeCodeGlobalSettingsSceneView: View {
   private let permissionsService: PermissionsService?
   private let chatViewModel: ChatViewModel?
   private let providedGlobalPreferences: GlobalPreferencesStorage?
+  private let providedMCPToolsDiscovery: MCPToolsDiscoveryService?
 
   @State private var ownedGlobalPreferences = GlobalPreferencesStorage()
+  @State private var ownedMCPToolsDiscovery = MCPToolsDiscoveryService()
   @State private var appearanceSettings = AppearanceSettings()
 
   public init(
@@ -21,13 +23,15 @@ public struct ClaudeCodeGlobalSettingsSceneView: View {
     xcodeObservationViewModel: XcodeObservationViewModel? = nil,
     permissionsService: PermissionsService? = nil,
     chatViewModel: ChatViewModel? = nil,
-    globalPreferences: GlobalPreferencesStorage? = nil
+    globalPreferences: GlobalPreferencesStorage? = nil,
+    mcpToolsDiscovery: MCPToolsDiscoveryService? = nil
   ) {
     self.uiConfiguration = uiConfiguration
     self.xcodeObservationViewModel = xcodeObservationViewModel
     self.permissionsService = permissionsService
     self.chatViewModel = chatViewModel
     self.providedGlobalPreferences = globalPreferences
+    self.providedMCPToolsDiscovery = mcpToolsDiscovery
   }
 
   public var body: some View {
@@ -35,7 +39,8 @@ public struct ClaudeCodeGlobalSettingsSceneView: View {
       uiConfiguration: uiConfiguration,
       xcodeObservationViewModel: xcodeObservationViewModel,
       permissionsService: permissionsService,
-      chatViewModel: chatViewModel
+      chatViewModel: chatViewModel,
+      mcpToolsDiscovery: activeMCPToolsDiscovery
     )
     .environment(activeGlobalPreferences)
     .environment(appearanceSettings)
@@ -43,5 +48,9 @@ public struct ClaudeCodeGlobalSettingsSceneView: View {
 
   private var activeGlobalPreferences: GlobalPreferencesStorage {
     providedGlobalPreferences ?? ownedGlobalPreferences
+  }
+
+  private var activeMCPToolsDiscovery: MCPToolsDiscoveryService {
+    providedMCPToolsDiscovery ?? ownedMCPToolsDiscovery
   }
 }
