@@ -1,0 +1,98 @@
+//
+//  EaselProjectManagerTests.swift
+//  EaselChatTests
+//
+
+import Foundation
+import Testing
+@testable import EaselChat
+
+struct EaselProjectManagerTests {
+
+  @Test
+  func createProjectWritesFolderMetadataAndPreviewScaffold() async throws {
+    let rootDirectory = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: rootDirectory) }
+
+    let manager = LocalEaselProjectManager(rootDirectory: rootDirectory)
+    let project = try await manager.createProject(from: EaselProjectCreateRequest(
+      name: "Hotel Booking Flow",
+      kind: .prototype,
+      designSystem: .airbnb,
+      fidelity: .highFidelity
+    ))
+
+    #expect(project.name == "Hotel Booking Flow")
+    #expect(project.kind == .prototype)
+    #expect(project.workingDirectory.hasSuffix("/hotel-booking-flow"))
+
+    let projectURL = URL(fileURLWithPath: project.workingDirectory)
+    #expect(FileManager.default.fileExists(atPath: projectURL.appendingPathComponent("index.html").path))
+    #expect(FileManager.default.fileExists(atPath: projectURL.appendingPathComponent("README.md").path))
+
+    let metadataURL = projectURL
+      .appendingPathComponent(".easel", isDirectory: true)
+      .appendingPathComponent("project.json")
+    #expect(FileManager.default.fileExists(atPath: metadataURL.path))
+
+    let packageURL = projectURL.appendingPathComponent("package.json")
+    let packageData = try Data(contentsOf: packageURL)
+    let package = try #require(JSONSerialization.jsonObject(with: packageData) as? [String: Any])
+    let scripts = try #require(package["scripts"] as? [String: String])
+    #expect(scripts["dev"]?.contains("http://localhost:") == true)
+
+    let loadedProjects = try await manager.loadProjects()
+    #expect(loadedProjects.count == 1)
+    #expect(loadedProjects.first?.id == project.id)
+    #expect(loadedProjects.first?.workingDirectory == project.workingDirectory)
+    #expect(loadedProjects.first?.name == project.name)
+  }
+
+  @Test
+  func createProjectUsesUniqueFoldersForDuplicateNames() async throws {
+    let rootDirectory = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: rootDirectory) }
+
+    let manager = LocalEaselProjectManager(rootDirectory: rootDirectory)
+    let request = EaselProjectCreateRequest(
+      name: "Roadmap Deck",
+      kind: .slideDeck,
+      designSystem: .apple,
+      fidelity: .wireframe
+    )
+
+    let first = try await manager.createProject(from: request)
+    let second = try await manager.createProject(from: request)
+
+    #expect(first.workingDirectory.hasSuffix("/roadmap-deck"))
+    #expect(second.workingDirectory.hasSuffix("/roadmap-deck-2"))
+  }
+
+  @Test
+  func launchPromptIncludesProjectContextAndSeedPrompt() {
+    let project = EaselDesignProject(
+      id: UUID(),
+      name: "Checkout Prototype",
+      kind: .prototype,
+      designSystem: .material,
+      fidelity: .wireframe,
+      workingDirectory: "/tmp/checkout-prototype",
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+
+    let prompt = project.launchPrompt(seedPrompt: "Make checkout faster")
+
+    #expect(prompt.contains("Checkout Prototype"))
+    #expect(prompt.contains("/tmp/checkout-prototype"))
+    #expect(prompt.contains("Wireframe"))
+    #expect(prompt.contains("Material Design"))
+    #expect(prompt.contains("User brief: Make checkout faster"))
+    #expect(prompt.contains("npm run dev"))
+  }
+
+  private func temporaryRoot() -> URL {
+    FileManager.default.temporaryDirectory
+      .appendingPathComponent("EaselProjectManagerTests-\(UUID().uuidString)", isDirectory: true)
+  }
+}

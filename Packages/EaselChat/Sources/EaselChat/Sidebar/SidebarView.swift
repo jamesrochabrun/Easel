@@ -3,7 +3,6 @@
 //  EaselChat
 //
 
-import AppKit
 import ClaudeCodeCore
 import SwiftUI
 
@@ -26,38 +25,11 @@ public struct SidebarView: View {
         .frame(height: 1)
 
       ScrollView {
-        LazyVStack(alignment: .leading, spacing: 0) {
-          ForEach(sidebarViewModel.projectGroups) { project in
-            ProjectHeaderView(
-              project: project,
-              onToggle: {
-                sidebarViewModel.toggleProject(project.id)
-              },
-              onNewChat: {
-                sidebarViewModel.requestNewChat(workingDirectory: project.workingDirectory)
-              }
-            )
-
-            if project.isExpanded {
-              ForEach(project.sessions) { session in
-                SidebarSessionRow(
-                  session: session,
-                  isSelected: session.id == sidebarViewModel.selectedSessionId,
-                  onSelect: {
-                    sidebarViewModel.selectSession(session)
-                  },
-                  onDelete: {
-                    sessionToDelete = session
-                    showDeleteConfirmation = true
-                  }
-                )
-                .padding(.leading, 8)
-              }
-            }
-          }
+        VStack(alignment: .leading, spacing: 18) {
+          newProjectCard
+          projectList
         }
-        .padding(.vertical, 8)
-        .padding(.trailing, 4)
+        .padding(12)
       }
     }
     .alert("Delete Session", isPresented: $showDeleteConfirmation) {
@@ -79,62 +51,296 @@ public struct SidebarView: View {
   }
 
   private var headerView: some View {
-    HStack {
-      Text("Projects")
-        .font(.system(.body, design: .monospaced))
-        .foregroundColor(.primary)
+    VStack(alignment: .leading, spacing: 6) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Image(systemName: "paintpalette")
+          .font(.system(size: 18, weight: .medium))
+          .foregroundStyle(Color(red: 0.83, green: 0.39, blue: 0.25))
 
-      Spacer()
+        Text("Codex Design")
+          .font(.system(size: 22, weight: .semibold, design: .serif))
+          .foregroundStyle(.primary)
+          .lineLimit(1)
 
-      Button {
-        addExistingProject()
-      } label: {
-        Image(systemName: "folder")
-          .font(.system(size: 14))
-          .foregroundColor(.secondary)
+        Text("Research Preview")
+          .font(.caption.weight(.medium))
+          .foregroundStyle(.secondary)
+          .padding(.horizontal, 7)
+          .padding(.vertical, 3)
+          .background(.thinMaterial, in: Capsule())
       }
-      .buttonStyle(.plain)
-      .help("Add existing project")
 
-      Button {
-        createNewProject()
-      } label: {
-        Image(systemName: "plus")
-          .font(.system(size: 14))
-          .foregroundColor(.secondary)
-      }
-      .buttonStyle(.plain)
-      .help("Create new project")
+      Text("by Easel Labs")
+        .font(.callout)
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
     }
-    .padding(.horizontal, 12)
-    .padding(.vertical, 10)
-    .frame(minHeight: 40)
+    .padding(.horizontal, 16)
+    .padding(.vertical, 14)
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 
-  private func addExistingProject() {
-    let panel = NSOpenPanel()
-    panel.canChooseDirectories = true
-    panel.canChooseFiles = false
-    panel.allowsMultipleSelection = false
-    panel.message = "Select a project folder"
-    panel.prompt = "Open"
+  private var newProjectCard: some View {
+    VStack(alignment: .leading, spacing: 16) {
+      Picker("Project type", selection: $sidebarViewModel.selectedProjectKind) {
+        ForEach(EaselProjectKind.allCases) { kind in
+          Text(kind.displayName).tag(kind)
+        }
+      }
+      .pickerStyle(.segmented)
+      .labelsHidden()
 
-    if panel.runModal() == .OK, let url = panel.url {
-      sidebarViewModel.requestNewChat(workingDirectory: url.path)
+      Text(sidebarViewModel.selectedProjectKind.creationTitle)
+        .font(.title3.weight(.semibold))
+        .foregroundStyle(.primary)
+
+      TextField(
+        sidebarViewModel.selectedProjectKind.placeholderName,
+        text: $sidebarViewModel.projectName
+      )
+      .textFieldStyle(.plain)
+      .font(.system(size: 15))
+      .padding(.horizontal, 12)
+      .frame(height: 42)
+      .background(.background, in: RoundedRectangle(cornerRadius: 8))
+      .overlay {
+        RoundedRectangle(cornerRadius: 8)
+          .stroke(.quaternary, lineWidth: 1)
+      }
+
+      VStack(alignment: .leading, spacing: 8) {
+        Text("Design system")
+          .font(.callout.weight(.medium))
+          .foregroundStyle(.secondary)
+
+        Picker("Design system", selection: $sidebarViewModel.selectedDesignSystem) {
+          ForEach(EaselDesignSystemPreset.allCases) { system in
+            Text(system.displayName).tag(system)
+          }
+        }
+        .pickerStyle(.menu)
+        .labelsHidden()
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+
+      fidelityPicker
+
+      if let creationError = sidebarViewModel.creationError {
+        Text(creationError)
+          .font(.caption)
+          .foregroundStyle(.red)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      Button {
+        Task {
+          await sidebarViewModel.createProjectAndStartSession()
+        }
+      } label: {
+        Label(
+          sidebarViewModel.isCreatingProject ? "Creating" : "Create",
+          systemImage: sidebarViewModel.isCreatingProject ? "hourglass" : "plus"
+        )
+        .frame(maxWidth: .infinity)
+      }
+      .buttonStyle(.borderedProminent)
+      .controlSize(.large)
+      .disabled(!canCreateProject || sidebarViewModel.isCreatingProject)
+    }
+    .padding(12)
+    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+    .overlay {
+      RoundedRectangle(cornerRadius: 8)
+        .stroke(.quaternary, lineWidth: 1)
     }
   }
 
-  private func createNewProject() {
-    let panel = NSOpenPanel()
-    panel.canChooseDirectories = true
-    panel.canChooseFiles = false
-    panel.allowsMultipleSelection = false
-    panel.canCreateDirectories = true
-    panel.message = "Choose location and create a new project folder"
-    panel.prompt = "Create"
+  private var fidelityPicker: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text("Fidelity")
+        .font(.callout.weight(.medium))
+        .foregroundStyle(.secondary)
 
-    if panel.runModal() == .OK, let url = panel.url {
-      sidebarViewModel.requestNewChat(workingDirectory: url.path)
+      HStack(spacing: 10) {
+        ForEach(EaselProjectFidelity.allCases) { fidelity in
+          Button {
+            sidebarViewModel.selectedFidelity = fidelity
+          } label: {
+            VStack(alignment: .leading, spacing: 8) {
+              fidelityThumbnail(for: fidelity)
+                .frame(height: 72)
+
+              Text(fidelity.displayName)
+                .font(.callout.weight(.medium))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.background, in: RoundedRectangle(cornerRadius: 8))
+            .overlay {
+              RoundedRectangle(cornerRadius: 8)
+                .stroke(
+                  sidebarViewModel.selectedFidelity == fidelity ? Color.accentColor : Color.clear,
+                  lineWidth: 3
+                )
+            }
+          }
+          .buttonStyle(.plain)
+          .accessibilityLabel(fidelity.displayName)
+        }
+      }
     }
+  }
+
+  private func fidelityThumbnail(for fidelity: EaselProjectFidelity) -> some View {
+    ZStack {
+      RoundedRectangle(cornerRadius: 7)
+        .fill(Color(red: 0.93, green: 0.91, blue: 0.86))
+
+      RoundedRectangle(cornerRadius: 6)
+        .fill(.white)
+        .overlay {
+          RoundedRectangle(cornerRadius: 6)
+            .stroke(Color.black.opacity(0.12), lineWidth: 1)
+        }
+        .padding(8)
+
+      if fidelity == .wireframe {
+        wireframeThumbnail
+          .padding(16)
+      } else {
+        highFidelityThumbnail
+          .padding(16)
+      }
+    }
+  }
+
+  private var wireframeThumbnail: some View {
+    VStack(spacing: 8) {
+      HStack(spacing: 8) {
+        RoundedRectangle(cornerRadius: 3)
+          .stroke(Color.secondary.opacity(0.5), style: StrokeStyle(lineWidth: 2, dash: [5, 4]))
+        RoundedRectangle(cornerRadius: 3)
+          .stroke(Color.secondary.opacity(0.5), style: StrokeStyle(lineWidth: 2, dash: [5, 4]))
+      }
+      RoundedRectangle(cornerRadius: 3)
+        .stroke(Color.secondary.opacity(0.5), style: StrokeStyle(lineWidth: 2, dash: [5, 4]))
+    }
+  }
+
+  private var highFidelityThumbnail: some View {
+    VStack(alignment: .leading, spacing: 7) {
+      HStack {
+        Circle()
+          .fill(Color(red: 0.83, green: 0.39, blue: 0.25))
+          .frame(width: 8, height: 8)
+
+        RoundedRectangle(cornerRadius: 3)
+          .fill(Color.secondary.opacity(0.35))
+          .frame(width: 38, height: 6)
+
+        Spacer()
+
+        RoundedRectangle(cornerRadius: 4)
+          .fill(Color(red: 0.83, green: 0.39, blue: 0.25))
+          .frame(width: 32, height: 10)
+      }
+
+      RoundedRectangle(cornerRadius: 3)
+        .fill(Color.primary.opacity(0.62))
+        .frame(width: 70, height: 10)
+
+      RoundedRectangle(cornerRadius: 3)
+        .fill(Color.secondary.opacity(0.38))
+        .frame(height: 7)
+
+      HStack {
+        RoundedRectangle(cornerRadius: 6)
+          .fill(Color(red: 0.83, green: 0.39, blue: 0.25))
+          .frame(width: 46, height: 15)
+
+        Spacer()
+
+        Image(systemName: "photo")
+          .foregroundStyle(Color(red: 0.83, green: 0.39, blue: 0.25).opacity(0.65))
+      }
+    }
+  }
+
+  private var projectList: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack {
+        Text("Projects")
+          .font(.headline)
+          .foregroundStyle(.primary)
+
+        Spacer()
+
+        Button {
+          Task {
+            await sidebarViewModel.loadSessions()
+          }
+        } label: {
+          Image(systemName: "arrow.clockwise")
+            .font(.system(size: 13, weight: .medium))
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .help("Refresh projects")
+      }
+
+      if sidebarViewModel.projectGroups.isEmpty {
+        Text("No projects yet")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(.vertical, 8)
+      } else {
+        LazyVStack(alignment: .leading, spacing: 6) {
+          ForEach(sidebarViewModel.projectGroups) { project in
+            ProjectHeaderView(
+              project: project,
+              onToggle: {
+                sidebarViewModel.toggleProject(project.id)
+              },
+              onNewChat: {
+                sidebarViewModel.requestNewChat(workingDirectory: project.workingDirectory)
+              }
+            )
+
+            if project.isExpanded {
+              if project.sessions.isEmpty {
+                Text("No sessions yet")
+                  .font(.caption)
+                  .foregroundStyle(.tertiary)
+                  .padding(.horizontal, 12)
+                  .padding(.bottom, 6)
+              } else {
+                ForEach(project.sessions) { session in
+                  SidebarSessionRow(
+                    session: session,
+                    isSelected: session.id == sidebarViewModel.selectedSessionId,
+                    onSelect: {
+                      sidebarViewModel.selectSession(session)
+                    },
+                    onDelete: {
+                      sessionToDelete = session
+                      showDeleteConfirmation = true
+                    }
+                  )
+                  .padding(.leading, 6)
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private var canCreateProject: Bool {
+    !sidebarViewModel.projectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 }

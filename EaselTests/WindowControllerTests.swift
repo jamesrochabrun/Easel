@@ -4,6 +4,7 @@
 //
 
 import AppKit
+import EaselChat
 import EaselKit
 import Testing
 @testable import Easel
@@ -14,7 +15,11 @@ struct WindowControllerTests {
   @Test
   func capsuleUsesPanelAndCanvasUsesNativeWindow() {
     let appState = AppState()
-    let controller = WindowController(appState: appState, observesPhaseChanges: false)
+    let controller = WindowController(
+      appState: appState,
+      chatService: ChatService(),
+      observesPhaseChanges: false
+    )
 
     #expect(controller.capsulePanel.styleMask.contains(.nonactivatingPanel))
     #expect(controller.capsulePanel.level == .floating)
@@ -31,7 +36,11 @@ struct WindowControllerTests {
   func closingCanvasWindowReturnsToCapsuleWithoutClosingWindow() {
     let appState = AppState()
     appState.phase = .canvas
-    let controller = WindowController(appState: appState, observesPhaseChanges: false)
+    let controller = WindowController(
+      appState: appState,
+      chatService: ChatService(),
+      observesPhaseChanges: false
+    )
 
     let shouldClose = controller.windowShouldClose(controller.canvasWindow)
 
@@ -42,7 +51,11 @@ struct WindowControllerTests {
   @Test
   func hideCapsuleOrdersOutPanel() {
     let appState = AppState()
-    let controller = WindowController(appState: appState, observesPhaseChanges: false)
+    let controller = WindowController(
+      appState: appState,
+      chatService: ChatService(),
+      observesPhaseChanges: false
+    )
     controller.showCapsule()
     #expect(controller.capsulePanel.isVisible)
 
@@ -55,7 +68,11 @@ struct WindowControllerTests {
     let appState = AppState()
     appState.promptText = "Build a dashboard"
 
-    let view = CanvasContentView(appState: appState, initialPrompt: appState.promptText)
+    let view = CanvasContentView(
+      appState: appState,
+      initialPrompt: appState.promptText,
+      chatService: ChatService()
+    )
     appState.promptText = "Edited later"
 
     #expect(view.initialPrompt == "Build a dashboard")

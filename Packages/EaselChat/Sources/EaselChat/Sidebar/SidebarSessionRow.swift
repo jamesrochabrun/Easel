@@ -25,22 +25,22 @@ struct SidebarSessionRow: View {
           HStack {
             Text(sessionIdPrefix)
               .font(.system(.caption2, design: .monospaced))
-              .foregroundColor(.secondary)
+              .foregroundStyle(.secondary)
 
-            Text("Claude")
+            Text("Codex")
               .font(.system(.caption2, design: .monospaced))
-              .foregroundColor(.secondary)
+              .foregroundStyle(.secondary)
 
             Spacer()
 
             Text(relativeTime)
               .font(.system(.caption2, design: .monospaced))
-              .foregroundColor(.secondary)
+              .foregroundStyle(.secondary)
           }
 
           Text(session.firstUserMessage.isEmpty ? "New Session" : session.firstUserMessage)
             .font(.system(.caption, design: .monospaced))
-            .foregroundColor(isSelected ? .primary : .secondary)
+            .foregroundStyle(isSelected ? .primary : .secondary)
             .lineLimit(1)
             .truncationMode(.tail)
         }

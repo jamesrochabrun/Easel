@@ -41,7 +41,14 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
   // MARK: - Initialization
 
   public func initialize() async {
-    guard !isInitialized && !isInitializing else { return }
+    guard !isInitialized else { return }
+    if isInitializing {
+      while isInitializing && !isInitialized {
+        try? await Task.sleep(for: .milliseconds(50))
+      }
+      return
+    }
+
     isInitializing = true
     defer { isInitializing = false }
 
