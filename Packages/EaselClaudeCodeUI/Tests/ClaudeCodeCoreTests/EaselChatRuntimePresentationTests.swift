@@ -21,13 +21,13 @@ final class EaselChatRuntimePresentationTests: XCTestCase {
 
     let presentation = EaselToolCardPresentation(toolUse: toolUse, toolResult: toolResult)
 
-    XCTAssertEqual(presentation.title, "Read package.json")
+    XCTAssertEqual(presentation.title, "Reading package.json")
     XCTAssertEqual(presentation.status, .completed)
-    XCTAssertEqual(presentation.metadata, "File - 3 lines")
-    XCTAssertEqual(presentation.preview, "{\n  \"name\": \"easel\"\n}")
+    XCTAssertEqual(presentation.metadata, "File review - 3 lines - Done")
+    XCTAssertNil(presentation.preview)
   }
 
-  func testToolPresentationMapsRunningBashCommand() {
+  func testToolPresentationMapsRunningBashCommandToFriendlyActivity() {
     let toolUse = ChatMessage(
       role: .assistant,
       content: "",
@@ -38,12 +38,14 @@ final class EaselChatRuntimePresentationTests: XCTestCase {
 
     let presentation = EaselToolCardPresentation(toolUse: toolUse, toolResult: nil)
 
-    XCTAssertEqual(presentation.title, "npm run dev")
+    XCTAssertEqual(presentation.title, "Starting preview")
     XCTAssertEqual(presentation.status, .running)
-    XCTAssertEqual(presentation.metadata, "Bash - running")
+    XCTAssertEqual(presentation.metadata, "Preview - Working")
+    XCTAssertEqual(presentation.statusLabel, "Working")
+    XCTAssertNil(presentation.preview)
   }
 
-  func testToolPresentationUsesWriteInputForPreviewWhenResultIsEmpty() {
+  func testToolPresentationSummarizesWriteWithoutRawContentPreview() {
     let toolUse = ChatMessage(
       role: .assistant,
       content: "",
@@ -57,8 +59,50 @@ final class EaselChatRuntimePresentationTests: XCTestCase {
 
     let presentation = EaselToolCardPresentation(toolUse: toolUse, toolResult: nil)
 
-    XCTAssertEqual(presentation.title, "Write /tmp/main.ts")
-    XCTAssertEqual(presentation.preview, "let name = \"easel\"\nconsole.log(name)")
+    XCTAssertEqual(presentation.title, "Updating main.ts")
+    XCTAssertEqual(presentation.metadata, "File update - Working")
+    XCTAssertNil(presentation.preview)
+  }
+
+  func testToolPresentationDoesNotExposeComplexBashCommand() {
+    let command = "cd /private/tmp/example && xcodebuild -workspace SecretApp.xcworkspace -scheme SecretApp test"
+    let toolUse = ChatMessage(
+      role: .assistant,
+      content: "",
+      messageType: .toolUse,
+      toolName: "Bash",
+      toolInputData: ToolInputData(parameters: ["command": command])
+    )
+
+    let presentation = EaselToolCardPresentation(toolUse: toolUse, toolResult: nil)
+
+    XCTAssertEqual(presentation.title, "Checking tests")
+    XCTAssertEqual(presentation.metadata, "Quality check - Working")
+    XCTAssertFalse(presentation.title.contains("xcodebuild"))
+    XCTAssertFalse(presentation.metadata.contains("SecretApp"))
+    XCTAssertNil(presentation.preview)
+  }
+
+  func testFileChangePresentationHidesFullPathInMetadata() {
+    let toolUse = ChatMessage(
+      role: .assistant,
+      content: "",
+      messageType: .toolUse,
+      toolName: "FileChange",
+      toolInputData: ToolInputData(parameters: ["file_path": "/private/tmp/example/Sources/SecretView.swift"])
+    )
+    let toolResult = ChatMessage(
+      role: .toolResult,
+      content: "Changed /private/tmp/example/Sources/SecretView.swift",
+      messageType: .toolResult,
+      toolName: "FileChange"
+    )
+
+    let presentation = EaselToolCardPresentation(toolUse: toolUse, toolResult: toolResult)
+
+    XCTAssertEqual(presentation.title, "Updating SecretView.swift")
+    XCTAssertEqual(presentation.metadata, "File update - Done")
+    XCTAssertFalse(presentation.metadata.contains("/private/tmp"))
   }
 
   func testToolPresentationMapsFailedAndDeniedStates() {
@@ -101,6 +145,41 @@ final class EaselChatRuntimePresentationTests: XCTestCase {
 
     XCTAssertEqual(presentation.localhostURL?.absoluteString, "http://localhost:4325/AgentHubPage")
     XCTAssertNil(presentation.preview)
+  }
+
+  func testActiveActivityTitleFindsUnfinishedToolUse() {
+    let userMessage = ChatMessage(role: .user, content: "Check the app")
+    let toolUse = ChatMessage(
+      role: .assistant,
+      content: "",
+      messageType: .toolUse,
+      toolName: "Bash",
+      toolInputData: ToolInputData(parameters: ["command": "swift test"])
+    )
+
+    let title = EaselToolCardPresentation.activeActivityTitle(in: [userMessage, toolUse])
+
+    XCTAssertEqual(title, "Checking tests")
+  }
+
+  func testActiveActivityTitleIgnoresCompletedToolUse() {
+    let toolUse = ChatMessage(
+      role: .assistant,
+      content: "",
+      messageType: .toolUse,
+      toolName: "Bash",
+      toolInputData: ToolInputData(parameters: ["command": "swift test"])
+    )
+    let toolResult = ChatMessage(
+      role: .toolResult,
+      content: "exit 0",
+      messageType: .toolResult,
+      toolName: "Bash"
+    )
+
+    let title = EaselToolCardPresentation.activeActivityTitle(in: [toolUse, toolResult])
+
+    XCTAssertNil(title)
   }
 
   func testRelativeMessageTimeFormatting() {

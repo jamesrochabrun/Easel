@@ -95,9 +95,7 @@ struct TaskGroupView: View {
   var body: some View {
     VStack(alignment: .leading, spacing: EaselChatRuntimeStyle.Spacing.cardContentSpacing) {
       HStack(spacing: EaselChatRuntimeStyle.Spacing.headerDotSpacing) {
-        Circle()
-          .fill(EaselChatRuntimeStyle.completed)
-          .frame(width: EaselChatRuntimeStyle.Spacing.statusDotSize, height: EaselChatRuntimeStyle.Spacing.statusDotSize)
+        taskStatusIndicator
 
         if let toolInputData = taskMessage.toolInputData,
            let description = toolInputData.parameters["description"] {
@@ -113,11 +111,12 @@ struct TaskGroupView: View {
         Spacer()
 
         if let status = latestToolStatus, status.isExecuting {
-          Text("running")
-            .font(EaselChatRuntimeStyle.Typography.secondaryBody)
+          Text(EaselToolCardPresentation(toolUse: status.tool, toolResult: nil).title)
+            .font(EaselChatRuntimeStyle.Typography.secondaryBody.weight(.medium))
             .foregroundStyle(EaselChatRuntimeStyle.running)
+            .lineLimit(1)
         } else if pairedToolMessages.count > 0 {
-          Text("\(pairedToolMessages.count) tools")
+          Text("\(pairedToolMessages.count) steps done")
             .font(EaselChatRuntimeStyle.Typography.secondaryBody)
             .foregroundStyle(EaselChatRuntimeStyle.secondaryText(for: colorScheme, themeColors: appearanceSettings.themeColors))
         }
@@ -125,6 +124,8 @@ struct TaskGroupView: View {
       .padding(.horizontal, EaselChatRuntimeStyle.Spacing.taskHeaderHorizontal)
       .padding(.vertical, EaselChatRuntimeStyle.Spacing.taskHeaderVertical)
       .background(EaselChatRuntimeStyle.cardBackground(for: colorScheme, themeColors: appearanceSettings.themeColors), in: RoundedRectangle(cornerRadius: EaselChatRuntimeStyle.cardRadius))
+      .accessibilityElement(children: .combine)
+      .accessibilityLabel(taskAccessibilityLabel)
       
       if !groupedMessages.isEmpty {
         VStack(alignment: .leading, spacing: EaselChatRuntimeStyle.Spacing.cardContentSpacing) {
@@ -151,6 +152,31 @@ struct TaskGroupView: View {
           .padding(.vertical, 4)
       }
     }
+  }
+
+  @ViewBuilder
+  private var taskStatusIndicator: some View {
+    if latestToolStatus?.isExecuting == true {
+      ProgressView()
+        .controlSize(.small)
+        .tint(EaselChatRuntimeStyle.running)
+        .frame(width: 14, height: 14)
+        .accessibilityHidden(true)
+    } else {
+      Image(systemName: "checkmark.circle.fill")
+        .font(EaselChatRuntimeStyle.Typography.toolIcon)
+        .foregroundStyle(EaselChatRuntimeStyle.completed)
+        .frame(width: 14, height: 14)
+        .accessibilityHidden(true)
+    }
+  }
+
+  private var taskAccessibilityLabel: String {
+    let title = taskMessage.toolInputData?.parameters["description"] ?? "Task runner"
+    if let status = latestToolStatus, status.isExecuting {
+      return "\(title), \(EaselToolCardPresentation(toolUse: status.tool, toolResult: nil).title), Working"
+    }
+    return "\(title), \(pairedToolMessages.count) steps done"
   }
   
 }

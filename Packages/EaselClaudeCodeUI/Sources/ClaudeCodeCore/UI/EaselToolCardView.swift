@@ -54,7 +54,15 @@ struct EaselToolCardView: View {
 
   private var toolCard: some View {
     VStack(alignment: .leading, spacing: EaselChatRuntimeStyle.Spacing.cardContentSpacing) {
-      header
+      headerContainer
+
+      if presentation.status == .running {
+        ProgressView()
+          .progressViewStyle(.linear)
+          .controlSize(.small)
+          .tint(EaselChatRuntimeStyle.running)
+          .accessibilityLabel("In progress")
+      }
 
       if isExpanded {
         if shouldShowDetailedContent {
@@ -71,27 +79,41 @@ struct EaselToolCardView: View {
       RoundedRectangle(cornerRadius: EaselChatRuntimeStyle.cardRadius)
         .stroke(EaselChatRuntimeStyle.border(for: colorScheme, themeColors: appearanceSettings.themeColors), lineWidth: 1)
     }
-    .contentShape(Rectangle())
-    .onTapGesture {
-      withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
-        isExpanded.toggle()
-        viewModel.messageExpansionStates[toolUse.id] = isExpanded
+  }
+
+  @ViewBuilder
+  private var headerContainer: some View {
+    if hasExpandableContent {
+      Button(action: toggleExpanded) {
+        header
       }
+      .buttonStyle(.plain)
+      .accessibilityLabel(presentation.accessibilityLabel)
+      .accessibilityHint(isExpanded ? "Hide details" : "Show details")
+    } else {
+      header
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(presentation.accessibilityLabel)
+    }
+  }
+
+  private func toggleExpanded() {
+    withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+      isExpanded.toggle()
+      viewModel.messageExpansionStates[toolUse.id] = isExpanded
     }
   }
 
   private var header: some View {
     HStack(alignment: .center, spacing: EaselChatRuntimeStyle.Spacing.headerDotSpacing) {
-      Circle()
-        .fill(statusColor)
-        .frame(width: EaselChatRuntimeStyle.Spacing.statusDotSize, height: EaselChatRuntimeStyle.Spacing.statusDotSize)
+      statusIndicator
 
       VStack(alignment: .leading, spacing: 3) {
         Text(presentation.title)
           .font(EaselChatRuntimeStyle.Typography.primaryTitle)
           .foregroundStyle(.primary)
-          .lineLimit(1)
-          .truncationMode(.middle)
+          .lineLimit(2)
+          .truncationMode(.tail)
 
         Text(presentation.metadata)
           .font(EaselChatRuntimeStyle.Typography.secondaryBody)
@@ -100,12 +122,34 @@ struct EaselToolCardView: View {
 
       Spacer(minLength: 12)
 
+      Text(presentation.statusLabel)
+        .font(EaselChatRuntimeStyle.Typography.tertiaryCaption.weight(.medium))
+        .foregroundStyle(statusColor)
+
       if hasExpandableContent {
         Image(systemName: "chevron.right")
           .font(.system(size: EaselChatRuntimeStyle.Spacing.chevronSize, weight: .medium))
           .foregroundStyle(EaselChatRuntimeStyle.secondaryText(for: colorScheme, themeColors: appearanceSettings.themeColors))
           .rotationEffect(.degrees(isExpanded ? 90 : 0))
+          .accessibilityHidden(true)
       }
+    }
+  }
+
+  @ViewBuilder
+  private var statusIndicator: some View {
+    if presentation.status == .running {
+      ProgressView()
+        .controlSize(.small)
+        .tint(EaselChatRuntimeStyle.running)
+        .frame(width: 14, height: 14)
+        .accessibilityHidden(true)
+    } else {
+      Image(systemName: presentation.statusSystemImageName)
+        .font(EaselChatRuntimeStyle.Typography.toolIcon)
+        .foregroundStyle(statusColor)
+        .frame(width: 14, height: 14)
+        .accessibilityHidden(true)
     }
   }
 

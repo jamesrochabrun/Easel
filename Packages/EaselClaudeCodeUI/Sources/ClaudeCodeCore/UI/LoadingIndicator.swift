@@ -14,6 +14,7 @@ struct LoadingIndicator: View {
   let costUSD: Double
   let showPrice: Bool
   let showTokenCount: Bool
+  let activityText: String
   
   @State private var elapsedTime: TimeInterval = 0
   @State private var dots = ""
@@ -22,12 +23,21 @@ struct LoadingIndicator: View {
   private let timer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
   private let dotsTimer = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
   
-  init(startTime: Date, inputTokens: Int = 0, outputTokens: Int = 0, costUSD: Double = 0.0, showPrice: Bool? = nil, showTokenCount: Bool = true) {
+  init(
+    startTime: Date,
+    inputTokens: Int = 0,
+    outputTokens: Int = 0,
+    costUSD: Double = 0.0,
+    showPrice: Bool? = nil,
+    showTokenCount: Bool = true,
+    activityText: String = "Easel is working"
+  ) {
     self.startTime = startTime
     self.inputTokens = inputTokens
     self.outputTokens = outputTokens
     self.costUSD = costUSD
     self.showTokenCount = showTokenCount
+    self.activityText = activityText
     
     // Show price only in debug builds by default
     #if DEBUG
@@ -65,14 +75,15 @@ struct LoadingIndicator: View {
   }
 
   private var statusText: String {
-    "Thinking\(dots)"
+    "\(activityText)\(dots)"
   }
   
   var body: some View {
     HStack(spacing: 8) {
-      Circle()
-        .fill(EaselChatRuntimeStyle.running)
-        .frame(width: 6, height: 6)
+      ProgressView()
+        .controlSize(.small)
+        .tint(EaselChatRuntimeStyle.running)
+        .accessibilityHidden(true)
 
       Text(statusText)
         .font(.callout.italic())
@@ -88,6 +99,8 @@ struct LoadingIndicator: View {
       .padding(.vertical, 8)
       .frame(maxWidth: EaselChatRuntimeStyle.maxContentWidth, alignment: .leading)
       .background(EaselChatRuntimeStyle.appBackground(for: colorScheme))
+      .accessibilityElement(children: .combine)
+      .accessibilityLabel("\(activityText). \(metadataText)")
       .onReceive(timer) { _ in
         elapsedTime = Date().timeIntervalSince(startTime)
       }
@@ -134,7 +147,8 @@ struct LoadingIndicator: View {
       inputTokens: 750,
       outputTokens: 600,
       costUSD: 0.0180,
-      showTokenCount: false
+      showTokenCount: false,
+      activityText: "Checking tests"
     )
   }
   .padding()

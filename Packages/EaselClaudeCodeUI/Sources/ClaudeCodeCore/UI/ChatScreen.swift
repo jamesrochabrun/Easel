@@ -239,7 +239,8 @@ public struct ChatScreen: View {
         inputTokens: viewModel.currentInputTokens,
         outputTokens: viewModel.currentOutputTokens,
         costUSD: viewModel.currentCostUSD,
-        showTokenCount: uiConfiguration.showTokenCount
+        showTokenCount: uiConfiguration.showTokenCount,
+        activityText: EaselToolCardPresentation.activeActivityTitle(in: viewModel.messages) ?? "Easel is working"
       )
       .padding(.horizontal)
       .padding(.bottom, 8)
