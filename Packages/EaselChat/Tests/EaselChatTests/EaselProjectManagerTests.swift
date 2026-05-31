@@ -29,6 +29,7 @@ struct EaselProjectManagerTests {
     let projectURL = URL(fileURLWithPath: project.workingDirectory)
     #expect(FileManager.default.fileExists(atPath: projectURL.appendingPathComponent("index.html").path))
     #expect(FileManager.default.fileExists(atPath: projectURL.appendingPathComponent("README.md").path))
+    #expect(FileManager.default.fileExists(atPath: projectURL.appendingPathComponent("resources", isDirectory: true).path))
 
     let metadataURL = projectURL
       .appendingPathComponent(".easel", isDirectory: true)
@@ -88,6 +89,7 @@ struct EaselProjectManagerTests {
     #expect(prompt.contains("Wireframe"))
     #expect(prompt.contains("Material Design"))
     #expect(prompt.contains("User brief: Make checkout faster"))
+    #expect(prompt.contains("resources/"))
     #expect(prompt.contains("npm run dev"))
   }
 
