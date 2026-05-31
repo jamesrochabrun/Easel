@@ -6,6 +6,7 @@
 //
 
 import CCCustomPermissionServiceInterface
+import EaselKit
 import SwiftUI
 
 // MARK: - PermissionStatusView
@@ -20,7 +21,7 @@ struct PermissionStatusView: View {
   var body: some View {
     HStack(spacing: 4) {
       Image(systemName: autoApprove ? "shield.fill" : "shield")
-        .foregroundColor(autoApprove ? .green : .orange)
+        .foregroundColor(autoApprove ? EaselDesignSystem.Palette.accent : EaselDesignSystem.Palette.warning)
         .font(.caption)
 
       Text(statusText)
@@ -73,7 +74,7 @@ struct DetailedPermissionStatusView: View {
     VStack(alignment: .leading, spacing: 8) {
       HStack {
         Image(systemName: "shield.checkerboard")
-          .foregroundColor(.blue)
+          .foregroundColor(EaselDesignSystem.Palette.accent)
         Text("Permission System Status")
           .font(.headline)
         Spacer()
@@ -83,20 +84,20 @@ struct DetailedPermissionStatusView: View {
         StatusRow(
           label: "Auto-approve all tools",
           isEnabled: autoApprove,
-          color: autoApprove ? .green : .orange
+          color: autoApprove ? EaselDesignSystem.Palette.accent : EaselDesignSystem.Palette.warning
         )
 
         StatusRow(
           label: "Auto-approve low-risk tools",
           isEnabled: autoApproveLowRisk && !autoApprove,
-          color: (autoApproveLowRisk && !autoApprove) ? .green : .secondary,
+          color: (autoApproveLowRisk && !autoApprove) ? EaselDesignSystem.Palette.accent : .secondary,
           isDisabled: autoApprove
         )
 
         StatusRow(
           label: "Permission prompts",
           isEnabled: !autoApprove,
-          color: !autoApprove ? .green : .secondary
+          color: !autoApprove ? EaselDesignSystem.Palette.accent : .secondary
         )
 
         HStack {

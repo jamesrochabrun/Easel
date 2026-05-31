@@ -5,11 +5,13 @@
 //  Displays captured console output from the inspected web view.
 //
 
+import EaselKit
 import SwiftUI
 
 public struct WebPreviewConsoleView: View {
   let entries: [String]
   let onClear: () -> Void
+  @Environment(\.colorScheme) private var colorScheme
 
   public init(entries: [String], onClear: @escaping () -> Void) {
     self.entries = entries
@@ -29,7 +31,7 @@ public struct WebPreviewConsoleView: View {
       }
       .padding(.horizontal, 12)
       .padding(.vertical, 10)
-      .background(Color.surfaceElevated.opacity(0.75))
+      .background(EaselDesignSystem.Palette.surface(for: colorScheme))
 
       if entries.isEmpty {
         ContentUnavailableView(
@@ -48,9 +50,13 @@ public struct WebPreviewConsoleView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(8)
                 .background(
-                  RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.surfaceElevated)
+                  RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.card)
+                    .fill(EaselDesignSystem.Palette.surface(for: colorScheme))
                 )
+                .overlay {
+                  RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.card)
+                    .stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1)
+                }
             }
           }
           .padding(12)

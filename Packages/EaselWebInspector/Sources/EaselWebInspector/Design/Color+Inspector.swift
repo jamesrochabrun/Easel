@@ -6,19 +6,20 @@
 //
 
 import AppKit
+import EaselKit
 import SwiftUI
 
 extension Color {
   static var surfaceElevated: Color {
-    Color(NSColor.controlBackgroundColor)
+    EaselDesignSystem.Palette.surfaceElevated(for: .light)
   }
 
   static var surfaceCanvas: Color {
-    Color(NSColor.windowBackgroundColor)
+    EaselDesignSystem.Palette.canvas(for: .light)
   }
 
   static var brandPrimary: Color {
-    .accentColor
+    EaselDesignSystem.Palette.accent
   }
 
   static func hexString(from color: NSColor) -> String {

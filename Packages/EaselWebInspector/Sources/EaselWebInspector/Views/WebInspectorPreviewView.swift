@@ -113,6 +113,7 @@ public struct WebInspectorPreviewView: View {
   @State private var manualReloadToken = UUID()
   @State private var queueSendFailureMessage: String?
   @State private var isLoading = false
+  @Environment(\.colorScheme) private var colorScheme
 
   private var isAdvancedEditingEnabled: Bool {
     projectFileProvider != nil
@@ -154,6 +155,8 @@ public struct WebInspectorPreviewView: View {
 
       content
     }
+    .background(EaselDesignSystem.Palette.canvas(for: colorScheme))
+    .tint(EaselDesignSystem.Palette.accent)
     .onChange(of: inspectBehavior) { _, newBehavior in
       guard inspectState.isActive else { return }
       inspectState.activate(mode: newBehavior.canvasMode)
@@ -212,7 +215,7 @@ public struct WebInspectorPreviewView: View {
     .padding(.horizontal, 12)
     .padding(.vertical, 10)
     .frame(minHeight: 40)
-    .background(Color.surfaceElevated)
+    .background(EaselDesignSystem.Palette.surface(for: colorScheme))
   }
 
   @ViewBuilder
@@ -220,16 +223,18 @@ public struct WebInspectorPreviewView: View {
     if let url = previewURLProvider.previewURL {
       HStack(spacing: 6) {
         Circle()
-          .fill(Color.green)
+          .fill(EaselDesignSystem.Palette.success)
           .frame(width: 6, height: 6)
         Text(url.absoluteString)
           .font(.system(.caption, design: .monospaced))
-          .foregroundColor(.secondary)
+          .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
       }
     } else {
       HStack(spacing: 6) {
         ProgressView().controlSize(.mini)
-        Text("Waiting for preview...").font(.caption).foregroundColor(.secondary)
+        Text("Waiting for preview...")
+          .font(.caption)
+          .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
       }
     }
   }
@@ -242,7 +247,7 @@ public struct WebInspectorPreviewView: View {
       } label: {
         Image(systemName: "cursorarrow.rays")
           .font(.system(size: 14, weight: .medium))
-          .foregroundColor(inspectState.isActive ? .accentColor : .secondary)
+          .foregroundStyle(inspectState.isActive ? EaselDesignSystem.Palette.accent : EaselDesignSystem.Palette.secondaryText(for: colorScheme))
       }
       .buttonStyle(.plain)
       .help("\(inspectState.isActive ? "Stop" : "Start") \(inspectBehavior.modeName) mode")
@@ -258,7 +263,7 @@ public struct WebInspectorPreviewView: View {
                 Image(systemName: behavior.icon)
                   .font(.caption)
                   .frame(width: 26, height: 20)
-                  .foregroundColor(inspectBehavior == behavior ? .accentColor : .secondary)
+                  .foregroundStyle(inspectBehavior == behavior ? EaselDesignSystem.Palette.accent : EaselDesignSystem.Palette.secondaryText(for: colorScheme))
                   .contentShape(Rectangle())
               }
               .buttonStyle(.plain)
@@ -267,8 +272,12 @@ public struct WebInspectorPreviewView: View {
             }
           }
           .padding(4)
-          .background(Color.secondary.opacity(0.12))
-          .clipShape(RoundedRectangle(cornerRadius: 6))
+          .background(EaselDesignSystem.Palette.subtleSurface(for: colorScheme))
+          .clipShape(RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.control))
+          .overlay {
+            RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.control)
+              .stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1)
+          }
         }
       }
 
@@ -343,15 +352,15 @@ public struct WebInspectorPreviewView: View {
 
       Image(systemName: "globe")
         .font(.system(size: 36, weight: .thin))
-        .foregroundStyle(.tertiary)
+        .foregroundStyle(EaselDesignSystem.Palette.tertiaryText(for: colorScheme))
 
       Text("Preview")
         .font(.system(size: 18, weight: .medium))
-        .foregroundStyle(.secondary)
+        .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
 
       Text("Web preview will appear here")
         .font(.system(size: 13))
-        .foregroundStyle(.tertiary)
+        .foregroundStyle(EaselDesignSystem.Palette.tertiaryText(for: colorScheme))
 
       Spacer()
     }

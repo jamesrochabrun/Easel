@@ -1,4 +1,5 @@
 import SwiftUI
+import EaselKit
 
 struct EaselAssistantMessageBlock<Content: View>: View {
   let assistantName: String
@@ -21,7 +22,7 @@ struct EaselAssistantMessageBlock<Content: View>: View {
     VStack(alignment: .leading, spacing: EaselChatRuntimeStyle.Spacing.cardContentSpacing) {
       HStack(spacing: EaselChatRuntimeStyle.Spacing.cardContentSpacing) {
         Circle()
-          .fill(.primary)
+          .fill(EaselDesignSystem.Palette.accent)
           .frame(width: 5, height: 5)
 
         Text(assistantName)

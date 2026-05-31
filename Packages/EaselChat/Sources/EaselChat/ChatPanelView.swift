@@ -4,6 +4,7 @@
 //
 
 import ClaudeCodeCore
+import EaselKit
 import SwiftUI
 
 public struct ChatPanelView: View {
@@ -39,7 +40,7 @@ public struct ChatPanelView: View {
             showTokenCount: true,
             messageFontSize: 13.0,
             inputCornerRadius: 8.0,
-            useMaterialInputBackground: true,
+            useMaterialInputBackground: false,
             showCommandTip: false,
             showWelcomeRow: false
           )
@@ -53,6 +54,7 @@ public struct ChatPanelView: View {
     .task {
       await chatService.initialize()
     }
+    .tint(EaselDesignSystem.Palette.accent)
   }
 
   // MARK: - Error View
@@ -61,7 +63,7 @@ public struct ChatPanelView: View {
     VStack(spacing: 16) {
       Image(systemName: "exclamationmark.triangle.fill")
         .font(.system(size: 36))
-        .foregroundStyle(.red)
+        .foregroundStyle(EaselDesignSystem.Palette.danger)
 
       Text("Initialization Failed")
         .font(.title3.weight(.semibold))

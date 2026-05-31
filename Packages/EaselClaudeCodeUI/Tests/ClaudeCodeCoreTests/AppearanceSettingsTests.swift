@@ -1,6 +1,7 @@
 import XCTest
 import SwiftUI
 import AppKit
+import EaselKit
 @testable import ClaudeCodeCore
 
 final class AppearanceSettingsTests: XCTestCase {
@@ -42,6 +43,25 @@ final class AppearanceSettingsTests: XCTestCase {
     XCTAssertEqual(hexString(for: clear.brandPrimary), "#1F2937")
     XCTAssertEqual(hexString(for: clear.brandSecondary), "#6B7280")
     XCTAssertEqual(hexString(for: clear.brandTertiary), "#D1D5DB")
+  }
+
+  func testCodexThemeUsesOpenAINeutralPalette() {
+    let codex = ThemeColors.themeColors(for: .codex)
+
+    XCTAssertEqual(hexString(for: codex.brandPrimary), EaselDesignSystem.Palette.inkHex)
+    XCTAssertEqual(hexString(for: codex.brandSecondary), EaselDesignSystem.Palette.accentHex)
+    XCTAssertEqual(hexString(for: codex.brandTertiary), EaselDesignSystem.Palette.borderLightHex)
+  }
+
+  func testRuntimeStyleUsesCodexSurfaces() {
+    XCTAssertEqual(
+      hexString(for: EaselChatRuntimeStyle.appBackground(for: .light)),
+      EaselDesignSystem.Palette.canvasLightHex
+    )
+    XCTAssertEqual(
+      hexString(for: EaselChatRuntimeStyle.appBackground(for: .dark)),
+      EaselDesignSystem.Palette.canvasDarkHex
+    )
   }
 
   private func hexString(for color: Color) -> String {

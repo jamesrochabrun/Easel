@@ -23,10 +23,10 @@ public final class AppearanceSettings {
   
   private enum Defaults {
     static let fontSize: Double = 12.0
-    static let theme: AppTheme = .clear
-    static let customPrimaryHex = "#7C3AED"   // purple
-    static let customSecondaryHex = "#FFB000" // mustard
-    static let customTertiaryHex = "#64748B"  // slate
+    static let theme: AppTheme = .codex
+    static let customPrimaryHex = "#0F1110"
+    static let customSecondaryHex = "#10A37F"
+    static let customTertiaryHex = "#D9DAD6"
   }
   
   // MARK: - Properties

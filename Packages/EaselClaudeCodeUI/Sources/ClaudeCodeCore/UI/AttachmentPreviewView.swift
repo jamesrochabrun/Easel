@@ -5,6 +5,7 @@
 //  Created by Claude on 2025-06-30.
 //
 
+import EaselKit
 import SwiftUI
 
 /// Displays a preview of an attachment with loading states and error handling
@@ -14,22 +15,23 @@ struct AttachmentPreviewView: View {
   
   @State private var isHovering = false
   @State private var showFullImage = false
+  @Environment(\.colorScheme) private var colorScheme
   
   var iconColor: Color {
     switch attachment.type {
-    case .pdf: return .red
+    case .pdf: return EaselDesignSystem.Palette.danger
     case .text: return .gray
     case .markdown: return .gray
-    case .code: return .blue
-    case .json: return .orange
-    case .xml: return .blue
+    case .code: return EaselDesignSystem.Palette.running
+    case .json: return EaselDesignSystem.Palette.warning
+    case .xml: return EaselDesignSystem.Palette.running
     case .yaml: return .gray
-    case .archive: return .green
+    case .archive: return EaselDesignSystem.Palette.accent
     case .video: return .pink
     case .audio: return .cyan
-    case .spreadsheet: return .green
-    case .presentation: return .orange
-    case .document: return .blue
+    case .spreadsheet: return EaselDesignSystem.Palette.accent
+    case .presentation: return EaselDesignSystem.Palette.warning
+    case .document: return EaselDesignSystem.Palette.running
     default: return .gray
     }
   }
@@ -57,11 +59,11 @@ struct AttachmentPreviewView: View {
               }
             }
             .frame(width: 80, height: 80)
-            .background(Color(NSColor.controlBackgroundColor))
-            .cornerRadius(8)
+            .background(EaselDesignSystem.Palette.subtleSurface(for: colorScheme))
+            .clipShape(RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.card))
             .overlay(
-              RoundedRectangle(cornerRadius: 8)
-                .stroke(Color(NSColor.separatorColor), lineWidth: 1)
+              RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.card)
+                .stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1)
             )
             
             // Remove button
@@ -120,8 +122,12 @@ struct AttachmentPreviewView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 4)
-        .background(Color.secondary.opacity(0.1))
-        .cornerRadius(EaselChatRuntimeStyle.cardRadius)
+        .background(EaselDesignSystem.Palette.subtleSurface(for: colorScheme))
+        .clipShape(RoundedRectangle(cornerRadius: EaselChatRuntimeStyle.cardRadius))
+        .overlay {
+          RoundedRectangle(cornerRadius: EaselChatRuntimeStyle.cardRadius)
+            .stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1)
+        }
         .onHover { hovering in
           isHovering = hovering
         }
@@ -202,10 +208,10 @@ private struct ErrorView: View {
     VStack(spacing: isImage ? 4 : 2) {
       Image(systemName: "exclamationmark.triangle")
         .font(isImage ? .title2 : .body)
-        .foregroundColor(.red)
+        .foregroundColor(EaselDesignSystem.Palette.danger)
       Text("Error")
         .font(isImage ? .caption2 : .system(size: 8))
-        .foregroundColor(.red)
+        .foregroundColor(EaselDesignSystem.Palette.danger)
     }
   }
 }

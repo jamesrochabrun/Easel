@@ -6,10 +6,12 @@
 //
 
 import Canvas
+import EaselKit
 import SwiftUI
 
 public struct BoxModelView: View {
   let snapshot: WebPreviewLivePropertiesSnapshot
+  @Environment(\.colorScheme) private var colorScheme
 
   public init(snapshot: WebPreviewLivePropertiesSnapshot) {
     self.snapshot = snapshot
@@ -26,7 +28,7 @@ public struct BoxModelView: View {
           title: "margin",
           subtitle: snapshot.margin ?? "—",
           edges: snapshot.marginEdges,
-          fill: Color.orange.opacity(0.18),
+          fill: EaselDesignSystem.Palette.warning.opacity(0.18),
           padding: 0
         )
 
@@ -34,12 +36,12 @@ public struct BoxModelView: View {
           title: "padding",
           subtitle: snapshot.padding ?? "—",
           edges: snapshot.paddingEdges,
-          fill: Color.green.opacity(0.18),
+          fill: EaselDesignSystem.Palette.accent.opacity(0.18),
           padding: 28
         )
 
         RoundedRectangle(cornerRadius: 12)
-          .fill(Color.blue.opacity(0.12))
+          .fill(EaselDesignSystem.Palette.running.opacity(0.12))
           .padding(56)
           .overlay(alignment: .center) {
             VStack(spacing: 4) {
@@ -57,9 +59,13 @@ public struct BoxModelView: View {
     .padding(12)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(
-      RoundedRectangle(cornerRadius: 12)
-        .fill(Color.surfaceElevated)
+      RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.preview)
+        .fill(EaselDesignSystem.Palette.surface(for: colorScheme))
     )
+    .overlay {
+      RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.preview)
+        .stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1)
+    }
   }
 
   private func boxLayer(

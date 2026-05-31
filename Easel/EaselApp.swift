@@ -16,6 +16,7 @@ struct EaselApp: App {
   var body: some Scene {
     Settings {
       EaselChatSettingsView(chatService: appDelegate.chatService)
+        .tint(EaselDesignSystem.Palette.accent)
     }
   }
 }

@@ -4,6 +4,7 @@
 //
 
 import ClaudeCodeCore
+import EaselKit
 import SwiftUI
 
 struct SidebarSessionRow: View {
@@ -18,37 +19,37 @@ struct SidebarSessionRow: View {
     Button(action: onSelect) {
       HStack(spacing: 8) {
         Circle()
-          .fill(isSelected ? Color.accentColor : Color.secondary.opacity(0.4))
+          .fill(isSelected ? EaselDesignSystem.Palette.accent : EaselDesignSystem.Palette.tertiaryText(for: colorScheme))
           .frame(width: 6, height: 6)
 
         VStack(alignment: .leading, spacing: 2) {
           HStack {
             Text(sessionIdPrefix)
               .font(.system(.caption2, design: .monospaced))
-              .foregroundStyle(.secondary)
+              .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
 
             Text("Codex")
               .font(.system(.caption2, design: .monospaced))
-              .foregroundStyle(.secondary)
+              .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
 
             Spacer()
 
             Text(relativeTime)
               .font(.system(.caption2, design: .monospaced))
-              .foregroundStyle(.secondary)
+              .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
           }
 
           Text(session.firstUserMessage.isEmpty ? "New Session" : session.firstUserMessage)
             .font(.system(.caption, design: .monospaced))
-            .foregroundStyle(isSelected ? .primary : .secondary)
+            .foregroundStyle(isSelected ? Color.primary : EaselDesignSystem.Palette.secondaryText(for: colorScheme))
             .lineLimit(1)
             .truncationMode(.tail)
         }
       }
       .padding(.horizontal, 12)
       .padding(.vertical, 6)
-      .background(isSelected ? Color.secondary.opacity(0.15) : Color.clear)
-      .clipShape(RoundedRectangle(cornerRadius: 6))
+      .background(isSelected ? EaselDesignSystem.Palette.selectedSurface(for: colorScheme) : Color.clear)
+      .clipShape(RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.control))
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
