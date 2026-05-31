@@ -321,7 +321,8 @@ public struct ChatScreen: View {
         uiConfiguration: uiConfiguration,
         xcodeObservationViewModel: xcodeObservationViewModel,
         permissionsService: permissionsService,
-        chatViewModel: viewModel
+        chatViewModel: viewModel,
+        mcpToolsDiscovery: viewModel.mcpToolsDiscovery
       )
     }
   }

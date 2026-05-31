@@ -14,17 +14,20 @@ struct GlobalSettingsView: View {
   let xcodeObservationViewModel: XcodeObservationViewModel?
   let permissionsService: PermissionsService?
   let chatViewModel: ChatViewModel?
+  let mcpToolsDiscovery: MCPToolsDiscoveryService
 
   init(
     uiConfiguration: UIConfiguration = .default,
     xcodeObservationViewModel: XcodeObservationViewModel? = nil,
     permissionsService: PermissionsService? = nil,
-    chatViewModel: ChatViewModel? = nil
+    chatViewModel: ChatViewModel? = nil,
+    mcpToolsDiscovery: MCPToolsDiscoveryService = MCPToolsDiscoveryService()
   ) {
     self.uiConfiguration = uiConfiguration
     self.xcodeObservationViewModel = xcodeObservationViewModel
     self.permissionsService = permissionsService
     self.chatViewModel = chatViewModel
+    self.mcpToolsDiscovery = mcpToolsDiscovery
   }
   
   // MARK: - Constants
@@ -181,7 +184,7 @@ struct GlobalSettingsView: View {
   
   private func getAvailableToolsByServer() -> [String: [String]] {
     // Get all discovered tools from MCPToolsDiscoveryService
-    let discoveredTools = MCPToolsDiscoveryService.shared.getAllAvailableTools()
+    let discoveredTools = mcpToolsDiscovery.getAllAvailableTools()
     
     if !discoveredTools.isEmpty {
       // Use discovered tools if available (from system init message)
@@ -205,7 +208,8 @@ struct GlobalSettingsView: View {
       isPresented: $showingMCPConfig,
       mcpConfigStorage: globalPreferences,
       globalPreferences: globalPreferences,
-      uiConfiguration: uiConfiguration
+      uiConfiguration: uiConfiguration,
+      mcpToolsDiscovery: mcpToolsDiscovery
     )
   }
   

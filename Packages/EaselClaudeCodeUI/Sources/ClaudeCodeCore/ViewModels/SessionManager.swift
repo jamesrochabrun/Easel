@@ -18,10 +18,15 @@ final class SessionManager {
   private(set) var sessionsError: Error?
   
   private let sessionStorage: SessionStorageProtocol
+  private let logger: ClaudeCodeLogger
   private var errorHandler: ((Error, ErrorOperation) -> Void)?
 
-  init(sessionStorage: SessionStorageProtocol) {
+  init(
+    sessionStorage: SessionStorageProtocol,
+    logger: ClaudeCodeLogger = ClaudeCodeLogger()
+  ) {
     self.sessionStorage = sessionStorage
+    self.logger = logger
   }
 
   func setErrorHandler(_ handler: @escaping (Error, ErrorOperation) -> Void) {
@@ -97,7 +102,7 @@ final class SessionManager {
         do {
           try await sessionStorage.updateSessionId(oldId: oldId, newId: id)
         } catch {
-          ClaudeCodeLogger.shared.session("SessionManager.updateCurrentSession - ERROR: Failed to update session ID in storage: \(error)")
+          logger.session("SessionManager.updateCurrentSession - ERROR: Failed to update session ID in storage: \(error)")
           errorHandler?(error, .sessionManagement)
         }
       }
@@ -110,7 +115,7 @@ final class SessionManager {
         try await sessionStorage.updateLastAccessed(id: id)
       } catch {
         // Log but don't surface - this is non-critical
-        ClaudeCodeLogger.shared.session("SessionManager.updateLastAccessed - Failed to update: \(error)")
+        logger.session("SessionManager.updateLastAccessed - Failed to update: \(error)")
       }
     }
   }

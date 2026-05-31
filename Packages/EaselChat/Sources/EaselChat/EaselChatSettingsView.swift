@@ -29,7 +29,8 @@ public struct EaselChatSettingsView: View {
       xcodeObservationViewModel: chatService?.deps?.xcodeObservationViewModel,
       permissionsService: chatService?.deps?.permissionsService,
       chatViewModel: chatService?.chatViewModel,
-      globalPreferences: chatService?.globalPreferences
+      globalPreferences: chatService?.globalPreferences,
+      mcpToolsDiscovery: chatService?.mcpToolsDiscoveryService
     )
   }
 }

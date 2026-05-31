@@ -24,6 +24,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
   public private(set) var previewURL: URL?
   public private(set) var currentSessionId: String?
   public private(set) var sessionStorage: SessionStorageProtocol
+  public var mcpToolsDiscoveryService: MCPToolsDiscoveryService { mcpToolsDiscovery }
 
   /// Called when a session changes (created or switched), so the sidebar can refresh
   public var onSessionChanged: (() -> Void)?
@@ -31,11 +32,22 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
   private var hasSentInitialPrompt = false
   private var isInitializing = false
   private let previewURLObserver = PreviewURLObserver()
+  private let persistentPreferencesManager: PersistentPreferencesManager
+  private let mcpToolsDiscovery: MCPToolsDiscoveryService
+  private let logger: ClaudeCodeLogger
 
   // MARK: - Init
 
-  public init() {
-    sessionStorage = SimplifiedClaudeCodeSQLiteStorage()
+  public init(
+    sessionStorage: SessionStorageProtocol = SimplifiedClaudeCodeSQLiteStorage(),
+    persistentPreferencesManager: PersistentPreferencesManager? = nil,
+    mcpToolsDiscovery: MCPToolsDiscoveryService = MCPToolsDiscoveryService(),
+    logger: ClaudeCodeLogger = ClaudeCodeLogger()
+  ) {
+    self.sessionStorage = sessionStorage
+    self.mcpToolsDiscovery = mcpToolsDiscovery
+    self.logger = logger
+    self.persistentPreferencesManager = persistentPreferencesManager ?? PersistentPreferencesManager(logger: logger)
   }
 
   // MARK: - Initialization
@@ -53,10 +65,15 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
     defer { isInitializing = false }
 
     do {
-      let globalPrefs = GlobalPreferencesStorage()
+      let globalPrefs = GlobalPreferencesStorage(
+        persistentManager: persistentPreferencesManager,
+        logger: logger
+      )
       let container = DependencyContainer(
         globalPreferences: globalPrefs,
-        customSessionStorage: sessionStorage
+        customSessionStorage: sessionStorage,
+        mcpToolsDiscovery: mcpToolsDiscovery,
+        logger: logger
       )
 
       var config = ChatConfiguration.makeDefault()
@@ -75,6 +92,8 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
         settingsStorage: container.settingsStorage,
         globalPreferences: globalPrefs,
         customPermissionService: container.customPermissionService,
+        mcpToolsDiscovery: mcpToolsDiscovery,
+        logger: logger,
         shouldManageSessions: true,
         onSessionChange: { [weak self] newSessionId in
           Task { @MainActor in

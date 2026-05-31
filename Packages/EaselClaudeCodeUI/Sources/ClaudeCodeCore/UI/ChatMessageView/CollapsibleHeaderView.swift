@@ -8,7 +8,7 @@ struct CollapsibleHeaderView: View {
   let isExpanded: Binding<Bool>
   let fontSize: Double
   
-  private let toolRegistry = ToolRegistry.shared
+  private let toolRegistry = ToolRegistry()
   private let formatter = ToolDisplayFormatter()
   @Environment(\.colorScheme) private var colorScheme
   

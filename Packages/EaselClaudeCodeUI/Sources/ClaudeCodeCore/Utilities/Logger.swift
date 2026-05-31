@@ -7,12 +7,8 @@
 
 import Foundation
 
-/// A singleton logger for conditional debug logging throughout ClaudeCodeCore
+/// Conditional debug logging throughout ClaudeCodeCore.
 public final class ClaudeCodeLogger {
-
-  // MARK: - Singleton
-
-  public static let shared = ClaudeCodeLogger()
 
   // MARK: - Properties
 
@@ -34,7 +30,9 @@ public final class ClaudeCodeLogger {
 
   // MARK: - Initialization
 
-  private init() {}
+  public init(isEnabled: Bool = false) {
+    self.isEnabled = isEnabled
+  }
 
   /// Configure the logger with the debug flag from ClaudeCodeConfiguration
   public func configure(enableDebugLogging: Bool) {

@@ -30,9 +30,11 @@ public struct ToolDisplayFormatter {
     }
   }
   
-  private let toolRegistry = ToolRegistry.shared
+  private let toolRegistry: ToolRegistry
   
-  public init() {}
+  public init(toolRegistry: ToolRegistry = ToolRegistry()) {
+    self.toolRegistry = toolRegistry
+  }
   
   /// Returns the appropriate formatter for a given tool
   private func formatter(for tool: ToolType) -> ToolFormatterProtocol {

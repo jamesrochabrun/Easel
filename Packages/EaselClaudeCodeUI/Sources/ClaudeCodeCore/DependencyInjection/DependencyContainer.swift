@@ -28,6 +28,8 @@ public final class DependencyContainer {
   public let settingsStorage: SettingsStorage
   public let sessionStorage: SessionStorageProtocol
   public let globalPreferences: GlobalPreferencesStorage
+  public let mcpToolsDiscovery: MCPToolsDiscoveryService
+  public let logger: ClaudeCodeLogger
   public let terminalService: TerminalService
   public let permissionsService: PermissionsService
   /// Service that provides macOS accessibility API functionality.
@@ -62,7 +64,9 @@ public final class DependencyContainer {
   ///     If nil, the default storage will be selected based on available Claude CLI storage.
   public init(
     globalPreferences: GlobalPreferencesStorage,
-    customSessionStorage: SessionStorageProtocol? = nil)
+    customSessionStorage: SessionStorageProtocol? = nil,
+    mcpToolsDiscovery: MCPToolsDiscoveryService = MCPToolsDiscoveryService(),
+    logger: ClaudeCodeLogger = ClaudeCodeLogger())
   {
     self.settingsStorage = SettingsStorageManager()
     
@@ -75,6 +79,8 @@ public final class DependencyContainer {
     }
     
     self.globalPreferences = globalPreferences
+    self.mcpToolsDiscovery = mcpToolsDiscovery
+    self.logger = logger
     
     // Initialize core services
     self.terminalService = DefaultTerminalService()
@@ -145,6 +151,8 @@ public final class DependencyContainer {
       settingsStorage: settingsStorage,
       globalPreferences: globalPreferences,
       customPermissionService: customPermissionService,
+      mcpToolsDiscovery: mcpToolsDiscovery,
+      logger: logger,
       shouldManageSessions: false, // Disable session management for direct usage
       onSessionChange: nil
     )

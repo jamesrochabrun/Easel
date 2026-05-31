@@ -9,13 +9,9 @@ import Foundation
 import os.log
 
 /// Service responsible for discovering available tools from MCP servers
-@MainActor
 public final class MCPToolsDiscoveryService {
   
   private let logger = Logger(subsystem: "com.claudecode.ui", category: "MCPToolsDiscovery")
-  
-  /// Singleton instance
-  public static let shared = MCPToolsDiscoveryService()
   
   /// Storage for discovered MCP tools by server
   private(set) var mcpServerTools: [String: [String]] = [:]
@@ -29,7 +25,7 @@ public final class MCPToolsDiscoveryService {
   /// Track if initial discovery has been performed
   private var hasPerformedInitialDiscovery = false
 
-  private init() {}
+  public init() {}
   
   /// Parse and store tools from the system init message
   /// - Parameters:

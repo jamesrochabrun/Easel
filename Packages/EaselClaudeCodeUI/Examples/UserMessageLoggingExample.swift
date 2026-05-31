@@ -52,7 +52,7 @@ struct UserMessageLoggingExampleApp: App {
     }
 
     // Example: Send to analytics service
-    // AnalyticsService.shared.track(.userMessageSent, properties: [
+    // analyticsService.track(.userMessageSent, properties: [
     //   "message_length": message.count,
     //   "has_code_selections": codeSelections != nil,
     //   "has_attachments": attachments != nil,
@@ -60,7 +60,7 @@ struct UserMessageLoggingExampleApp: App {
     // ])
 
     // Example: Store in local database for usage metrics
-    // UsageMetrics.shared.recordUserMessage(
+    // usageMetrics.recordUserMessage(
     //   message: message,
     //   timestamp: Date(),
     //   metadata: [
@@ -74,9 +74,7 @@ struct UserMessageLoggingExampleApp: App {
 // MARK: - Advanced Example with Custom Logging Service
 
 class MessageLoggingService {
-  static let shared = MessageLoggingService()
-
-  private init() {}
+  init() {}
 
   func logUserMessage(_ message: String, codeSelections: [TextSelection]?, attachments: [FileAttachment]?) {
     // Create a structured log entry

@@ -12,7 +12,8 @@ import CCCustomPermissionServiceInterface
 @Observable
 @MainActor
 public final class GlobalPreferencesStorage: MCPConfigStorage {
-  private let persistentManager = PersistentPreferencesManager.shared
+  private let persistentManager: PersistentPreferencesManager
+  private let logger: ClaudeCodeLogger
   private let reconciler = PreferencesReconciler()
   
   /// Cached persistent preferences
@@ -144,11 +145,16 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
   }
   
   // MARK: - Initialization
-  public init() {
-    ClaudeCodeLogger.shared.preferences("GlobalPreferencesStorage initializing")
+  public init(
+    persistentManager: PersistentPreferencesManager? = nil,
+    logger: ClaudeCodeLogger = ClaudeCodeLogger()
+  ) {
+    self.logger = logger
+    self.persistentManager = persistentManager ?? PersistentPreferencesManager(logger: logger)
+    logger.preferences("GlobalPreferencesStorage initializing")
     
     // Try to load from persistent storage with corruption detection
-    let loadResult = persistentManager.loadPreferencesWithResult()
+    let loadResult = self.persistentManager.loadPreferencesWithResult()
     
     switch loadResult {
     case .success(let persistent):
@@ -191,7 +197,7 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
       self.mcpServerTools = buildMCPServerTools(from: persistent.toolPreferences)
       self.selectedMCPTools = buildSelectedMCPTools(from: persistent.toolPreferences)
       
-      ClaudeCodeLogger.shared.preferences("Loaded from persistent storage: \(self.allowedTools.count) allowed tools")
+      logger.preferences("Loaded from persistent storage: \(self.allowedTools.count) allowed tools")
       
     case .failure(let error):
       // Handle different types of failures
@@ -208,14 +214,14 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
           corruptionErr = nil
         } else {
           // Other file system error - treat as corruption
-          ClaudeCodeLogger.shared.preferences("ERROR: Preferences file system error - \(error.localizedDescription)")
+          logger.preferences("ERROR: Preferences file system error - \(error.localizedDescription)")
           isCorrupted = true
           corruptionErr = error
         }
         
       default:
         // File exists but is corrupted
-        ClaudeCodeLogger.shared.preferences("ERROR: Preferences corrupted - \(error.localizedDescription)")
+        logger.preferences("ERROR: Preferences corrupted - \(error.localizedDescription)")
         isCorrupted = true
         corruptionErr = error
       }
@@ -226,7 +232,7 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
       
       if isCorrupted {
         // SAFETY: When corrupted, don't auto-approve ANY tools
-        ClaudeCodeLogger.shared.preferences("WARNING: Due to corruption, no tools will be auto-approved for safety")
+        logger.preferences("WARNING: Due to corruption, no tools will be auto-approved for safety")
         self.allowedTools = []
         self.disallowedTools = []
       } else {
@@ -275,7 +281,7 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
     // Check if backup is available (useful for corruption recovery)
     checkForBackup()
     
-    ClaudeCodeLogger.shared.preferences("Initialization completed" + (hasCorruptedPreferences ? " (corrupted state)" : ""))
+    logger.preferences("Initialization completed" + (hasCorruptedPreferences ? " (corrupted state)" : ""))
   }
   
   /// Check if a backup is available
@@ -294,7 +300,7 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
   
   /// Reset after corruption - deletes corrupted file and starts fresh
   public func resetAfterCorruption() {
-    ClaudeCodeLogger.shared.preferences("Resetting after corruption")
+    logger.preferences("Resetting after corruption")
     
     // Delete the corrupted file
     persistentManager.deleteCorruptedFile()
@@ -310,7 +316,7 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
   
   /// Attempt to restore from backup
   public func restoreFromBackup() -> Bool {
-    ClaudeCodeLogger.shared.preferences("Attempting to restore from backup")
+    logger.preferences("Attempting to restore from backup")
     
     if let restored = persistentManager.restoreFromBackup() {
       // Successfully restored - reload the preferences
@@ -343,10 +349,10 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
       hasCorruptedPreferences = false
       corruptionError = nil
       
-      ClaudeCodeLogger.shared.preferences("Successfully restored from backup")
+      logger.preferences("Successfully restored from backup")
       return true
     } else {
-      ClaudeCodeLogger.shared.preferences("ERROR: Failed to restore from backup")
+      logger.preferences("ERROR: Failed to restore from backup")
       return false
     }
   }
@@ -560,19 +566,19 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
     
     persistentManager.savePreferences(persistent)
     self.persistentPreferences = persistent
-    ClaudeCodeLogger.shared.preferences("Created initial persistent preferences")
+    logger.preferences("Created initial persistent preferences")
   }
   
   /// Reconcile tools when new tools are discovered
   public func reconcileTools(with discoveryService: MCPToolsDiscoveryService) {
-    ClaudeCodeLogger.shared.preferences("Starting tool reconciliation (triggered by hash change)")
+    logger.preferences("Starting tool reconciliation (triggered by hash change)")
 
     // Create discovered tools structure
     let discovered = DiscoveredTools.from(discoveryService: discoveryService)
 
     // Log what we're reconciling
     let totalTools = discovered.claudeCodeTools.count + discovered.mcpServerTools.values.flatMap { $0 }.count
-    ClaudeCodeLogger.shared.preferences("Reconciling \(totalTools) discovered tools with stored preferences")
+    logger.preferences("Reconciling \(totalTools) discovered tools with stored preferences")
 
     // Reconcile with existing preferences
     let reconciled = reconciler.reconcile(
@@ -591,6 +597,6 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
     // Save reconciled state
     persistentManager.savePreferences(reconciled)
 
-    ClaudeCodeLogger.shared.preferences("Tool reconciliation completed and saved to disk")
+    logger.preferences("Tool reconciliation completed and saved to disk")
   }
 }

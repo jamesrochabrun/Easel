@@ -14,10 +14,25 @@ struct MCPConfigurationView: View {
   let mcpConfigStorage: MCPConfigStorage
   let globalPreferences: GlobalPreferencesStorage?
   let uiConfiguration: UIConfiguration
+  let mcpToolsDiscovery: MCPToolsDiscoveryService
   @State private var configManager = MCPConfigurationManager()
   // Removed selectedServer and showingAddServer as editing is now done via JSON editor
   @State private var showingJSONEditor = false
   @State private var oldConfiguration: MCPConfiguration = MCPConfiguration()
+
+  init(
+    isPresented: Binding<Bool>,
+    mcpConfigStorage: MCPConfigStorage,
+    globalPreferences: GlobalPreferencesStorage?,
+    uiConfiguration: UIConfiguration,
+    mcpToolsDiscovery: MCPToolsDiscoveryService = MCPToolsDiscoveryService()
+  ) {
+    self._isPresented = isPresented
+    self.mcpConfigStorage = mcpConfigStorage
+    self.globalPreferences = globalPreferences
+    self.uiConfiguration = uiConfiguration
+    self.mcpToolsDiscovery = mcpToolsDiscovery
+  }
   
   // MARK: - Body
   var body: some View {
@@ -68,7 +83,7 @@ struct MCPConfigurationView: View {
           
           // Clean up removed servers
           for server in removedServers {
-            MCPToolsDiscoveryService.shared.removeToolsForServer(server)
+            mcpToolsDiscovery.removeToolsForServer(server)
             // Also remove from global preferences if available
             if let preferences = globalPreferences {
               preferences.selectedMCPTools.removeValue(forKey: server)
