@@ -103,7 +103,7 @@ public struct PermissionModeIndicator: View {
     case .plan:
       return EaselChatRuntimeStyle.running
     case .acceptEdits:
-      return EaselChatRuntimeStyle.completed
+      return EaselChatRuntimeStyle.completedForeground(for: colorScheme)
     case .bypassPermissions:
       return EaselChatRuntimeStyle.denied
     }

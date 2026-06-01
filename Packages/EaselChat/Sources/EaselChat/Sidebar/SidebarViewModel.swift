@@ -20,6 +20,7 @@ public final class SidebarViewModel {
   var selectedFidelity: EaselProjectFidelity = .highFidelity
   var isCreatingProject = false
   var creationError: String?
+  var projectDeletionError: String?
 
   // MARK: - Callbacks
 
@@ -96,12 +97,36 @@ public final class SidebarViewModel {
     onDeleteSession?(session)
   }
 
+  func deleteProject(_ projectGroup: ProjectGroup) async {
+    guard let project = projectGroup.project else { return }
+
+    projectDeletionError = nil
+
+    do {
+      try await projectManager.deleteProject(project)
+
+      for session in projectGroup.sessions {
+        try? await sessionStorage.deleteSession(id: session.id)
+        onDeleteSession?(session)
+      }
+
+      if projectGroup.sessions.contains(where: { $0.id == selectedSessionId }) {
+        selectedSessionId = nil
+      }
+
+      await loadSessions()
+    } catch {
+      projectDeletionError = error.localizedDescription
+    }
+  }
+
   func createProjectAndStartSession(seedPrompt: String? = nil) async {
     let name = projectName.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !name.isEmpty else { return }
 
     isCreatingProject = true
     creationError = nil
+    projectDeletionError = nil
     defer { isCreatingProject = false }
 
     let request = EaselProjectCreateRequest(
@@ -118,7 +143,7 @@ public final class SidebarViewModel {
       await loadSessions()
       onProjectLaunchRequested?(EaselProjectLaunch(
         project: project,
-        prompt: project.launchPrompt(seedPrompt: seedPrompt)
+        prompt: ""
       ))
     } catch {
       creationError = error.localizedDescription

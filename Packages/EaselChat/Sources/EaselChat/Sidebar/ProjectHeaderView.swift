@@ -11,6 +11,7 @@ struct ProjectHeaderView: View {
   let project: ProjectGroup
   let onToggle: () -> Void
   let onNewChat: () -> Void
+  let onDelete: () -> Void
 
   @State private var isHovering = false
   @Environment(\.colorScheme) private var colorScheme
@@ -21,7 +22,7 @@ struct ProjectHeaderView: View {
         HStack(spacing: 8) {
           Image(systemName: project.kind?.systemImage ?? (project.isExpanded ? "folder.fill" : "folder"))
             .font(.system(size: 14, weight: .medium))
-            .foregroundStyle(project.project == nil ? EaselDesignSystem.Palette.secondaryText(for: colorScheme) : EaselDesignSystem.Palette.accent)
+            .foregroundStyle(projectIconColor)
             .frame(width: 20)
 
           VStack(alignment: .leading, spacing: 2) {
@@ -42,15 +43,25 @@ struct ProjectHeaderView: View {
 
       Spacer()
 
-      if isHovering {
-        Button(action: onNewChat) {
-          Image(systemName: "plus")
-            .font(.caption)
-            .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
-        }
-        .buttonStyle(.plain)
-        .help("New Codex session")
+      HStack(spacing: 4) {
+        ProjectHeaderActionButton(
+          title: "New Codex session",
+          systemImage: "plus",
+          foregroundColor: EaselDesignSystem.Palette.secondaryText(for: colorScheme),
+          hoverColor: EaselDesignSystem.Palette.hoverSurface(for: colorScheme),
+          action: onNewChat
+        )
+
+        ProjectHeaderActionButton(
+          title: "Delete project",
+          systemImage: "trash",
+          role: .destructive,
+          foregroundColor: EaselDesignSystem.Palette.secondaryText(for: colorScheme),
+          hoverColor: EaselDesignSystem.Palette.hoverSurface(for: colorScheme),
+          action: onDelete
+        )
       }
+      .opacity(isHovering ? 1 : 0.8)
     }
     .padding(.horizontal, 10)
     .padding(.vertical, 8)
@@ -68,5 +79,11 @@ struct ProjectHeaderView: View {
     .onHover { hovering in
       isHovering = hovering
     }
+  }
+
+  private var projectIconColor: Color {
+    project.project == nil
+      ? EaselDesignSystem.Palette.secondaryText(for: colorScheme)
+      : EaselDesignSystem.Palette.accentForeground(for: colorScheme)
   }
 }

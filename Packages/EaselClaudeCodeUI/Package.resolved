@@ -1,5 +1,5 @@
 {
-  "originHash" : "d2bd36ff175bf203c3aafc96c75c6522adc8c9a2fb0b1017d4133185fdce19cd",
+  "originHash" : "e453769cd150cd0f77d31c4b4e9c15ae97c0f33783ecf1ad0c1ee523eb528acd",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -8,6 +8,15 @@
       "state" : {
         "revision" : "3a5b74a58782c3b4c1f0bc75e9b67b10c2494e8f",
         "version" : "1.33.1"
+      }
+    },
+    {
+      "identity" : "codexsdk",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/jamesrochabrun/CodexSDK.git",
+      "state" : {
+        "revision" : "4a2f1f6a7090c1cdcf1900ef2e888a6f96cfdebe",
+        "version" : "1.0.5"
       }
     },
     {

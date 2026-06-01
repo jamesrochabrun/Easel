@@ -53,14 +53,27 @@ final class CodexChatRuntime {
     )
     let client = makeClient()
 
-    let result = try await client.run(prompt: prompt, options: options) { [weak self, weak state] event in
-      Task { @MainActor in
-        guard let self, let state, !self.isCancelled, !Task.isCancelled else { return }
+    let eventStream = AsyncStream<CodexExecEvent>.makeStream()
+    let eventTask = Task { @MainActor [weak self, weak state] in
+      for await event in eventStream.stream {
+        guard let self, let state, !self.isCancelled, !Task.isCancelled else { continue }
         self.process(event, state: state)
       }
     }
 
-    try? await Task.sleep(for: .milliseconds(50))
+    let result: CodexExecResult
+    do {
+      result = try await client.run(prompt: prompt, options: options) { event in
+        eventStream.continuation.yield(event)
+      }
+    } catch {
+      eventStream.continuation.finish()
+      await eventTask.value
+      throw error
+    }
+
+    eventStream.continuation.finish()
+    await eventTask.value
 
     guard !isCancelled, !Task.isCancelled else { return }
 
@@ -116,6 +129,7 @@ final class CodexChatRuntime {
     options.promptViaStdin = true
     options.timeout = 10_000
     options.skipGitRepoCheck = true
+
     for (key, value) in configOverrides {
       options.configOverrides[key] = value
     }
@@ -137,7 +151,7 @@ final class CodexChatRuntime {
     return options
   }
 
-  private func process(_ event: CodexExecEvent, state: StreamState) {
+  func process(_ event: CodexExecEvent, state: StreamState) {
     switch event {
     case .jsonEvent(let json):
       process(json, state: state)
@@ -152,7 +166,7 @@ final class CodexChatRuntime {
     }
   }
 
-  private func process(_ event: CodexJSONEvent, state: StreamState) {
+  func process(_ event: CodexJSONEvent, state: StreamState) {
     if event.type == "thread.started", let threadId = event.threadId {
       updateSessionId(threadId, firstMessageInSession: state.firstMessageInSession)
       return
@@ -178,7 +192,7 @@ final class CodexChatRuntime {
     switch (event.type, item.type) {
     case ("item.completed", "agent_message"):
       if let text = item.text {
-        appendAssistantText(text, state: state)
+        addCompletedAssistantMessage(text, state: state)
       }
 
     case ("item.completed", "reasoning"):
@@ -188,58 +202,93 @@ final class CodexChatRuntime {
 
     case ("item.started", "command_execution"):
       if let command = item.command {
-        markItemStarted(item.id, state: state)
-        messageDisplay.addMessage(CodexMessageMapper.commandToolUse(command: command))
+        rememberCommand(command, for: item.id, state: state)
+      }
+      if let command = item.command,
+         CodexMessageMapper.isDisplayableCommand(command),
+         !hasItemDisplayed(item.id, state: state) {
+        markItemDisplayed(item.id, state: state)
+        messageDisplay.addMessage(CodexMessageMapper.commandToolUse(command: command, itemID: item.id))
       }
 
     case ("item.completed", "command_execution"):
-      if !hasItemStarted(item.id, state: state), let command = item.command {
-        messageDisplay.addMessage(CodexMessageMapper.commandToolUse(command: command))
+      if let command = item.command {
+        rememberCommand(command, for: item.id, state: state)
+      }
+      let command = item.command ?? rememberedCommand(for: item.id, state: state)
+      // Skip no-op executions with an empty script — they carry no action to show.
+      guard let command, CodexMessageMapper.isDisplayableCommand(command) else {
+        break
+      }
+      if !hasItemDisplayed(item.id, state: state) {
+        markItemDisplayed(item.id, state: state)
+        messageDisplay.addMessage(CodexMessageMapper.commandToolUse(command: command, itemID: item.id))
       }
       messageDisplay.addMessage(CodexMessageMapper.commandToolResult(
         output: item.aggregatedOutput,
-        exitCode: item.exitCode
+        exitCode: item.exitCode,
+        itemID: item.id
       ))
 
     case ("item.started", "mcp_tool_call"):
-      markItemStarted(item.id, state: state)
-      messageDisplay.addMessage(CodexMessageMapper.mcpToolUse(
-        toolName: item.toolName,
-        arguments: item.toolArguments
-      ))
-
-    case ("item.completed", "mcp_tool_call"):
-      if !hasItemStarted(item.id, state: state) {
+      if !hasItemDisplayed(item.id, state: state) {
+        markItemDisplayed(item.id, state: state)
         messageDisplay.addMessage(CodexMessageMapper.mcpToolUse(
           toolName: item.toolName,
-          arguments: item.toolArguments
+          arguments: item.toolArguments,
+          itemID: item.id
+        ))
+      }
+
+    case ("item.completed", "mcp_tool_call"):
+      if !hasItemDisplayed(item.id, state: state) {
+        markItemDisplayed(item.id, state: state)
+        messageDisplay.addMessage(CodexMessageMapper.mcpToolUse(
+          toolName: item.toolName,
+          arguments: item.toolArguments,
+          itemID: item.id
         ))
       }
       messageDisplay.addMessage(CodexMessageMapper.mcpToolResult(
         toolName: item.toolName,
-        result: item.toolResult
+        result: item.toolResult,
+        itemID: item.id
       ))
 
     case ("item.started", "web_search"):
-      markItemStarted(item.id, state: state)
-      messageDisplay.addMessage(CodexMessageMapper.webSearchToolUse(query: item.query))
+      if !hasItemDisplayed(item.id, state: state) {
+        markItemDisplayed(item.id, state: state)
+        messageDisplay.addMessage(CodexMessageMapper.webSearchToolUse(query: item.query, itemID: item.id))
+      }
 
     case ("item.completed", "web_search"):
-      if !hasItemStarted(item.id, state: state) {
-        messageDisplay.addMessage(CodexMessageMapper.webSearchToolUse(query: item.query))
+      if !hasItemDisplayed(item.id, state: state) {
+        markItemDisplayed(item.id, state: state)
+        messageDisplay.addMessage(CodexMessageMapper.webSearchToolUse(query: item.query, itemID: item.id))
       }
-      messageDisplay.addMessage(CodexMessageMapper.webSearchToolResult(resultCount: item.results?.count ?? 0))
+      messageDisplay.addMessage(CodexMessageMapper.webSearchToolResult(
+        resultCount: item.results?.count ?? 0,
+        itemID: item.id
+      ))
 
     case ("item.completed", "file_change"):
-      if let toolUse = CodexMessageMapper.fileChangeToolUse(changes: item.changes, legacyPath: item.filePath) {
+      if let toolUse = CodexMessageMapper.fileChangeToolUse(
+        changes: item.changes,
+        legacyPath: item.filePath,
+        itemID: item.id
+      ) {
         messageDisplay.addMessage(toolUse)
       }
-      if let toolResult = CodexMessageMapper.fileChangeToolResult(changes: item.changes, legacyPath: item.filePath) {
+      if let toolResult = CodexMessageMapper.fileChangeToolResult(
+        changes: item.changes,
+        legacyPath: item.filePath,
+        itemID: item.id
+      ) {
         messageDisplay.addMessage(toolResult)
       }
 
     case ("item.completed", "todo_list"):
-      if let toolUse = CodexMessageMapper.todoToolUse(items: item.items) {
+      if let toolUse = CodexMessageMapper.todoToolUse(items: item.items, itemID: item.id) {
         messageDisplay.addMessage(toolUse)
       }
 
@@ -259,39 +308,83 @@ final class CodexChatRuntime {
     }
 
     if state.assistantMessageCreated {
+      guard let messageId = state.streamingAssistantMessageId else { return }
       messageDisplay.updateMessage(
-        id: state.messageId,
+        id: messageId,
         content: state.assistantBuffer,
         isComplete: false,
         isError: false
       )
     } else {
+      let messageId = nextAssistantMessageId(state: state)
       messageDisplay.addMessage(MessageFactory.assistantMessage(
-        id: state.messageId,
+        id: messageId,
         content: state.assistantBuffer,
         isComplete: false
       ))
       state.assistantMessageCreated = true
+      state.streamingAssistantMessageId = messageId
+      state.assistantMessageCount += 1
     }
+  }
+
+  private func addCompletedAssistantMessage(_ text: String, state: StreamState) {
+    let cleaned = cleanOutput(text)
+    guard !cleaned.isEmpty else { return }
+
+    finishStreamingAssistantMessage(state: state)
+
+    let messageId = nextAssistantMessageId(state: state)
+    messageDisplay.addMessage(MessageFactory.assistantMessage(
+      id: messageId,
+      content: cleaned,
+      isComplete: true
+    ))
+    state.assistantMessageCount += 1
   }
 
   private func finalizeAssistantMessage(state: StreamState, fallbackOutput: String) {
     if state.assistantMessageCreated {
-      messageDisplay.updateMessage(
-        id: state.messageId,
-        content: state.assistantBuffer.isEmpty ? "(no output)" : state.assistantBuffer,
-        isComplete: true,
-        isError: false
-      )
+      finishStreamingAssistantMessage(state: state)
+      return
+    }
+
+    guard state.assistantMessageCount == 0 else {
       return
     }
 
     let fallback = cleanOutput(fallbackOutput)
     messageDisplay.addMessage(MessageFactory.assistantMessage(
-      id: state.messageId,
+      id: nextAssistantMessageId(state: state),
       content: fallback.isEmpty ? "(no output)" : fallback,
       isComplete: true
     ))
+    state.assistantMessageCount += 1
+  }
+
+  private func finishStreamingAssistantMessage(state: StreamState) {
+    guard state.assistantMessageCreated,
+          let messageId = state.streamingAssistantMessageId else {
+      return
+    }
+
+    messageDisplay.updateMessage(
+      id: messageId,
+      content: state.assistantBuffer.isEmpty ? "(no output)" : state.assistantBuffer,
+      isComplete: true,
+      isError: false
+    )
+    state.assistantBuffer = ""
+    state.assistantMessageCreated = false
+    state.streamingAssistantMessageId = nil
+  }
+
+  private func nextAssistantMessageId(state: StreamState) -> UUID {
+    if state.assistantMessageCount == 0 {
+      return state.messageId
+    }
+
+    return UUID()
   }
 
   private func updateSessionId(_ sessionId: String, firstMessageInSession: String?) {
@@ -322,14 +415,24 @@ final class CodexChatRuntime {
     onSessionChange?(sessionId)
   }
 
-  private func markItemStarted(_ id: String?, state: StreamState) {
+  private func markItemDisplayed(_ id: String?, state: StreamState) {
     guard let id else { return }
-    state.startedItemIds.insert(id)
+    state.displayedItemIds.insert(id)
   }
 
-  private func hasItemStarted(_ id: String?, state: StreamState) -> Bool {
+  private func hasItemDisplayed(_ id: String?, state: StreamState) -> Bool {
     guard let id else { return false }
-    return state.startedItemIds.contains(id)
+    return state.displayedItemIds.contains(id)
+  }
+
+  private func rememberCommand(_ command: String, for id: String?, state: StreamState) {
+    guard let id, !id.isEmpty else { return }
+    state.commandByItemId[id] = command
+  }
+
+  private func rememberedCommand(for id: String?, state: StreamState) -> String? {
+    guard let id else { return nil }
+    return state.commandByItemId[id]
   }
 
   private func cleanOutput(_ text: String) -> String {
@@ -351,12 +454,15 @@ final class CodexChatRuntime {
       .trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
-  private final class StreamState {
+  final class StreamState {
     let messageId: UUID
     let firstMessageInSession: String?
     var assistantBuffer = ""
     var assistantMessageCreated = false
-    var startedItemIds: Set<String> = []
+    var streamingAssistantMessageId: UUID?
+    var assistantMessageCount = 0
+    var displayedItemIds: Set<String> = []
+    var commandByItemId: [String: String] = [:]
 
     init(messageId: UUID, firstMessageInSession: String?) {
       self.messageId = messageId

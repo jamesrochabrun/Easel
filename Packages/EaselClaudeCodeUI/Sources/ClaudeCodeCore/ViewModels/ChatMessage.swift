@@ -39,6 +39,10 @@ public struct ChatMessage: Identifiable, Equatable, Codable, Sendable {
   /// Structured data about tool inputs for enhanced UI display
   /// - Note: Only populated for tool use messages to show parameters in collapsible headers
   public var toolInputData: ToolInputData?
+
+  /// Stable tool invocation identifier from the provider, when one is available.
+  /// - Note: Used to pair tool starts and results even when streaming events interleave.
+  public var toolUseID: String?
   
   /// Whether this message represents an error state
   public var isError: Bool
@@ -77,6 +81,7 @@ public struct ChatMessage: Identifiable, Equatable, Codable, Sendable {
     messageType: MessageType = .text,
     toolName: String? = nil,
     toolInputData: ToolInputData? = nil,
+    toolUseID: String? = nil,
     isError: Bool = false,
     codeSelections: [TextSelection]? = nil,
     attachments: [StoredAttachment]? = nil,
@@ -94,6 +99,7 @@ public struct ChatMessage: Identifiable, Equatable, Codable, Sendable {
     self.messageType = messageType
     self.toolName = toolName
     self.toolInputData = toolInputData
+    self.toolUseID = toolUseID
     self.isError = isError
     self.codeSelections = codeSelections
     self.attachments = attachments
@@ -111,6 +117,7 @@ public struct ChatMessage: Identifiable, Equatable, Codable, Sendable {
     lhs.messageType == rhs.messageType &&
     lhs.toolName == rhs.toolName &&
     lhs.toolInputData == rhs.toolInputData &&
+    lhs.toolUseID == rhs.toolUseID &&
     lhs.isError == rhs.isError &&
     lhs.codeSelections == rhs.codeSelections &&
     lhs.attachments == rhs.attachments &&

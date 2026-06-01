@@ -8,6 +8,18 @@ import Foundation
 public protocol EaselProjectManaging: Sendable {
   func loadProjects() async throws -> [EaselDesignProject]
   func createProject(from request: EaselProjectCreateRequest) async throws -> EaselDesignProject
+  func deleteProject(_ project: EaselDesignProject) async throws
+}
+
+enum EaselProjectManagerError: LocalizedError {
+  case projectNotFound
+
+  var errorDescription: String? {
+    switch self {
+    case .projectNotFound:
+      return "The project could not be found."
+    }
+  }
 }
 
 public actor LocalEaselProjectManager: EaselProjectManaging {
@@ -36,18 +48,8 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
   public func loadProjects() async throws -> [EaselDesignProject] {
     try ensureRootDirectoryExists()
 
-    let directoryURLs = try fileManager.contentsOfDirectory(
-      at: rootDirectory,
-      includingPropertiesForKeys: [.isDirectoryKey],
-      options: [.skipsHiddenFiles]
-    )
-
     var projects: [EaselDesignProject] = []
-    for directoryURL in directoryURLs {
-      guard try directoryURL.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true else {
-        continue
-      }
-
+    for directoryURL in try projectDirectoryURLs() {
       let metadataURL = Self.metadataURL(for: directoryURL)
       guard fileManager.fileExists(atPath: metadataURL.path) else {
         continue
@@ -93,6 +95,16 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
     return project
   }
 
+  public func deleteProject(_ project: EaselDesignProject) async throws {
+    try ensureRootDirectoryExists()
+
+    guard let directoryURL = try projectDirectoryURL(matching: project.id) else {
+      throw EaselProjectManagerError.projectNotFound
+    }
+
+    try fileManager.removeItem(at: directoryURL)
+  }
+
   private static func defaultRootDirectory(fileManager: FileManager) -> URL {
     if let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first {
       return documentsURL.appendingPathComponent("Easel Projects", isDirectory: true)
@@ -110,6 +122,39 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
 
   private func ensureRootDirectoryExists() throws {
     try fileManager.createDirectory(at: rootDirectory, withIntermediateDirectories: true)
+  }
+
+  private func projectDirectoryURLs() throws -> [URL] {
+    let directoryURLs = try fileManager.contentsOfDirectory(
+      at: rootDirectory,
+      includingPropertiesForKeys: [.isDirectoryKey],
+      options: [.skipsHiddenFiles]
+    )
+
+    return try directoryURLs.filter { directoryURL in
+      try directoryURL.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true
+    }
+  }
+
+  private func projectDirectoryURL(matching projectID: UUID) throws -> URL? {
+    for directoryURL in try projectDirectoryURLs() {
+      let metadataURL = Self.metadataURL(for: directoryURL)
+      guard fileManager.fileExists(atPath: metadataURL.path) else {
+        continue
+      }
+
+      do {
+        let data = try Data(contentsOf: metadataURL)
+        let project = try decoder.decode(EaselDesignProject.self, from: data)
+        if project.id == projectID {
+          return directoryURL
+        }
+      } catch {
+        continue
+      }
+    }
+
+    return nil
   }
 
   private func writeMetadata(_ project: EaselDesignProject, in directoryURL: URL) throws {
@@ -198,7 +243,7 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
     """
     # \(project.name)
 
-    Created by Easel Codex Design.
+    Created by Codex Design.
 
     - Type: \(project.kind.displayName)
     - Fidelity: \(project.fidelity.displayName)
@@ -206,7 +251,7 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
 
     Add project assets to `resources/` so Codex can inspect and use them while designing.
 
-    Run `npm run dev` to preview this folder in Easel.
+    Run `npm run dev` to preview this folder in Codex Design.
     """
   }
 

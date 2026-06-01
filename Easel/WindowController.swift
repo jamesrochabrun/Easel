@@ -146,7 +146,7 @@ final class WindowController: NSObject, WindowControlling, NSWindowDelegate {
       backing: .buffered,
       defer: true
     )
-    window.title = "Easel"
+    window.title = "Codex Design"
     window.isReleasedWhenClosed = false
     window.collectionBehavior = [.fullScreenPrimary]
     return window

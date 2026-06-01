@@ -19,7 +19,7 @@ let package = Package(
         // External dependencies
         .package(url: "https://github.com/jamesrochabrun/PierreDiffsSwift", exact: "1.1.3"),
         .package(path: "../../../ClaudeCodeSDK"),
-        .package(path: "../../../CodexSDK"),
+        .package(url: "https://github.com/jamesrochabrun/CodexSDK.git", exact: "1.0.5"),
         .package(path: "../EaselKit"),
         .package(url: "https://github.com/jamesrochabrun/SwiftAnthropic", exact: "2.2.0"),
         .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", from: "2.3.0"),
@@ -143,7 +143,11 @@ let package = Package(
         // Test targets
         .testTarget(
             name: "ClaudeCodeCoreTests",
-            dependencies: ["ClaudeCodeCore"],
+            dependencies: [
+                "ClaudeCodeCore",
+                .product(name: "ClaudeCodeSDK", package: "ClaudeCodeSDK"),
+                .product(name: "CodexSDK", package: "CodexSDK"),
+            ],
             path: "Tests/ClaudeCodeCoreTests"
         ),
     ]

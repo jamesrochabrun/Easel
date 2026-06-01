@@ -8,8 +8,8 @@ import SwiftUI
 public enum EaselDesignSystem {
   public enum Palette {
     public static let inkHex = "#0F1110"
-    public static let accentHex = "#10A37F"
-    public static let accentMutedHex = "#0E7C61"
+    public static let accentHex = "#2E2F2F"
+    public static let accentMutedHex = "#2E2F2F"
     public static let canvasLightHex = "#F7F7F4"
     public static let canvasDarkHex = "#0D0F0E"
     public static let surfaceLightHex = "#FFFFFF"
@@ -22,10 +22,11 @@ public enum EaselDesignSystem {
     public static let textSecondaryDarkHex = "#AEB7B0"
     public static let textTertiaryLightHex = "#8B928C"
     public static let textTertiaryDarkHex = "#747C76"
+    public static let accentForegroundDarkHex = "#AEB7B0"
 
     public static let ink = color(15, 17, 16)
-    public static let accent = color(16, 163, 127)
-    public static let accentMuted = color(14, 124, 97)
+    public static let accent = color(46, 47, 47)
+    public static let accentMuted = color(46, 47, 47)
     public static let warning = color(214, 142, 58)
     public static let danger = color(211, 75, 65)
     public static let running = color(82, 140, 255)
@@ -68,11 +69,15 @@ public enum EaselDesignSystem {
     }
 
     public static func primaryAction(for colorScheme: ColorScheme) -> Color {
-      colorScheme == .dark ? accent : ink
+      accent
     }
 
     public static func primaryActionForeground(for colorScheme: ColorScheme) -> Color {
-      colorScheme == .dark ? color(4, 18, 14) : .white
+      .white
+    }
+
+    public static func accentForeground(for colorScheme: ColorScheme) -> Color {
+      colorScheme == .dark ? color(174, 183, 176) : accent
     }
 
     private static func color(_ red: Double, _ green: Double, _ blue: Double, alpha: Double = 1) -> Color {

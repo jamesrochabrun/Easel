@@ -6,6 +6,7 @@ enum EaselChatRuntimeStyle {
   static let maxContentWidth: CGFloat = 432
   static let cardRadius: CGFloat = EaselDesignSystem.Radius.card
   static let compactRadius: CGFloat = EaselDesignSystem.Radius.control
+  static let toolCardBorderDarkHex = EaselDesignSystem.Palette.accentHex
 
   // MARK: - Typography
 
@@ -62,6 +63,10 @@ enum EaselChatRuntimeStyle {
     EaselDesignSystem.Palette.border(for: colorScheme)
   }
 
+  static func toolCardBorder(for colorScheme: ColorScheme, themeColors: ThemeColors = .current) -> Color {
+    colorScheme == .dark ? Color(hex: toolCardBorderDarkHex) : border(for: colorScheme, themeColors: themeColors)
+  }
+
   static func secondaryText(for colorScheme: ColorScheme, themeColors: ThemeColors = .current) -> Color {
     EaselDesignSystem.Palette.secondaryText(for: colorScheme)
   }
@@ -78,17 +83,21 @@ enum EaselChatRuntimeStyle {
     readableForeground(for: userBubble(for: colorScheme, themeColors: themeColors))
   }
 
-  static let completed = EaselDesignSystem.Palette.success
+  static let completed = EaselDesignSystem.Palette.accent
   static let running = EaselDesignSystem.Palette.running
   static let failed = EaselDesignSystem.Palette.danger
   static let denied = EaselDesignSystem.Palette.warning
+
+  static func completedForeground(for colorScheme: ColorScheme, themeColors: ThemeColors = .current) -> Color {
+    EaselDesignSystem.Palette.accentForeground(for: colorScheme)
+  }
 
   static func successBackground(for colorScheme: ColorScheme, themeColors: ThemeColors = .current) -> Color {
     colorScheme == .dark ? EaselDesignSystem.Palette.accent.opacity(0.16) : EaselDesignSystem.Palette.accent.opacity(0.10)
   }
 
   static func successForeground(for colorScheme: ColorScheme, themeColors: ThemeColors = .current) -> Color {
-    colorScheme == .dark ? EaselDesignSystem.Palette.accent : EaselDesignSystem.Palette.accentMuted
+    colorScheme == .dark ? completedForeground(for: colorScheme, themeColors: themeColors) : EaselDesignSystem.Palette.accentMuted
   }
 
   private static func readableForeground(for background: Color) -> Color {

@@ -10,8 +10,10 @@ import SwiftUI
 public struct SidebarView: View {
   @Bindable var sidebarViewModel: SidebarViewModel
 
-  @State private var showDeleteConfirmation = false
+  @State private var showDeleteSessionConfirmation = false
+  @State private var showDeleteProjectConfirmation = false
   @State private var sessionToDelete: StoredSession?
+  @State private var projectToDelete: ProjectGroup?
   @Environment(\.colorScheme) private var colorScheme
 
   public init(sidebarViewModel: SidebarViewModel) {
@@ -36,7 +38,7 @@ public struct SidebarView: View {
     }
     .background(EaselDesignSystem.Palette.canvas(for: colorScheme))
     .tint(EaselDesignSystem.Palette.accent)
-    .alert("Delete Session", isPresented: $showDeleteConfirmation) {
+    .alert("Delete Session", isPresented: $showDeleteSessionConfirmation) {
       Button("Cancel", role: .cancel) {
         sessionToDelete = nil
       }
@@ -48,6 +50,21 @@ public struct SidebarView: View {
       }
     } message: {
       Text("Are you sure you want to delete this session? This action cannot be undone.")
+    }
+    .alert("Delete Project", isPresented: $showDeleteProjectConfirmation) {
+      Button("Cancel", role: .cancel) {
+        projectToDelete = nil
+      }
+      Button("Delete", role: .destructive) {
+        if let project = projectToDelete {
+          Task {
+            await sidebarViewModel.deleteProject(project)
+            projectToDelete = nil
+          }
+        }
+      }
+    } message: {
+      Text(projectDeleteConfirmationMessage)
     }
     .task {
       await sidebarViewModel.loadSessions()
@@ -61,21 +78,10 @@ public struct SidebarView: View {
           .font(EaselDesignSystem.Typography.interface(size: 15, weight: .semibold))
           .foregroundStyle(EaselDesignSystem.Palette.accent)
 
-        Text("Easel")
+        Text("Codex Design")
           .font(EaselDesignSystem.Typography.interface(size: 22, weight: .semibold))
           .foregroundStyle(.primary)
           .lineLimit(1)
-
-        Text("Codex")
-          .font(EaselDesignSystem.Typography.interface(size: 11, weight: .medium))
-          .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
-          .padding(.horizontal, 7)
-          .padding(.vertical, 3)
-          .background(EaselDesignSystem.Palette.subtleSurface(for: colorScheme), in: Capsule())
-          .overlay {
-            Capsule()
-              .stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1)
-          }
       }
 
       Text("Prototype workspace")
@@ -145,15 +151,34 @@ public struct SidebarView: View {
           await sidebarViewModel.createProjectAndStartSession()
         }
       } label: {
-        Label(
-          sidebarViewModel.isCreatingProject ? "Creating" : "Create",
-          systemImage: sidebarViewModel.isCreatingProject ? "hourglass" : "plus"
-        )
+        HStack(spacing: 8) {
+          Image(systemName: sidebarViewModel.isCreatingProject ? "hourglass" : "plus")
+            .font(.callout.weight(.medium))
+
+          Text(sidebarViewModel.isCreatingProject ? "Creating" : "Create")
+            .font(.callout.weight(.medium))
+
+          Spacer()
+
+          Text("⌘↩")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(createButtonShortcutForeground)
+        }
+        .foregroundStyle(createButtonForeground)
+        .padding(.horizontal, 14)
+        .frame(height: 42)
         .frame(maxWidth: .infinity)
+        .background(
+          createButtonBackground,
+          in: RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.card)
+        )
+        .overlay {
+          RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.card)
+            .stroke(createButtonBorder, lineWidth: 1)
+        }
       }
-      .buttonStyle(.borderedProminent)
-      .tint(EaselDesignSystem.Palette.primaryAction(for: colorScheme))
-      .controlSize(.large)
+      .buttonStyle(.plain)
+      .keyboardShortcut(.return, modifiers: .command)
       .disabled(!canCreateProject || sidebarViewModel.isCreatingProject)
     }
     .padding(12)
@@ -309,47 +334,141 @@ public struct SidebarView: View {
       } else {
         LazyVStack(alignment: .leading, spacing: 6) {
           ForEach(sidebarViewModel.projectGroups) { project in
-            ProjectHeaderView(
-              project: project,
-              onToggle: {
-                sidebarViewModel.toggleProject(project.id)
-              },
-              onNewChat: {
-                sidebarViewModel.requestNewChat(workingDirectory: project.workingDirectory)
-              }
-            )
-
-            if project.isExpanded {
-              if project.sessions.isEmpty {
-                Text("No sessions yet")
-                  .font(.caption)
-                  .foregroundStyle(.tertiary)
-                  .padding(.horizontal, 12)
-                  .padding(.bottom, 6)
-              } else {
-                ForEach(project.sessions) { session in
-                  SidebarSessionRow(
-                    session: session,
-                    isSelected: session.id == sidebarViewModel.selectedSessionId,
-                    onSelect: {
-                      sidebarViewModel.selectSession(session)
-                    },
-                    onDelete: {
-                      sessionToDelete = session
-                      showDeleteConfirmation = true
-                    }
-                  )
-                  .padding(.leading, 6)
+            VStack(alignment: .leading, spacing: 6) {
+              ProjectHeaderView(
+                project: project,
+                onToggle: {
+                  withAnimation(projectListAnimation) {
+                    sidebarViewModel.toggleProject(project.id)
+                  }
+                },
+                onNewChat: {
+                  sidebarViewModel.requestNewChat(workingDirectory: project.workingDirectory)
+                },
+                onDelete: {
+                  projectToDelete = project
+                  showDeleteProjectConfirmation = true
                 }
+              )
+
+              if project.isExpanded {
+                VStack(alignment: .leading, spacing: 6) {
+                  if project.sessions.isEmpty {
+                    Text("No sessions yet")
+                      .font(.caption)
+                      .foregroundStyle(.tertiary)
+                      .padding(.horizontal, 12)
+                      .padding(.bottom, 6)
+                  } else {
+                    ForEach(project.sessions) { session in
+                      SidebarSessionRow(
+                        session: session,
+                        isSelected: session.id == sidebarViewModel.selectedSessionId,
+                        onSelect: {
+                          sidebarViewModel.selectSession(session)
+                        },
+                        onDelete: {
+                          sessionToDelete = session
+                          showDeleteSessionConfirmation = true
+                        }
+                      )
+                      .padding(.leading, 6)
+                      .transition(sessionRowTransition)
+                    }
+                  }
+                }
+                .transition(sessionListTransition)
               }
             }
+            .transition(projectTransition)
           }
         }
+        .animation(projectListAnimation, value: projectListAnimationValue)
+      }
+
+      if let projectDeletionError = sidebarViewModel.projectDeletionError {
+        Text(projectDeletionError)
+          .font(.caption)
+          .foregroundStyle(EaselDesignSystem.Palette.danger)
+          .fixedSize(horizontal: false, vertical: true)
       }
     }
   }
 
   private var canCreateProject: Bool {
     !sidebarViewModel.projectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private var createButtonBackground: Color {
+    if canCreateProject && !sidebarViewModel.isCreatingProject {
+      return EaselDesignSystem.Palette.primaryAction(for: colorScheme)
+    }
+
+    return EaselDesignSystem.Palette.subtleSurface(for: colorScheme)
+  }
+
+  private var createButtonForeground: Color {
+    if canCreateProject && !sidebarViewModel.isCreatingProject {
+      return EaselDesignSystem.Palette.primaryActionForeground(for: colorScheme)
+    }
+
+    return EaselDesignSystem.Palette.tertiaryText(for: colorScheme)
+  }
+
+  private var createButtonShortcutForeground: Color {
+    if canCreateProject && !sidebarViewModel.isCreatingProject {
+      return EaselDesignSystem.Palette.primaryActionForeground(for: colorScheme).opacity(0.72)
+    }
+
+    return EaselDesignSystem.Palette.tertiaryText(for: colorScheme).opacity(0.72)
+  }
+
+  private var createButtonBorder: Color {
+    if canCreateProject && !sidebarViewModel.isCreatingProject {
+      return Color.clear
+    }
+
+    return EaselDesignSystem.Palette.border(for: colorScheme)
+  }
+
+  private var projectTransition: AnyTransition {
+    .asymmetric(
+      insertion: .opacity.combined(with: .move(edge: .top)),
+      removal: .opacity.combined(with: .scale(scale: 0.98, anchor: .top))
+    )
+  }
+
+  private var sessionListTransition: AnyTransition {
+    .asymmetric(
+      insertion: .opacity.combined(with: .move(edge: .top)),
+      removal: .opacity.combined(with: .move(edge: .top))
+    )
+  }
+
+  private var sessionRowTransition: AnyTransition {
+    .opacity.combined(with: .move(edge: .top))
+  }
+
+  private var projectListAnimation: Animation {
+    .easeInOut(duration: 0.22)
+  }
+
+  private var projectListAnimationValue: [String] {
+    sidebarViewModel.projectGroups.map { project in
+      let sessionIDs = project.sessions.map(\.id).joined(separator: ",")
+      return "\(project.id):\(project.isExpanded):\(sessionIDs)"
+    }
+  }
+
+  private var projectDeleteConfirmationMessage: String {
+    guard let projectToDelete else {
+      return "This project and its sessions will be deleted. This action cannot be undone."
+    }
+
+    let sessionCount = projectToDelete.sessions.count
+    let sessionLabel = sessionCount == 1 ? "1 session" : "\(sessionCount) sessions"
+    return "Delete \"\(projectToDelete.displayName)\"? " +
+      "This will remove the project folder and \(sessionLabel). " +
+      "This action cannot be undone."
   }
 }

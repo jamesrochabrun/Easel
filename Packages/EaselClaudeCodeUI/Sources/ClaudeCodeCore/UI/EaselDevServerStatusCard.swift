@@ -9,7 +9,7 @@ struct EaselDevServerStatusCard: View {
     VStack(alignment: .leading, spacing: 4) {
       HStack(spacing: 8) {
         Circle()
-          .fill(EaselChatRuntimeStyle.completed)
+          .fill(EaselChatRuntimeStyle.completedForeground(for: colorScheme))
           .frame(width: 6, height: 6)
 
         Text("Dev server running")

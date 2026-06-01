@@ -64,6 +64,21 @@ final class AppearanceSettingsTests: XCTestCase {
     )
   }
 
+  func testToolCardsUseGraphiteChromeAndCompletion() {
+    XCTAssertEqual(
+      hexString(for: EaselChatRuntimeStyle.toolCardBorder(for: .dark)),
+      EaselChatRuntimeStyle.toolCardBorderDarkHex
+    )
+    XCTAssertEqual(
+      hexString(for: EaselChatRuntimeStyle.completed),
+      EaselDesignSystem.Palette.accentHex
+    )
+    XCTAssertEqual(
+      hexString(for: EaselChatRuntimeStyle.completedForeground(for: .dark)),
+      EaselDesignSystem.Palette.accentForegroundDarkHex
+    )
+  }
+
   private func hexString(for color: Color) -> String {
     let resolvedColor = NSColor(color).usingColorSpace(.sRGB) ?? NSColor(color)
     return Color.hexString(from: resolvedColor)

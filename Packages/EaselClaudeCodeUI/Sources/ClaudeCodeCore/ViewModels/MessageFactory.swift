@@ -60,6 +60,7 @@ public struct MessageFactory {
     toolName: String, 
     input: String, 
     toolInputData: ToolInputData? = nil,
+    toolUseID: String? = nil,
     taskGroupId: UUID? = nil,
     isTaskContainer: Bool = false
   ) -> ChatMessage {
@@ -77,6 +78,7 @@ public struct MessageFactory {
       messageType: .toolUse,
       toolName: toolName,
       toolInputData: toolInputData,
+      toolUseID: toolUseID,
       taskGroupId: taskGroupId,
       isTaskContainer: isTaskContainer
     )

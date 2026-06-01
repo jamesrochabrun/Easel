@@ -120,7 +120,7 @@ struct CompactToolResultView: View {
     case .toolUse:
       return EaselChatRuntimeStyle.running
     case .toolResult:
-      return EaselChatRuntimeStyle.completed
+      return EaselChatRuntimeStyle.completedForeground(for: colorScheme)
     case .toolError:
       return .red
     case .toolDenied:

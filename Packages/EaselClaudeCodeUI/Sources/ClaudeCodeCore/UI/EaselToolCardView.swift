@@ -56,14 +56,6 @@ struct EaselToolCardView: View {
     VStack(alignment: .leading, spacing: EaselChatRuntimeStyle.Spacing.cardContentSpacing) {
       headerContainer
 
-      if presentation.status == .running {
-        ProgressView()
-          .progressViewStyle(.linear)
-          .controlSize(.small)
-          .tint(EaselChatRuntimeStyle.running)
-          .accessibilityLabel("In progress")
-      }
-
       if isExpanded {
         if shouldShowDetailedContent {
           detailedContent
@@ -77,7 +69,7 @@ struct EaselToolCardView: View {
     .background(EaselChatRuntimeStyle.cardBackground(for: colorScheme, themeColors: appearanceSettings.themeColors), in: RoundedRectangle(cornerRadius: EaselChatRuntimeStyle.cardRadius))
     .overlay {
       RoundedRectangle(cornerRadius: EaselChatRuntimeStyle.cardRadius)
-        .stroke(EaselChatRuntimeStyle.border(for: colorScheme, themeColors: appearanceSettings.themeColors), lineWidth: 1)
+        .stroke(EaselChatRuntimeStyle.toolCardBorder(for: colorScheme, themeColors: appearanceSettings.themeColors), lineWidth: 1)
     }
   }
 
@@ -115,9 +107,13 @@ struct EaselToolCardView: View {
           .lineLimit(2)
           .truncationMode(.tail)
 
-        Text(presentation.metadata)
-          .font(EaselChatRuntimeStyle.Typography.secondaryBody)
-          .foregroundStyle(EaselChatRuntimeStyle.secondaryText(for: colorScheme, themeColors: appearanceSettings.themeColors))
+        if let subtitle = presentation.subtitle {
+          Text(subtitle)
+            .font(EaselChatRuntimeStyle.Typography.secondaryBody)
+            .foregroundStyle(EaselChatRuntimeStyle.secondaryText(for: colorScheme, themeColors: appearanceSettings.themeColors))
+            .lineLimit(1)
+            .truncationMode(.tail)
+        }
       }
 
       Spacer(minLength: 12)
@@ -200,7 +196,7 @@ struct EaselToolCardView: View {
     case .running:
       return EaselChatRuntimeStyle.running
     case .completed:
-      return EaselChatRuntimeStyle.completed
+      return EaselChatRuntimeStyle.completedForeground(for: colorScheme, themeColors: appearanceSettings.themeColors)
     case .failed:
       return EaselChatRuntimeStyle.failed
     case .denied:
