@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import EaselDesignSystems
 
 public enum EaselProjectKind: String, CaseIterable, Codable, Identifiable, Sendable {
   case prototype
@@ -73,59 +74,23 @@ public enum EaselProjectFidelity: String, CaseIterable, Codable, Identifiable, S
   }
 }
 
-public enum EaselDesignSystemPreset: String, CaseIterable, Codable, Identifiable, Sendable {
-  case airbnb
-  case apple
-  case material
-  case none
-
-  public var id: String { rawValue }
-
-  public var displayName: String {
-    switch self {
-    case .airbnb:
-      return "Airbnb Design System"
-    case .apple:
-      return "Apple HIG"
-    case .material:
-      return "Material Design"
-    case .none:
-      return "No preset"
-    }
-  }
-
-  var detail: String {
-    switch self {
-    case .airbnb:
-      return "Org default"
-    case .apple:
-      return "Apple platforms"
-    case .material:
-      return "Web and Android"
-    case .none:
-      return "Start clean"
-    }
-  }
-
-  var promptInstruction: String {
-    switch self {
-    case .airbnb:
-      return "Use an Airbnb-inspired product design language: warm neutrals, clear spacing, approachable controls, and polished marketplace-quality UI."
-    case .apple:
-      return "Use Apple Human Interface Guidelines: restrained surfaces, clear hierarchy, native-feeling controls, and excellent accessibility."
-    case .material:
-      return "Use Material Design principles: explicit elevation, clear component states, strong rhythm, and accessible color contrast."
-    case .none:
-      return "Create an original design system appropriate for the product, with a cohesive type, spacing, color, and component language."
-    }
-  }
-}
-
 public struct EaselProjectCreateRequest: Sendable, Equatable {
   public let name: String
   public let kind: EaselProjectKind
-  public let designSystem: EaselDesignSystemPreset
+  public let designSystem: EaselDesignSystemChoice
   public let fidelity: EaselProjectFidelity
+
+  public init(
+    name: String,
+    kind: EaselProjectKind,
+    designSystem: EaselDesignSystemChoice,
+    fidelity: EaselProjectFidelity
+  ) {
+    self.name = name
+    self.kind = kind
+    self.designSystem = designSystem
+    self.fidelity = fidelity
+  }
 
   public init(
     name: String,
@@ -135,7 +100,7 @@ public struct EaselProjectCreateRequest: Sendable, Equatable {
   ) {
     self.name = name
     self.kind = kind
-    self.designSystem = designSystem
+    self.designSystem = .preset(designSystem)
     self.fidelity = fidelity
   }
 }
@@ -144,11 +109,31 @@ public struct EaselDesignProject: Codable, Identifiable, Equatable, Sendable {
   public let id: UUID
   public let name: String
   public let kind: EaselProjectKind
-  public let designSystem: EaselDesignSystemPreset
+  public let designSystem: EaselDesignSystemChoice
   public let fidelity: EaselProjectFidelity
   public let workingDirectory: String
   public let createdAt: Date
   public let updatedAt: Date
+
+  public init(
+    id: UUID,
+    name: String,
+    kind: EaselProjectKind,
+    designSystem: EaselDesignSystemChoice,
+    fidelity: EaselProjectFidelity,
+    workingDirectory: String,
+    createdAt: Date,
+    updatedAt: Date
+  ) {
+    self.id = id
+    self.name = name
+    self.kind = kind
+    self.designSystem = designSystem
+    self.fidelity = fidelity
+    self.workingDirectory = workingDirectory
+    self.createdAt = createdAt
+    self.updatedAt = updatedAt
+  }
 
   public init(
     id: UUID,
@@ -163,7 +148,7 @@ public struct EaselDesignProject: Codable, Identifiable, Equatable, Sendable {
     self.id = id
     self.name = name
     self.kind = kind
-    self.designSystem = designSystem
+    self.designSystem = .preset(designSystem)
     self.fidelity = fidelity
     self.workingDirectory = workingDirectory
     self.createdAt = createdAt

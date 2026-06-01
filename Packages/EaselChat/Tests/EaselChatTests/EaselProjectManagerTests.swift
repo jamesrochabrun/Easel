@@ -5,6 +5,7 @@
 
 import Foundation
 import Testing
+import EaselDesignSystems
 @testable import EaselChat
 
 struct EaselProjectManagerTests {
@@ -111,6 +112,29 @@ struct EaselProjectManagerTests {
     #expect(prompt.contains("User brief: Make checkout faster"))
     #expect(prompt.contains("resources/"))
     #expect(prompt.contains("npm run dev"))
+  }
+
+  @Test
+  func projectDecodingSupportsLegacyPresetDesignSystemValue() throws {
+    let json = """
+    {
+      "createdAt": "2026-01-01T00:00:00Z",
+      "designSystem": "material",
+      "fidelity": "wireframe",
+      "id": "00000000-0000-0000-0000-000000000001",
+      "kind": "prototype",
+      "name": "Legacy",
+      "updatedAt": "2026-01-01T00:00:00Z",
+      "workingDirectory": "/tmp/legacy"
+    }
+    """
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+
+    let project = try decoder.decode(EaselDesignProject.self, from: Data(json.utf8))
+
+    #expect(project.designSystem == .preset(.material))
+    #expect(project.designSystem.displayName == "Material Design")
   }
 
   private func temporaryRoot() -> URL {
