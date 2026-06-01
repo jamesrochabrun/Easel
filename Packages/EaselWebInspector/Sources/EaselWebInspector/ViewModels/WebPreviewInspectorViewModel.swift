@@ -379,6 +379,12 @@ public final class WebPreviewInspectorViewModel {
       return
     }
 
+    if let selectedElement, let previewWebView {
+      ElementInspectorBridge.applyDesignEdit(
+        DesignEdit(element: selectedElement, action: .updateTextContent(value)),
+        in: previewWebView
+      )
+    }
     trackedTextToken = value
     fileContent = updatedContent
     liveProperties = liveProperties?.updatingContent(value)
@@ -388,6 +394,7 @@ public final class WebPreviewInspectorViewModel {
 
   public func updateStyleValue(_ property: WebPreviewStyleProperty, value: String) {
     guard isEditable(property) else { return }
+    applyLiveStyleEdit(property: property, value: value)
     applyRawStyleValue(property.rawValue, value: value, mappedProperty: property)
   }
 
@@ -418,12 +425,20 @@ public final class WebPreviewInspectorViewModel {
   }
 
   public func apply(_ edit: DesignEdit) {
+    guard isCurrentEditTarget(edit.element) else { return }
+
     switch edit.action {
     case .updateProperty(let property, value: let value):
+      if let previewWebView {
+        ElementInspectorBridge.applyDesignEdit(edit, in: previewWebView)
+      }
       applyRawStyleValue(property.rawValue, value: value, mappedProperty: WebPreviewStyleProperty(rawValue: property.rawValue))
     case .updateTextContent(let value):
       updateContentValue(value)
     case .fitContent:
+      if let previewWebView {
+        ElementInspectorBridge.applyDesignEdit(edit, in: previewWebView)
+      }
       applyRawStyleValue("width", value: "fit-content", mappedProperty: .width)
       applyRawStyleValue("height", value: "fit-content", mappedProperty: .height)
     case .deleteElement:
@@ -431,7 +446,52 @@ public final class WebPreviewInspectorViewModel {
     }
   }
 
+  public func refreshFromLiveElement(_ element: ElementInspectorData) {
+    guard isCurrentLiveElementUpdate(element) else { return }
+    selectedElement = element
+    liveProperties = WebPreviewLivePropertiesSnapshot(element: element)
+    toolbarValues = DesignToolbarValues(element: element)
+
+    if matchedSelector == nil {
+      matchedSelector = element.cssSelector.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+    }
+
+    recomputeEditingState()
+  }
+
   // MARK: - Private
+
+  private func applyLiveStyleEdit(property: WebPreviewStyleProperty, value: String) {
+    guard let selectedElement,
+          let designProperty = DesignEdit.Property(rawValue: property.rawValue),
+          let previewWebView else {
+      return
+    }
+
+    ElementInspectorBridge.applyDesignEdit(
+      DesignEdit(element: selectedElement, action: .updateProperty(designProperty, value: value)),
+      in: previewWebView
+    )
+  }
+
+  private func isCurrentEditTarget(_ element: ElementInspectorData) -> Bool {
+    guard let selectedElement else { return false }
+    if element.id == selectedElement.id {
+      return true
+    }
+
+    let incomingSelector = element.cssSelector.trimmingCharacters(in: .whitespacesAndNewlines)
+    let selectedSelector = selectedElement.cssSelector.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !incomingSelector.isEmpty, incomingSelector == selectedSelector {
+      return true
+    }
+
+    return !element.elementId.isEmpty && element.elementId == selectedElement.elementId
+  }
+
+  private func isCurrentLiveElementUpdate(_ element: ElementInspectorData) -> Bool {
+    isCurrentEditTarget(element)
+  }
 
   private func loadFile(at path: String) async {
     do {

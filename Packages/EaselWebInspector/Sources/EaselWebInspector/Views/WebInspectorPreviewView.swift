@@ -99,6 +99,7 @@ public enum WebPreviewInspectBehavior: String, CaseIterable, Identifiable {
 public struct WebInspectorPreviewView: View {
   let previewURLProvider: PreviewURLProviding
   let inspectorBridge: InspectorBridgeProtocol
+  let projectPath: String?
   let projectFileProvider: (any ProjectFileProviding)?
   let recentActivityProvider: (any RecentActivityProviding)?
 
@@ -115,11 +116,21 @@ public struct WebInspectorPreviewView: View {
   @State private var isLoading = false
   @Environment(\.colorScheme) private var colorScheme
 
+  private static let consoleMessageName = "easelConsole"
+
+  private var normalizedProjectPath: String? {
+    Self.normalizedProjectPath(projectPath)
+  }
+
   private var isAdvancedEditingEnabled: Bool {
-    projectFileProvider != nil
+    projectFileProvider != nil && normalizedProjectPath != nil && inspectorViewModel != nil
   }
 
   private var showsInspectorRail: Bool {
+    false
+  }
+
+  private var showsInlineDesignToolbar: Bool {
     isAdvancedEditingEnabled && inspectBehavior == .edit && (inspectorViewModel?.isPanelVisible ?? false)
   }
 
@@ -138,13 +149,27 @@ public struct WebInspectorPreviewView: View {
   public init(
     previewURLProvider: PreviewURLProviding,
     inspectorBridge: InspectorBridgeProtocol,
+    projectPath: String? = nil,
     projectFileProvider: (any ProjectFileProviding)? = nil,
     recentActivityProvider: (any RecentActivityProviding)? = nil
   ) {
     self.previewURLProvider = previewURLProvider
     self.inspectorBridge = inspectorBridge
+    self.projectPath = projectPath
     self.projectFileProvider = projectFileProvider
     self.recentActivityProvider = recentActivityProvider
+
+    if let normalizedProjectPath = Self.normalizedProjectPath(projectPath),
+       let projectFileProvider {
+      _inspectorViewModel = State(initialValue: WebPreviewInspectorViewModel(
+        projectPath: normalizedProjectPath,
+        sourceResolver: WebPreviewSourceResolver(fileService: projectFileProvider),
+        fileService: projectFileProvider,
+        recentActivityProvider: recentActivityProvider
+      ))
+    } else {
+      _inspectorViewModel = State(initialValue: nil)
+    }
   }
 
   public var body: some View {
@@ -157,6 +182,9 @@ public struct WebInspectorPreviewView: View {
     }
     .background(EaselDesignSystem.Palette.canvas(for: colorScheme))
     .tint(EaselDesignSystem.Palette.accent)
+    .task(id: normalizedProjectPath) {
+      await configureInspectorViewModelForCurrentProject()
+    }
     .onChange(of: inspectBehavior) { _, newBehavior in
       guard inspectState.isActive else { return }
       inspectState.activate(mode: newBehavior.canvasMode)
@@ -295,10 +323,15 @@ public struct WebInspectorPreviewView: View {
     }
     .overlay {
       HStack(spacing: 0) {
-        Button("") { toggleInspector() }
+        Button("") { handleInspectModeShortcut() }
           .keyboardShortcut("i", modifiers: [.command, .shift])
         Button("") { refreshPreview() }
           .keyboardShortcut("r", modifiers: .command)
+        if showsInspectorRail {
+          Button("") { handleManualUpdate() }
+            .keyboardShortcut(.return, modifiers: .command)
+            .disabled(!updateState.isEnabled)
+        }
       }
       .hidden()
       .frame(width: 0, height: 0)
@@ -370,6 +403,8 @@ public struct WebInspectorPreviewView: View {
   private var bottomBarContent: some View {
     WebPreviewQueuedContextView(
       queuedItems: localContextQueue.items,
+      isQueueing: inspectState.isActive && inspectBehavior != .edit,
+      isSendShortcutEnabled: !inspectState.isInputShowing && !inspectState.isCropInputShowing,
       failureMessage: queueSendFailureMessage,
       onRemoveItem: { id in
         localContextQueue.remove(id: id)
@@ -392,57 +427,111 @@ public struct WebInspectorPreviewView: View {
     isFileURL: Bool,
     reloadToken: UUID?
   ) -> some View {
-    InspectableWebView(
-      url: url,
-      isFileURL: isFileURL,
-      inspectorDataLevel: .regular,
-      onLoadingChange: { loading in
-        isLoading = loading
-      },
-      onURLChange: { _ in },
-      onError: { _ in },
-      reloadToken: reloadToken,
-      onElementSelected: { element in
-        handleElementSelected(element)
-      },
-      onSelectedElementViewportRectChange: { rect in
-        inspectState.updateSelectedElementViewportRect(rect)
-      },
-      onCropRectSelected: { rect, elements in
-        inspectState.selectCropRect(rect, elements: elements)
-      },
-      onCropRectViewportChange: { rect in
-        inspectState.updateCropRect(rect)
-      },
-      isInspectModeActive: $inspectState.isActive,
-      inspectMode: inspectBehavior.canvasMode,
-      selectedElementId: inspectState.selectedElement?.id,
-      selectorToRestore: activeSelectorToRestore,
-      onWebViewReady: { webView in
-        // Defer the state assignment past the current view update cycle,
-        // otherwise SwiftUI discards the change with a "Modifying state
-        // during view update" warning.
-        Task { @MainActor in
-          previewWebView = webView
+    Group {
+      if isAdvancedEditingEnabled && inspectBehavior == .edit, let inspectorViewModel {
+        InspectableWebView(
+          url: url,
+          isFileURL: isFileURL,
+          inspectorDataLevel: .full,
+          onLoadingChange: handlePreviewLoadingChange,
+          onURLChange: { _ in installConsoleHookIfReady() },
+          onError: { _ in },
+          reloadToken: reloadToken,
+          onElementSelected: { element in
+            handleElementSelected(element)
+          },
+          onSelectedElementDataChange: { element in
+            handleSelectedElementDataChange(element)
+          },
+          onSelectedElementViewportRectChange: { rect in
+            inspectState.updateSelectedElementViewportRect(rect)
+          },
+          isInspectModeActive: $inspectState.isActive,
+          selectedElementId: inspectState.selectedElement?.id,
+          selectorToRestore: activeSelectorToRestore,
+          onWebViewReady: handleWebViewReady
+        )
+        .overlay(alignment: .top) {
+          if inspectState.isActive {
+            VStack(spacing: 8) {
+              editModeBanner(viewModel: inspectorViewModel)
+
+              if showsInlineDesignToolbar,
+                 let element = inspectorViewModel.selectedElement,
+                 let toolbarValues = inspectorViewModel.toolbarValues {
+                DesignToolbarContent(
+                  values: toolbarValues,
+                  element: element,
+                  isTextContentEditable: inspectorViewModel.canEditContent,
+                  onEdit: inspectorViewModel.apply
+                )
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                .shadow(color: .black.opacity(0.08), radius: 12, y: 4)
+                .contentShape(RoundedRectangle(cornerRadius: 12))
+                .inspectOverlayCursor(label: "inlineDesignToolbar") { hovering in
+                  handleInspectOverlayHover(hovering)
+                }
+              }
+            }
+          }
         }
-        inspectorViewModel?.registerWebView(webView)
-        setupConsoleCapture(webView: webView)
+      } else {
+        InspectableWebView(
+          url: url,
+          isFileURL: isFileURL,
+          inspectorDataLevel: .regular,
+          onLoadingChange: handlePreviewLoadingChange,
+          onURLChange: { _ in installConsoleHookIfReady() },
+          onError: { _ in },
+          reloadToken: reloadToken,
+          onElementSelected: { element in
+            handleElementSelected(element)
+          },
+          onSelectedElementDataChange: { element in
+            handleSelectedElementDataChange(element)
+          },
+          onSelectedElementViewportRectChange: { rect in
+            inspectState.updateSelectedElementViewportRect(rect)
+          },
+          onCropRectSelected: { rect, elements in
+            inspectState.selectCropRect(rect, elements: elements)
+          },
+          onCropRectViewportChange: { rect in
+            inspectState.updateCropRect(rect)
+          },
+          isInspectModeActive: $inspectState.isActive,
+          inspectMode: inspectBehavior.canvasMode,
+          selectedElementId: inspectState.selectedElement?.id,
+          selectorToRestore: activeSelectorToRestore,
+          onWebViewReady: handleWebViewReady
+        )
+        .webInspectorOverlay(
+          state: inspectState,
+          inputPlacement: .selectionAnchored,
+          onSubmit: { element, instruction in
+            handleInspectUpdateSubmit(element: element, instruction: instruction)
+          },
+          onSubmitAndSend: { element, instruction in
+            handleInspectUpdateSubmitAndSend(element: element, instruction: instruction)
+          },
+          onContextSelection: { element in
+            handleContextSelection(element: element)
+          },
+          onCropSubmit: { rect, elements, instruction in
+            handleCropSubmit(rect: rect, elements: elements, instruction: instruction)
+          },
+          onCropSubmitAndSend: { rect, elements, instruction in
+            handleCropSubmitAndSend(rect: rect, elements: elements, instruction: instruction)
+          },
+          onOverlayHoverChange: { hovering in
+            handleInspectOverlayHover(hovering)
+          },
+          deactivateOnSubmit: false
+        )
       }
-    )
-    .webInspectorOverlay(
-      state: inspectState,
-      inputPlacement: .selectionAnchored,
-      onSubmit: { element, instruction in
-        handleInspectSubmit(element: element, instruction: instruction)
-      },
-      onContextSelection: { element in
-        handleContextSelection(element: element)
-      },
-      onCropSubmit: { rect, elements, instruction in
-        handleCropSubmit(rect: rect, elements: elements, instruction: instruction)
-      },
-      deactivateOnSubmit: false
-    )
+    }
   }
 
   // MARK: - Actions
@@ -455,11 +544,45 @@ public struct WebInspectorPreviewView: View {
     }
   }
 
+  private func handleInspectModeShortcut() {
+    let availableModes = WebPreviewInspectBehavior.availableCases(advancedEditingEnabled: isAdvancedEditingEnabled)
+    guard let firstMode = availableModes.first else { return }
+
+    guard inspectState.isActive else {
+      inspectBehavior = firstMode
+      inspectState.activate(mode: firstMode.canvasMode)
+      return
+    }
+
+    guard let currentIndex = availableModes.firstIndex(of: inspectBehavior) else {
+      inspectBehavior = firstMode
+      return
+    }
+
+    let nextIndex = availableModes.index(after: currentIndex)
+    guard nextIndex < availableModes.endIndex else {
+      deactivateInspector()
+      return
+    }
+
+    inspectBehavior = availableModes[nextIndex]
+  }
+
   private func deactivateInspector() {
     inspectState.deactivate()
+    if let inspectorViewModel {
+      Task {
+        await inspectorViewModel.closePanel()
+      }
+    }
   }
 
   private func refreshPreview() {
+    if let previewWebView {
+      previewWebView.reload()
+      return
+    }
+
     manualReloadToken = UUID()
     scrollRestorationCoordinator.reset(to: manualReloadToken)
   }
@@ -488,8 +611,9 @@ public struct WebInspectorPreviewView: View {
 
   private func clearCropSelection() {
     inspectState.dismissCropRect()
-    // The onChange observer on cropRect will call
-    // ElementInspectorBridge.clearCropSelection to remove the JS visual.
+    if let previewWebView {
+      ElementInspectorBridge.clearCropSelection(in: previewWebView)
+    }
   }
 
   private func handleElementSelected(_ element: ElementInspectorData) {
@@ -509,8 +633,25 @@ public struct WebInspectorPreviewView: View {
     }
   }
 
-  private func handleInspectSubmit(element: ElementInspectorData, instruction: String) {
+  private func handleSelectedElementDataChange(_ element: ElementInspectorData) {
+    inspectState.refreshSelectedElement(element)
+    lastSelectedSelector = element.cssSelector
+
+    guard inspectBehavior == .edit, let inspectorViewModel else { return }
+    inspectorViewModel.refreshFromLiveElement(element)
+  }
+
+  private func handleInspectUpdateSubmit(element: ElementInspectorData, instruction: String) {
+    queueSendFailureMessage = nil
     localContextQueue.append(element, instruction: instruction)
+    inspectState.dismissInput()
+  }
+
+  private func handleInspectUpdateSubmitAndSend(element: ElementInspectorData, instruction: String) {
+    queueSendFailureMessage = nil
+    var queue = WebPreviewContextQueue()
+    queue.append(element, instruction: instruction)
+    _ = sendWebPreviewQueue(queue)
     inspectState.dismissInput()
   }
 
@@ -523,18 +664,8 @@ public struct WebInspectorPreviewView: View {
     inspectorLog.debug("handleCropSubmit called rect=\(rect.debugDescription) elements=\(elements.count)")
 
     Task { @MainActor in
-      var screenshotPath: String? = nil
-      if let webView = previewWebView {
-        inspectorLog.debug("Capturing screenshot via ElementSnapshotCapture, webView bounds=\(webView.bounds.debugDescription)")
-        if let image = try? await ElementSnapshotCapture.captureSnapshot(of: rect, in: webView) {
-          inspectorLog.debug("Snapshot succeeded, size=\(NSStringFromSize(image.size))")
-          screenshotPath = saveCropScreenshot(image)
-        } else {
-          inspectorLog.error("ElementSnapshotCapture.captureSnapshot returned nil or threw")
-        }
-      } else {
-        inspectorLog.error("previewWebView is nil at crop submit time")
-      }
+      let screenshotPath = await captureCropScreenshotPath(for: rect)
+      clearCropSelection()
 
       inspectorLog.debug("Appending crop to queue, screenshotPath=\(screenshotPath ?? "nil")")
       localContextQueue.appendCrop(
@@ -544,6 +675,41 @@ public struct WebInspectorPreviewView: View {
         screenshotPath: screenshotPath
       )
     }
+  }
+
+  private func handleCropSubmitAndSend(rect: CGRect, elements: [ElementInspectorData], instruction: String) {
+    Task { @MainActor in
+      queueSendFailureMessage = nil
+      let screenshotPath = await captureCropScreenshotPath(for: rect)
+      clearCropSelection()
+
+      var queue = WebPreviewContextQueue()
+      queue.appendCrop(
+        cropRect: rect,
+        elements: elements,
+        instruction: instruction,
+        screenshotPath: screenshotPath
+      )
+
+      _ = sendWebPreviewQueue(queue)
+    }
+  }
+
+  @MainActor
+  private func captureCropScreenshotPath(for rect: CGRect) async -> String? {
+    guard let webView = previewWebView else {
+      inspectorLog.error("previewWebView is nil at crop submit time")
+      return nil
+    }
+
+    inspectorLog.debug("Capturing screenshot via ElementSnapshotCapture, webView bounds=\(webView.bounds.debugDescription)")
+    guard let image = try? await ElementSnapshotCapture.captureSnapshot(of: rect, in: webView) else {
+      inspectorLog.error("ElementSnapshotCapture.captureSnapshot returned nil or threw")
+      return nil
+    }
+
+    inspectorLog.debug("Snapshot succeeded, size=\(NSStringFromSize(image.size))")
+    return saveCropScreenshot(image)
   }
 
   private func saveCropScreenshot(_ image: NSImage) -> String? {
@@ -570,47 +736,217 @@ public struct WebInspectorPreviewView: View {
   }
 
   private func sendQueuedContext() {
-    guard let prompt = localContextQueue.composedContextPrompt() else { return }
-
-    // Prepend screenshot paths so Claude Code detects and attaches them as images.
-    let screenshotPaths = localContextQueue.screenshotPaths()
-    let finalPrompt: String
-    if screenshotPaths.isEmpty {
-      finalPrompt = prompt
-    } else {
-      let pathsPrefix = screenshotPaths
-        .map { $0.contains(" ") ? "\"\($0)\"" : $0 }
-        .joined(separator: " ")
-      finalPrompt = "\(pathsPrefix) \(prompt)"
-    }
-
-    inspectorBridge.sendInspectorPrompt(finalPrompt)
+    guard sendWebPreviewQueue(localContextQueue) else { return }
     localContextQueue.clear()
     queueSendFailureMessage = nil
   }
 
-  private func setupConsoleCapture(webView: WKWebView) {
+  @discardableResult
+  private func sendWebPreviewQueue(_ queue: WebPreviewContextQueue) -> Bool {
+    guard let prompt = queue.composedContextPrompt() else {
+      return false
+    }
+
+    inspectorBridge.sendInspectorPrompt(
+      terminalPrompt(for: prompt, screenshotPaths: queue.screenshotPaths())
+    )
+    return true
+  }
+
+  private func terminalPrompt(for prompt: String, screenshotPaths: [String]) -> String {
+    guard !screenshotPaths.isEmpty else { return prompt }
+
+    let pathsPrefix = screenshotPaths
+      .map { $0.contains(" ") ? "\"\($0)\"" : $0 }
+      .joined(separator: " ")
+    return "\(pathsPrefix) \(prompt)"
+  }
+
+  private func handlePreviewLoadingChange(_ loading: Bool) {
+    isLoading = loading
+    handleOverlayReloadingState(loading)
+
+    guard !loading else { return }
+    installConsoleHookIfReady()
+  }
+
+  private func handleOverlayReloadingState(_ loading: Bool) {
+    guard inspectState.selectedElement != nil else { return }
+    if loading {
+      inspectState.isReloading = true
+    } else {
+      Task { @MainActor in
+        try? await Task.sleep(for: .milliseconds(300))
+        inspectState.isReloading = false
+      }
+    }
+  }
+
+  private func handleInspectOverlayHover(_ hovering: Bool) {
+    let shouldRestoreCrosshair = inspectState.isActive
+    let cursor = hovering ? "default" : (shouldRestoreCrosshair ? "crosshair" : "")
+    let script = cursor.isEmpty
+      ? "document.body.style.cursor = ''"
+      : "document.body.style.cursor = '\(cursor)'"
+    previewWebView?.evaluateJavaScript(script) { _, _ in }
+    if hovering {
+      NSCursor.arrow.set()
+    }
+  }
+
+  private func editModeBanner(viewModel: WebPreviewInspectorViewModel) -> some View {
+    HStack(spacing: 6) {
+      Image(systemName: "slider.horizontal.3")
+        .font(.system(size: 12))
+        .foregroundStyle(.white)
+
+      Text(viewModel.isResolving ? "Edit Mode - mapping source" : "Edit Mode - click any element to edit")
+        .font(.system(size: 11, weight: .semibold))
+        .foregroundStyle(.white)
+
+      Spacer()
+
+      Button {
+        inspectState.deactivate()
+        Task {
+          await viewModel.closePanel()
+        }
+      } label: {
+        Image(systemName: "xmark")
+          .font(.system(size: 10))
+          .foregroundStyle(.white.opacity(0.8))
+          .frame(width: 24, height: 24)
+          .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+      .help("Exit inspect mode (Esc)")
+    }
+    .padding(.horizontal, 12)
+    .padding(.vertical, 6)
+    .background(EaselDesignSystem.Palette.accent.opacity(0.9))
+    .contentShape(Rectangle())
+    .inspectOverlayCursor(label: "editModeBanner") { hovering in
+      handleInspectOverlayHover(hovering)
+    }
+    .padding(12)
+  }
+
+  private func handleWebViewReady(_ webView: WKWebView) {
+    Task { @MainActor in
+      previewWebView = webView
+    }
+
+    guard isAdvancedEditingEnabled, let inspectorViewModel else { return }
+    inspectorViewModel.registerWebView(webView)
     consoleMessageHandler.onMessage = { [weak inspectorViewModel] level, message in
       Task { @MainActor in
         inspectorViewModel?.appendConsoleEntry(level: level, message: message)
       }
     }
+
+    let controller = webView.configuration.userContentController
+    controller.removeScriptMessageHandler(forName: Self.consoleMessageName)
+    controller.add(WeakScriptMessageHandler(consoleMessageHandler), name: Self.consoleMessageName)
+    installConsoleHook(in: webView)
   }
 
-}
+  private func installConsoleHookIfReady() {
+    guard let previewWebView else { return }
+    installConsoleHook(in: previewWebView)
+  }
 
-// MARK: - ViewModel Initialization
+  private func installConsoleHook(in webView: WKWebView) {
+    guard isAdvancedEditingEnabled else { return }
+    webView.evaluateJavaScript(Self.consoleHookScript) { _, _ in }
+  }
 
-extension WebInspectorPreviewView {
-  func ensureInspectorViewModel() -> WebPreviewInspectorViewModel? {
-    guard let projectFileProvider else { return nil }
-    if let existing = inspectorViewModel { return existing }
-    let vm = WebPreviewInspectorViewModel(
-      projectPath: "",
+  private func configureInspectorViewModelForCurrentProject() async {
+    guard let normalizedProjectPath,
+          let projectFileProvider else {
+      if let inspectorViewModel {
+        await inspectorViewModel.flushPendingWriteIfNeeded()
+      }
+      inspectorViewModel = nil
+      return
+    }
+
+    guard inspectorViewModel?.projectPath != normalizedProjectPath else { return }
+
+    if let inspectorViewModel {
+      await inspectorViewModel.flushPendingWriteIfNeeded()
+    }
+
+    inspectorViewModel = WebPreviewInspectorViewModel(
+      projectPath: normalizedProjectPath,
       sourceResolver: WebPreviewSourceResolver(fileService: projectFileProvider),
       fileService: projectFileProvider,
       recentActivityProvider: recentActivityProvider
     )
-    return vm
+  }
+
+  private static func normalizedProjectPath(_ path: String?) -> String? {
+    let trimmed = path?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    guard !trimmed.isEmpty else { return nil }
+    return URL(fileURLWithPath: trimmed).standardizedFileURL.resolvingSymlinksInPath().path
+  }
+
+  private static let consoleHookScript = """
+    (function() {
+      if (window.__easelConsoleHookInstalled) { return; }
+      window.__easelConsoleHookInstalled = true;
+
+      function serialize(value) {
+        if (typeof value === 'string') { return value; }
+        try { return JSON.stringify(value); } catch (error) { return String(value); }
+      }
+
+      ['log', 'warn', 'error'].forEach(function(level) {
+        var original = console[level];
+        console[level] = function() {
+          var parts = Array.from(arguments).map(serialize).join(' ');
+          try {
+            window.webkit.messageHandlers.easelConsole.postMessage({
+              level: level,
+              message: parts
+            });
+          } catch (error) {}
+          return original.apply(console, arguments);
+        };
+      });
+    })();
+  """
+}
+
+private struct InspectOverlayCursorModifier: ViewModifier {
+  let label: String
+  let onHoverChange: (Bool) -> Void
+  @State private var isHovering = false
+
+  func body(content: Content) -> some View {
+    content
+      .onHover { hovering in
+        updateCursor(isHovering: hovering)
+        onHoverChange(hovering)
+      }
+      .onDisappear {
+        updateCursor(isHovering: false)
+        onHoverChange(false)
+      }
+  }
+
+  private func updateCursor(isHovering: Bool) {
+    guard isHovering != self.isHovering else { return }
+    self.isHovering = isHovering
+    if isHovering {
+      NSCursor.arrow.push()
+    } else {
+      NSCursor.pop()
+    }
+  }
+}
+
+private extension View {
+  func inspectOverlayCursor(label: String, onHoverChange: @escaping (Bool) -> Void) -> some View {
+    modifier(InspectOverlayCursorModifier(label: label, onHoverChange: onHoverChange))
   }
 }

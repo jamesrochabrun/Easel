@@ -11,6 +11,8 @@ import SwiftUI
 
 public struct WebPreviewQueuedContextView: View {
   let queuedItems: [WebPreviewQueuedUpdate]
+  let isQueueing: Bool
+  let isSendShortcutEnabled: Bool
   let failureMessage: String?
   let onRemoveItem: (UUID) -> Void
   let onSendAll: () -> Void
@@ -19,12 +21,16 @@ public struct WebPreviewQueuedContextView: View {
 
   public init(
     queuedItems: [WebPreviewQueuedUpdate],
+    isQueueing: Bool = false,
+    isSendShortcutEnabled: Bool = true,
     failureMessage: String?,
     onRemoveItem: @escaping (UUID) -> Void,
     onSendAll: @escaping () -> Void,
     onClearAll: @escaping () -> Void
   ) {
     self.queuedItems = queuedItems
+    self.isQueueing = isQueueing
+    self.isSendShortcutEnabled = isSendShortcutEnabled
     self.failureMessage = failureMessage
     self.onRemoveItem = onRemoveItem
     self.onSendAll = onSendAll
@@ -66,20 +72,18 @@ public struct WebPreviewQueuedContextView: View {
               .fill(EaselDesignSystem.Palette.subtleSurface(for: colorScheme))
           )
 
-        Text("These updates will attach to the next message you send.")
+        Text(
+          isQueueing
+            ? "Add more elements or regions before sending your next message."
+            : "These updates will attach to the next message you send."
+        )
           .font(.caption)
           .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
           .lineLimit(1)
 
         Spacer()
 
-        Button("Send") {
-          onSendAll()
-        }
-        .buttonStyle(.borderedProminent)
-        .tint(EaselDesignSystem.Palette.primaryAction(for: colorScheme))
-        .controlSize(.small)
-        .help("Send queued updates")
+        sendButton
 
         Button("Clear") {
           onClearAll()
@@ -98,6 +102,27 @@ public struct WebPreviewQueuedContextView: View {
     }
     .padding(.horizontal, 12)
     .padding(.vertical, 10)
+  }
+
+  @ViewBuilder
+  private var sendButton: some View {
+    let button = Button(action: onSendAll) {
+      HStack(spacing: 5) {
+        Text("Send")
+        Text("⌘ ↩")
+          .font(.system(.caption, design: .monospaced))
+      }
+    }
+    .buttonStyle(.borderedProminent)
+    .tint(EaselDesignSystem.Palette.primaryAction(for: colorScheme))
+    .controlSize(.small)
+    .help("Send queued updates (Command-Return)")
+
+    if isSendShortcutEnabled {
+      button.keyboardShortcut(.return, modifiers: .command)
+    } else {
+      button
+    }
   }
 
   private var queuedItemList: some View {
