@@ -1,6 +1,5 @@
 import SwiftUI
 import AppKit
-import Down
 import CCTerminalServiceInterface
 import PierreDiffsSwift
 
@@ -26,11 +25,6 @@ struct ChatMessageView: View {
   @State private var isHovered = false
   @State private var showTimestamp = false
   @State private var isExpanded = false
-  @State private var textFormatter: TextFormatter
-  /// Tracks whether the initial message content has been processed by the TextFormatter.
-  /// This prevents duplicate processing of pre-existing content while allowing incremental
-  /// updates for streaming messages. Set to true after the first content ingestion.
-  @State private var hasProcessedInitialContent = false
   
   @Environment(AppearanceSettings.self) private var appearanceSettings
   @Environment(\.colorScheme) private var colorScheme
@@ -51,20 +45,6 @@ struct ChatMessageView: View {
     self.viewModel = viewModel
     self.assistantName = assistantName
     self.showArtifact = showArtifact
-    
-    // Initialize text formatter with project root if available
-    let projectRoot = settingsStorage.projectPath.isEmpty ? nil : URL(fileURLWithPath: settingsStorage.projectPath)
-    let formatter = TextFormatter(projectRoot: projectRoot)
-    
-    // Process initial content for assistant messages
-    if message.role == .assistant && message.messageType == .text && !message.content.isEmpty {
-      formatter.ingest(delta: message.content)
-      _hasProcessedInitialContent = State(initialValue: true)
-    } else {
-      _hasProcessedInitialContent = State(initialValue: false)
-    }
-    
-    _textFormatter = State(initialValue: formatter)
     
     // Check if we have a persisted expansion state for this message
     let initialExpanded: Bool
@@ -111,9 +91,6 @@ struct ChatMessageView: View {
     }
     .contextMenu {
       contextMenuItems
-    }
-    .onChange(of: message.content) { oldContent, newContent in
-      handleContentChange(oldContent: oldContent, newContent: newContent)
     }
     .onChange(of: viewModel.messageExpansionStates[message.id]) { _, newValue in
       if let newValue, newValue != isExpanded {
@@ -271,7 +248,6 @@ struct ChatMessageView: View {
   private var messageContentView: some View {
     MessageContentView(
       message: message,
-      textFormatter: textFormatter,
       fontSize: fontSize,
       horizontalPadding: horizontalPadding,
       showArtifact: showArtifact,
@@ -370,26 +346,6 @@ struct ChatMessageView: View {
   private func copyMessage() {
     NSPasteboard.general.clearContents()
     NSPasteboard.general.setString(message.content, forType: .string)
-  }
-  
-  private func handleContentChange(oldContent: String, newContent: String) {
-    // Handle content changes for assistant messages
-    if message.role == .assistant && message.messageType == .text {
-      if !hasProcessedInitialContent && !newContent.isEmpty {
-        // First time seeing content
-        textFormatter.ingest(delta: newContent)
-        hasProcessedInitialContent = true
-      } else if !message.isComplete && hasProcessedInitialContent {
-        // Streaming updates - calculate the actual delta
-        let currentLength = textFormatter.deltas.joined().count
-        if newContent.count > currentLength {
-          let newDelta = String(newContent.dropFirst(currentLength))
-          if !newDelta.isEmpty {
-            textFormatter.ingest(delta: newDelta)
-          }
-        }
-      }
-    }
   }
   
 }
