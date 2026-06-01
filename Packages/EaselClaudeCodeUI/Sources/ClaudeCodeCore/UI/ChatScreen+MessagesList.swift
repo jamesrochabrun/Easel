@@ -78,6 +78,14 @@ extension ChatScreen {
       } else if message.messageType == .toolUse {
         let paired = resolvedToolResult(for: message, at: index, resultByToolUseID: toolResultsByID)
         let toolResult = paired ?? (message.id == liveToolMessageID ? nil : implicitToolResult(for: message))
+        if EaselTimelineToolVisibility.shouldHideToolPair(toolUse: message, toolResult: toolResult) {
+          processedIds.insert(message.id)
+          if let toolResult {
+            processedIds.insert(toolResult.id)
+          }
+          index += 1
+          continue
+        }
         items.append(.toolPair(toolUse: message, toolResult: toolResult))
         processedIds.insert(message.id)
         if let toolResult {
@@ -86,6 +94,11 @@ extension ChatScreen {
         index += 1
       } else if message.isToolResultLike {
         if let toolUseID = message.toolUseID, toolUseIDs.contains(toolUseID) {
+          processedIds.insert(message.id)
+          index += 1
+          continue
+        }
+        if EaselTimelineToolVisibility.shouldHideToolResult(message) {
           processedIds.insert(message.id)
           index += 1
           continue

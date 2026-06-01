@@ -41,6 +41,10 @@ struct TaskGroupView: View {
     for i in stride(from: groupedMessages.count - 1, through: 0, by: -1) {
       let message = groupedMessages[i]
       if message.messageType == .toolUse {
+        let result = pairedResult(for: message, at: i, resultByToolUseID: toolResultsByID)
+        if EaselTimelineToolVisibility.shouldHideToolPair(toolUse: message, toolResult: result) {
+          continue
+        }
         // This is the most recent tool (must be completed since we checked executing above)
         return (tool: message, isExecuting: false)
       }
@@ -70,6 +74,14 @@ struct TaskGroupView: View {
       if message.messageType == .toolUse {
         let paired = pairedResult(for: message, at: i, resultByToolUseID: toolResultsByID)
         let result = paired ?? (message.id == liveToolMessageID ? nil : implicitToolResult(for: message))
+        if EaselTimelineToolVisibility.shouldHideToolPair(toolUse: message, toolResult: result) {
+          processedIds.insert(message.id)
+          if let result {
+            processedIds.insert(result.id)
+          }
+          i += 1
+          continue
+        }
         processedIds.insert(message.id)
         if let result {
           processedIds.insert(result.id)
@@ -77,6 +89,11 @@ struct TaskGroupView: View {
         pairs.append((toolUse: message, toolResult: result))
       } else if message.messageType == .toolResult || message.messageType == .toolError || message.messageType == .toolDenied {
         if let toolUseID = message.toolUseID, toolUseIDs.contains(toolUseID) {
+          processedIds.insert(message.id)
+          i += 1
+          continue
+        }
+        if EaselTimelineToolVisibility.shouldHideToolResult(message) {
           processedIds.insert(message.id)
           i += 1
           continue
