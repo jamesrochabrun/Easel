@@ -34,8 +34,10 @@ enum EaselToolCardStatus: Equatable {
 }
 
 struct EaselToolCardPresentation: Equatable {
+  /// Human-readable, always specific headline for the activity (e.g. `Reading Button.swift`).
   let title: String
-  let metadata: String
+  /// Optional secondary detail (e.g. `42 lines`, the actual command). Never repeats the status.
+  let subtitle: String?
   let status: EaselToolCardStatus
   let preview: String?
   let localhostURL: URL?
@@ -46,21 +48,18 @@ struct EaselToolCardPresentation: Equatable {
   @MainActor
   init(toolUse: ChatMessage, toolResult: ChatMessage?) {
     let toolName = toolUse.toolName ?? toolResult?.toolName ?? "Tool"
-    let tool = ToolRegistry().tool(for: toolName)
     let status = Self.status(for: toolUse, toolResult: toolResult)
     let resultContent = toolResult?.content ?? (toolUse.messageType == .toolResult ? toolUse.content : "")
     let url = Self.localhostURL(in: resultContent)
     let title = Self.title(for: toolUse, toolName: toolName)
-    let metadata = Self.metadata(
+    let subtitle = Self.subtitle(
       toolName: toolName,
-      tool: tool,
-      status: status,
       resultContent: resultContent,
       toolInputData: toolUse.toolInputData
     )
 
     self.title = title
-    self.metadata = metadata
+    self.subtitle = subtitle
     self.status = status
     self.preview = Self.preview(
       for: toolName,
@@ -71,7 +70,8 @@ struct EaselToolCardPresentation: Equatable {
     self.localhostURL = url
     self.statusLabel = status.label
     self.statusSystemImageName = status.systemImageName
-    self.accessibilityLabel = "\(title), \(metadata), \(status.label)"
+    let detail = subtitle.map { ", \($0)" } ?? ""
+    self.accessibilityLabel = "\(title)\(detail), \(status.label)"
   }
 
   private static func status(for toolUse: ChatMessage, toolResult: ChatMessage?) -> EaselToolCardStatus {
@@ -98,80 +98,117 @@ struct EaselToolCardPresentation: Equatable {
     }
   }
 
+  // MARK: - Title
+
   private static func title(for message: ChatMessage, toolName: String) -> String {
-    if toolName == "Bash" {
-      return commandActivity(for: message.toolInputData?.parameters["command"]).title
-    }
+    let parameters = message.toolInputData?.parameters
 
-    if toolName == "Read", let path = message.toolInputData?.parameters["file_path"], !path.isEmpty {
-      return "Reading \(URL(fileURLWithPath: path).lastPathComponent)"
-    }
+    switch toolName {
+    case "Bash":
+      return bashTitle(for: parameters?["command"])
 
-    if ["Write", "Edit", "MultiEdit", "FileChange"].contains(toolName),
-       let path = message.toolInputData?.parameters["file_path"],
-       !path.isEmpty {
-      return "Updating \(URL(fileURLWithPath: path).lastPathComponent)"
-    }
+    case "Read":
+      if let name = fileName(parameters?["file_path"]) {
+        return "Reading \(name)"
+      }
+      return "Reading a file"
 
-    if ["Glob", "Grep"].contains(toolName) {
-      return "Searching project"
-    }
+    case "Write":
+      if let name = fileName(parameters?["file_path"]) {
+        return "Creating \(name)"
+      }
+      return "Creating a file"
 
-    if toolName == "LS" {
+    case "Edit", "MultiEdit":
+      if let name = fileName(parameters?["file_path"]) {
+        return "Editing \(name)"
+      }
+      return "Editing a file"
+
+    case "FileChange":
+      if let name = fileName(parameters?["file_path"]) {
+        return "Updating \(name)"
+      }
+      return "Updating files"
+
+    case "Grep":
+      if let pattern = nonEmpty(parameters?["pattern"]) {
+        return "Searching for \"\(truncate(pattern, limit: 40))\""
+      }
+      return "Searching the project"
+
+    case "Glob":
+      if let pattern = nonEmpty(parameters?["pattern"]) {
+        return globTitle(for: pattern)
+      }
+      return "Finding files"
+
+    case "LS":
+      if let name = fileName(parameters?["path"]) {
+        return "Browsing \(name)"
+      }
       return "Looking through files"
-    }
 
-    if toolName == "WebSearch" {
+    case "WebSearch":
+      if let query = nonEmpty(parameters?["query"]) {
+        return "Searching the web for \"\(truncate(query, limit: 40))\""
+      }
       return "Searching the web"
-    }
 
-    if toolName == "WebFetch" {
+    case "WebFetch":
+      if let host = host(from: parameters?["url"]) {
+        return "Reading \(host)"
+      }
       return "Reading web content"
-    }
 
-    if toolName == "TodoWrite" {
-      return "Updating task list"
-    }
+    case "TodoWrite":
+      return "Updating the plan"
 
-    if toolName == "Task" {
-      return message.toolInputData?.parameters["description"] ?? "Working through a task"
-    }
+    case "Task":
+      return nonEmpty(parameters?["description"]) ?? "Working through a task"
 
-    if toolName == "ExitPlanMode" || toolName == "exit_plan_mode" {
+    case "ExitPlanMode", "exit_plan_mode":
       return "Reviewing the plan"
-    }
 
-    if let firstParameter = message.toolInputData?.keyParameters.first {
-      return "\(friendlyToolName(toolName)) \(friendlyParameterValue(firstParameter.value))"
+    default:
+      if let firstParameter = message.toolInputData?.keyParameters.first {
+        return "\(friendlyToolName(toolName)) \(friendlyParameterValue(firstParameter.value))"
+      }
+      return friendlyToolName(toolName)
     }
-
-    return friendlyToolName(toolName)
   }
 
-  private static func metadata(
+  // MARK: - Subtitle
+
+  private static func subtitle(
     toolName: String,
-    tool: ToolType?,
-    status: EaselToolCardStatus,
     resultContent: String,
     toolInputData: ToolInputData?
-  ) -> String {
-    let category = category(for: toolName, tool: tool, toolInputData: toolInputData)
+  ) -> String? {
+    let parameters = toolInputData?.parameters
 
-    if toolName == "Read" && !resultContent.isEmpty {
+    switch toolName {
+    case "Read":
       let lines = resultContent.split(whereSeparator: \.isNewline).count
-      if lines > 0 {
-        return "\(category) - \(lines) lines - \(status.label)"
-      }
-    }
+      guard lines > 0 else { return nil }
+      return lines == 1 ? "1 line" : "\(lines) lines"
 
-    if toolName == "FileChange", !resultContent.isEmpty {
-      if let count = fileChangeCount(in: resultContent) {
-        return "\(category) - \(count) files - \(status.label)"
-      }
-      return "\(category) - \(status.label)"
-    }
+    case "FileChange":
+      guard let count = fileChangeCount(in: resultContent) else { return nil }
+      return count == 1 ? "1 file" : "\(count) files"
 
-    return "\(category) - \(status.label)"
+    case "Grep":
+      if let include = nonEmpty(parameters?["include"]) {
+        return "in \(include)"
+      }
+      if let name = fileName(parameters?["path"]) {
+        return "in \(name)"
+      }
+      return nil
+
+    default:
+      return nil
+    }
   }
 
   private static func preview(
@@ -237,13 +274,14 @@ struct EaselToolCardPresentation: Equatable {
   }
 
   static func activeActivityTitle(in messages: [ChatMessage]) -> String? {
+    let toolResultsByID = resultByToolUseID(in: messages)
     var index = messages.count - 1
 
     while index >= 0 {
       let message = messages[index]
 
       if message.messageType == .toolUse {
-        if pairedResult(after: index, in: messages) == nil {
+        if pairedResult(after: index, in: messages, resultByToolUseID: toolResultsByID) == nil {
           return title(for: message, toolName: message.toolName ?? "Tool")
         }
         return nil
@@ -255,7 +293,32 @@ struct EaselToolCardPresentation: Equatable {
     return nil
   }
 
-  private static func pairedResult(after index: Int, in messages: [ChatMessage]) -> ChatMessage? {
+  private static func resultByToolUseID(in messages: [ChatMessage]) -> [String: ChatMessage] {
+    var results: [String: ChatMessage] = [:]
+
+    for message in messages where message.messageType == .toolResult ||
+      message.messageType == .toolError ||
+      message.messageType == .toolDenied {
+      guard let toolUseID = message.toolUseID, !toolUseID.isEmpty else { continue }
+      if results[toolUseID] == nil {
+        results[toolUseID] = message
+      }
+    }
+
+    return results
+  }
+
+  private static func pairedResult(
+    after index: Int,
+    in messages: [ChatMessage],
+    resultByToolUseID: [String: ChatMessage]
+  ) -> ChatMessage? {
+    let toolUse = messages[index]
+
+    if let toolUseID = toolUse.toolUseID, !toolUseID.isEmpty {
+      return resultByToolUseID[toolUseID]
+    }
+
     let nextIndex = index + 1
     guard nextIndex < messages.count else { return nil }
 
@@ -266,35 +329,207 @@ struct EaselToolCardPresentation: Equatable {
       return nil
     }
 
+    if candidate.toolUseID != nil {
+      return nil
+    }
+
     return candidate
   }
 
-  private static func category(
-    for toolName: String,
-    tool: ToolType?,
-    toolInputData: ToolInputData?
-  ) -> String {
-    switch toolName {
-    case "Bash":
-      return commandActivity(for: toolInputData?.parameters["command"]).category
-    case "Read":
-      return "File review"
-    case "Write", "Edit", "MultiEdit", "FileChange":
-      return "File update"
-    case "Glob", "Grep", "LS":
-      return "Project search"
-    case "TodoWrite":
-      return "Planning"
-    case "WebFetch", "WebSearch":
-      return "Web"
-    case "Task":
-      return "Task"
-    case "ExitPlanMode", "exit_plan_mode":
-      return "Plan"
+  // MARK: - Bash
+
+  /// Derives a friendly, human-readable headline for a shell invocation — always a
+  /// plain-language verb, never the raw command.
+  ///
+  /// A confident high-level intent when we recognise one (running tests, building, …);
+  /// otherwise a verb derived from the command's main program plus the file or folder it
+  /// touches. The raw command is intentionally never shown — only the action.
+  private static func bashTitle(for command: String?) -> String {
+    let cleaned = cleanedCommand(command)
+    guard !cleaned.isEmpty else { return "Checking the project" }
+    return semanticBashVerb(for: cleaned) ?? programActivity(for: cleaned)
+  }
+
+  /// Recognises confident, high-level intents that read better than a per-program verb.
+  private static func semanticBashVerb(for command: String) -> String? {
+    let lowercased = command.lowercased()
+
+    if containsAny(lowercased, [
+      "npm install", "pnpm install", "yarn install", "bun install",
+      "npm add", "pnpm add", "yarn add", "bun add",
+      "pod install", "bundle install"
+    ]) {
+      return "Installing packages"
+    }
+
+    if containsAny(lowercased, [
+      "npm run dev", "pnpm dev", "yarn dev", "bun dev",
+      "vite", "next dev", "astro dev", "serve", "http.server"
+    ]) {
+      return "Starting the preview"
+    }
+
+    if lowercased.contains("xcodebuild") && lowercased.contains(" test") {
+      return "Running tests"
+    }
+
+    if containsAny(lowercased, [
+      "swift test", "xcodebuild test", "npm test", "npm run test",
+      "pnpm test", "yarn test", "bun test", "pytest", "vitest", "jest"
+    ]) {
+      return "Running tests"
+    }
+
+    if containsAny(lowercased, [
+      "swift build", "xcodebuild", "npm run build", "pnpm build",
+      "yarn build", "bun run build", "cargo build", "go build"
+    ]) {
+      return "Building the project"
+    }
+
+    // Match lint/format as whole tokens so words like "information" do not trip it.
+    if tokenize(lowercased).contains(where: { token in
+      ["lint", "format", "swiftformat", "swiftlint", "prettier", "eslint", "biome"].contains(token)
+        || token.hasSuffix("lint")
+    }) {
+      return "Formatting code"
+    }
+
+    return nil
+  }
+
+  /// Friendly verb derived from the command's main program and the file/folder argument.
+  private static func programActivity(for command: String) -> String {
+    let tokens = tokenize(primarySegment(of: command))
+    guard let rawProgram = tokens.first else { return "Checking the project" }
+    let program = lastPathComponent(rawProgram)
+    let object = fileArgument(in: tokens)
+
+    switch program {
+    case "ls", "tree", "exa", "lsd", "dir":
+      return "Looking through files"
+    case "cat", "bat", "less", "more", "head", "tail", "sed", "awk", "nl":
+      return object.map { "Reading \($0)" } ?? "Reading a file"
+    case "rg", "grep", "egrep", "fgrep", "ag", "ack", "ripgrep":
+      return "Searching files"
+    case "find", "fd":
+      return object.map { "Looking through \($0)" } ?? "Looking through files"
+    case "mkdir":
+      return "Creating a folder"
+    case "touch":
+      return object.map { "Creating \($0)" } ?? "Creating a file"
+    case "cp", "rsync", "scp":
+      return "Copying files"
+    case "mv":
+      return "Moving files"
+    case "rm", "rmdir", "trash", "unlink":
+      return "Removing files"
+    case "chmod", "chown", "xattr":
+      return "Updating file permissions"
+    case "curl", "wget", "http", "https":
+      return "Fetching from the web"
+    case "open":
+      return object.map { "Opening \($0)" } ?? "Opening a file"
+    case "git":
+      return gitActivity(for: tokens)
+    case "echo", "printf", "pwd", "whoami", "date", "which", "type", "env", "uname":
+      return "Checking the project"
+    case "node", "deno", "bun", "python", "python3", "ruby", "go", "cargo", "php", "java", "make", "swift":
+      return object.map { "Running \($0)" } ?? "Running \(program)"
     default:
-      return tool?.friendlyName ?? friendlyToolName(toolName)
+      return "Running \(program)"
     }
   }
+
+  private static func gitActivity(for tokens: [String]) -> String {
+    let subcommand = tokens.dropFirst().first { !$0.hasPrefix("-") }?.lowercased()
+    switch subcommand {
+    case "status", "log", "diff", "show", "branch", "blame", "describe":
+      return "Checking project history"
+    case "add", "commit", "restore", "reset", "stash", "rm":
+      return "Saving project changes"
+    case "push", "pull", "fetch", "clone":
+      return "Syncing with the remote"
+    case "checkout", "switch":
+      return "Switching branches"
+    default:
+      return "Working with Git"
+    }
+  }
+
+  /// First meaningful command in a `&&`/`;` chain, skipping trivial navigation like `cd`/`pwd`.
+  private static func primarySegment(of command: String) -> String {
+    var segments = [command]
+    for separator in ["&&", "||", ";"] {
+      segments = segments.flatMap { $0.components(separatedBy: separator) }
+    }
+    let trimmed = segments
+      .map { $0.trimmingCharacters(in: .whitespaces) }
+      .filter { !$0.isEmpty }
+
+    let trivial: Set<String> = ["cd", "pwd", "clear", "export", "set", "unset", "source", "."]
+    for segment in trimmed {
+      let program = tokenize(segment).first ?? ""
+      if !trivial.contains(program), !program.contains("=") {
+        return segment
+      }
+    }
+    return trimmed.first ?? command
+  }
+
+  private static func tokenize(_ value: String) -> [String] {
+    value.split(whereSeparator: { $0 == " " || $0 == "\t" }).map(String.init)
+  }
+
+  /// First argument that looks like a file or folder (ignores flags and quoted ranges).
+  private static func fileArgument(in tokens: [String]) -> String? {
+    for token in tokens.dropFirst() {
+      guard !token.hasPrefix("-") else { continue }
+      let unquoted = token.trimmingCharacters(in: CharacterSet(charactersIn: "'\"`"))
+      guard !unquoted.isEmpty, looksLikePath(unquoted) else { continue }
+      return lastPathComponent(unquoted)
+    }
+    return nil
+  }
+
+  private static func looksLikePath(_ value: String) -> Bool {
+    if value.contains("/") { return true }
+    if let dotIndex = value.lastIndex(of: "."), dotIndex != value.startIndex {
+      let ext = value[value.index(after: dotIndex)...]
+      if !ext.isEmpty, ext.allSatisfy({ $0.isLetter || $0.isNumber }) { return true }
+    }
+    return value.allSatisfy { $0.isLetter || $0.isNumber || $0 == "_" || $0 == "-" }
+  }
+
+  private static func lastPathComponent(_ value: String) -> String {
+    guard value.contains("/") else { return value }
+    let component = URL(fileURLWithPath: value).lastPathComponent
+    return component.isEmpty ? value : component
+  }
+
+  /// Strips a leading `cd <path> &&` / `cd <path>;` and collapses whitespace so the
+  /// command reads as a single tidy line.
+  private static func cleanedCommand(_ raw: String?) -> String {
+    guard var command = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !command.isEmpty else {
+      return ""
+    }
+
+    if command.hasPrefix("cd ") {
+      if let separator = command.range(of: "&&") ?? command.range(of: ";") {
+        command = String(command[separator.upperBound...])
+      }
+    }
+
+    let collapsed = command
+      .split(whereSeparator: { $0.isNewline || $0 == "\t" })
+      .map { $0.trimmingCharacters(in: .whitespaces) }
+      .filter { !$0.isEmpty }
+      .joined(separator: " ")
+
+    return collapsed.trimmingCharacters(in: .whitespaces)
+  }
+
+  // MARK: - Helpers
 
   private static func fileChangeCount(in content: String) -> Int? {
     let words = content.split(separator: " ")
@@ -307,85 +542,67 @@ struct EaselToolCardPresentation: Equatable {
     return Int(words[nextIndex])
   }
 
-  private static func commandActivity(for command: String?) -> (title: String, category: String) {
-    let command = command?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    let lowercased = command.lowercased()
-
-    guard !lowercased.isEmpty else {
-      return ("Working on the project", "Project task")
+  /// Friendly title for a glob pattern, e.g. `**/*.swift` -> `Finding Swift files`.
+  private static func globTitle(for pattern: String) -> String {
+    if let ext = globExtension(in: pattern) {
+      return "Finding \(ext) files"
     }
+    return "Finding files matching \(truncate(pattern, limit: 32))"
+  }
 
-    if containsAny(lowercased, [
-      "npm install", "pnpm install", "yarn install", "bun install",
-      "npm add", "pnpm add", "yarn add", "bun add",
-      "pod install", "bundle install"
-    ]) {
-      return ("Installing project packages", "Setup")
+  private static func globExtension(in pattern: String) -> String? {
+    guard let lastDot = pattern.lastIndex(of: ".") else { return nil }
+    let raw = pattern[pattern.index(after: lastDot)...]
+    let ext = raw.prefix { $0.isLetter || $0.isNumber }
+    guard !ext.isEmpty, ext.count <= 5 else { return nil }
+    return displayName(forExtension: String(ext))
+  }
+
+  private static func displayName(forExtension ext: String) -> String {
+    switch ext.lowercased() {
+    case "swift": return "Swift"
+    case "ts", "tsx": return "TypeScript"
+    case "js", "jsx", "mjs": return "JavaScript"
+    case "py": return "Python"
+    case "rb": return "Ruby"
+    case "go": return "Go"
+    case "rs": return "Rust"
+    case "java": return "Java"
+    case "kt", "kts": return "Kotlin"
+    case "md": return "Markdown"
+    case "json": return "JSON"
+    case "yml", "yaml": return "YAML"
+    default: return ".\(ext.lowercased())"
     }
-
-    if containsAny(lowercased, [
-      "npm run dev", "pnpm dev", "yarn dev", "bun dev",
-      "vite", "next dev", "astro dev", "serve", "python -m http.server"
-    ]) {
-      return ("Starting preview", "Preview")
-    }
-
-    if lowercased.contains("xcodebuild") && lowercased.contains(" test") {
-      return ("Checking tests", "Quality check")
-    }
-
-    if containsAny(lowercased, [
-      "swift test", "xcodebuild test", "npm test", "npm run test",
-      "pnpm test", "yarn test", "bun test", "pytest", "vitest", "jest"
-    ]) {
-      return ("Checking tests", "Quality check")
-    }
-
-    if containsAny(lowercased, [
-      "swift build", "xcodebuild", "npm run build", "pnpm build",
-      "yarn build", "bun run build", "cargo build", "go build"
-    ]) {
-      return ("Building project", "Build")
-    }
-
-    if containsAny(lowercased, ["lint", "format", "swiftformat", "swiftlint", "prettier"]) {
-      return ("Checking formatting", "Quality check")
-    }
-
-    if lowercased.contains("git ") || lowercased.hasPrefix("git") {
-      return ("Checking project history", "Version history")
-    }
-
-    if commandStarts(lowercased, prefixes: [
-      "rg", "grep", "find", "ls", "cat", "sed", "awk", "pwd", "wc", "head", "tail"
-    ]) {
-      return ("Looking through the project", "Project search")
-    }
-
-    if commandStarts(lowercased, prefixes: ["mkdir", "cp", "mv", "rm", "touch", "chmod"]) {
-      return ("Organizing project files", "File update")
-    }
-
-    if containsAny(lowercased, ["npm run", "pnpm run", "yarn run", "bun run", "make "]) {
-      return ("Running project task", "Project task")
-    }
-
-    return ("Working on the project", "Project task")
   }
 
   private static func containsAny(_ value: String, _ needles: [String]) -> Bool {
     needles.contains { value.contains($0) }
   }
 
-  private static func commandStarts(_ value: String, prefixes: [String]) -> Bool {
-    prefixes.contains { prefix in
-      value == prefix ||
-        value.hasPrefix("\(prefix) ") ||
-        value.hasPrefix("\(prefix)\n") ||
-        value.contains("&& \(prefix) ") ||
-        value.contains("; \(prefix) ") ||
-        value.contains("| \(prefix) ")
-    }
+  private static func nonEmpty(_ value: String?) -> String? {
+    guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+    return value
+  }
+
+  /// Last path component for a file path parameter, ignoring empty values.
+  private static func fileName(_ path: String?) -> String? {
+    guard let path = nonEmpty(path) else { return nil }
+    let component = URL(fileURLWithPath: path).lastPathComponent
+    return component.isEmpty ? nil : component
+  }
+
+  private static func host(from urlString: String?) -> String? {
+    guard let urlString = nonEmpty(urlString),
+          let host = URL(string: urlString)?.host else { return nil }
+    return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+  }
+
+  private static func truncate(_ value: String, limit: Int) -> String {
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard trimmed.count > limit else { return trimmed }
+    let endIndex = trimmed.index(trimmed.startIndex, offsetBy: limit)
+    return String(trimmed[..<endIndex]).trimmingCharacters(in: .whitespaces) + "…"
   }
 
   private static func friendlyToolName(_ toolName: String) -> String {

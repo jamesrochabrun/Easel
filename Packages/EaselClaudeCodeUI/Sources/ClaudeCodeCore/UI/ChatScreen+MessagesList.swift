@@ -32,6 +32,9 @@ extension ChatScreen {
     var items: [MessageItem] = []
     var processedIds = Set<UUID>()
     var taskGroups: [UUID: (task: ChatMessage, messages: [ChatMessage])] = [:]
+    let toolUseIDs = Set(viewModel.messages.compactMap(\.toolUseID).filter { !$0.isEmpty })
+    let toolResultsByID = resultByToolUseID(in: viewModel.messages)
+    let liveToolMessageID = liveToolMessageID(resultByToolUseID: toolResultsByID)
     
     // First pass: identify all task groups
     for message in viewModel.messages {
@@ -73,14 +76,20 @@ extension ChatScreen {
         processedIds.insert(message.id)
         index += 1
       } else if message.messageType == .toolUse {
-        let toolResult = pairedResult(after: index)
+        let paired = resolvedToolResult(for: message, at: index, resultByToolUseID: toolResultsByID)
+        let toolResult = paired ?? (message.id == liveToolMessageID ? nil : implicitToolResult(for: message))
         items.append(.toolPair(toolUse: message, toolResult: toolResult))
         processedIds.insert(message.id)
         if let toolResult {
           processedIds.insert(toolResult.id)
         }
-        index += toolResult == nil ? 1 : 2
+        index += 1
       } else if message.isToolResultLike {
+        if let toolUseID = message.toolUseID, toolUseIDs.contains(toolUseID) {
+          processedIds.insert(message.id)
+          index += 1
+          continue
+        }
         items.append(.toolPair(toolUse: message, toolResult: nil))
         processedIds.insert(message.id)
         index += 1
@@ -97,6 +106,61 @@ extension ChatScreen {
     return items
   }
 
+  private func resultByToolUseID(in messages: [ChatMessage]) -> [String: ChatMessage] {
+    var results: [String: ChatMessage] = [:]
+
+    for message in messages where message.isToolResultLike {
+      guard let toolUseID = message.toolUseID, !toolUseID.isEmpty else { continue }
+      if results[toolUseID] == nil {
+        results[toolUseID] = message
+      }
+    }
+
+    return results
+  }
+
+  private func liveToolMessageID(resultByToolUseID: [String: ChatMessage]) -> UUID? {
+    var index = viewModel.messages.count - 1
+
+    while index >= 0 {
+      let message = viewModel.messages[index]
+
+      if message.messageType == .text, message.role == .assistant {
+        return nil
+      }
+
+      if message.taskGroupId == nil, message.messageType == .toolUse {
+        return resolvedToolResult(for: message, at: index, resultByToolUseID: resultByToolUseID) == nil ? message.id : nil
+      }
+
+      index -= 1
+    }
+
+    return nil
+  }
+
+  private func resolvedToolResult(
+    for toolUse: ChatMessage,
+    at index: Int,
+    resultByToolUseID: [String: ChatMessage]
+  ) -> ChatMessage? {
+    if let toolUseID = toolUse.toolUseID, !toolUseID.isEmpty {
+      return resultByToolUseID[toolUseID]
+    }
+
+    return pairedResult(after: index)
+  }
+
+  private func implicitToolResult(for toolUse: ChatMessage) -> ChatMessage {
+    ChatMessage(
+      role: .toolResult,
+      content: "Completed",
+      messageType: .toolResult,
+      toolName: toolUse.toolName,
+      toolUseID: toolUse.toolUseID
+    )
+  }
+
   private func pairedResult(after index: Int) -> ChatMessage? {
     let nextIndex = index + 1
     guard nextIndex < viewModel.messages.count else { return nil }
@@ -105,6 +169,14 @@ extension ChatScreen {
     let candidate = viewModel.messages[nextIndex]
 
     guard candidate.taskGroupId == nil, candidate.isToolResultLike else { return nil }
+
+    if let toolUseID = toolUse.toolUseID, !toolUseID.isEmpty {
+      return candidate.toolUseID == toolUseID ? candidate : nil
+    }
+
+    if candidate.toolUseID != nil {
+      return nil
+    }
 
     if let toolName = toolUse.toolName, let candidateToolName = candidate.toolName {
       return toolName == candidateToolName ? candidate : nil

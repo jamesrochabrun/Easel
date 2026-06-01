@@ -118,7 +118,7 @@ public final class SidebarViewModel {
       await loadSessions()
       onProjectLaunchRequested?(EaselProjectLaunch(
         project: project,
-        prompt: project.launchPrompt(seedPrompt: seedPrompt)
+        prompt: ""
       ))
     } catch {
       creationError = error.localizedDescription

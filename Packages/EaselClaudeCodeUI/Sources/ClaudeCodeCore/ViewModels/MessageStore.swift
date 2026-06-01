@@ -48,6 +48,7 @@ final class MessageStore {
       messageType: messages[index].messageType,
       toolName: messages[index].toolName,
       toolInputData: messages[index].toolInputData,
+      toolUseID: messages[index].toolUseID,
       isError: isError
     )
     messages[index] = updatedMessage

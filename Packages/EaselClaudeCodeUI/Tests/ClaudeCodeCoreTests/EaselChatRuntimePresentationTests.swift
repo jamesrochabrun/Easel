@@ -23,7 +23,7 @@ final class EaselChatRuntimePresentationTests: XCTestCase {
 
     XCTAssertEqual(presentation.title, "Reading package.json")
     XCTAssertEqual(presentation.status, .completed)
-    XCTAssertEqual(presentation.metadata, "File review - 3 lines - Done")
+    XCTAssertEqual(presentation.subtitle, "3 lines")
     XCTAssertNil(presentation.preview)
   }
 
@@ -38,11 +38,107 @@ final class EaselChatRuntimePresentationTests: XCTestCase {
 
     let presentation = EaselToolCardPresentation(toolUse: toolUse, toolResult: nil)
 
-    XCTAssertEqual(presentation.title, "Starting preview")
+    XCTAssertEqual(presentation.title, "Starting the preview")
     XCTAssertEqual(presentation.status, .running)
-    XCTAssertEqual(presentation.metadata, "Preview - Working")
+    // The raw command is never shown — only the action.
+    XCTAssertNil(presentation.subtitle)
     XCTAssertEqual(presentation.statusLabel, "Working")
     XCTAssertNil(presentation.preview)
+  }
+
+  func testBashTitleUsesFriendlyVerbAndNeverShowsTheCommand() {
+    let cases: [(command: String, title: String)] = [
+      ("git status", "Checking project history"),
+      ("ls", "Looking through files"),
+      ("cat package.json", "Reading package.json"),
+      ("sed -n '1,260p' index.html", "Reading index.html"),
+      ("find resources -maxdepth 2 -type f -print", "Looking through resources"),
+      ("pwd && rg --files -g '!*node_modules*' -g '!*.png'", "Searching files"),
+      ("cp src/a.txt dist/a.txt", "Copying files"),
+      ("curl https://example.com", "Fetching from the web"),
+    ]
+
+    for testCase in cases {
+      let toolUse = ChatMessage(
+        role: .assistant,
+        content: "",
+        messageType: .toolUse,
+        toolName: "Bash",
+        toolInputData: ToolInputData(parameters: ["command": testCase.command])
+      )
+
+      let presentation = EaselToolCardPresentation(toolUse: toolUse, toolResult: nil)
+
+      XCTAssertEqual(presentation.title, testCase.title, "command: \(testCase.command)")
+      // Only the action is shown; the raw command never appears.
+      XCTAssertNil(presentation.subtitle, "command: \(testCase.command)")
+    }
+  }
+
+  func testEmptyCodexCommandIsNotDisplayable() {
+    // No-op executions (empty script) must be filtered out, not shown as "Running a command".
+    XCTAssertFalse(CodexMessageMapper.isDisplayableCommand("/bin/zsh -lc ''"))
+    XCTAssertFalse(CodexMessageMapper.isDisplayableCommand("   "))
+    XCTAssertTrue(CodexMessageMapper.isDisplayableCommand("/bin/zsh -lc 'echo hello'"))
+  }
+
+  func testBashPresentationNeverFallsBackToRunningACommand() {
+    let toolUse = ChatMessage(
+      role: .assistant,
+      content: "",
+      messageType: .toolUse,
+      toolName: "Bash"
+    )
+
+    let presentation = EaselToolCardPresentation(toolUse: toolUse, toolResult: nil)
+
+    XCTAssertEqual(presentation.title, "Checking the project")
+    XCTAssertFalse(presentation.title.contains("Running a command"))
+  }
+
+  func testBashTitleDoesNotFalsePositiveOnSubstrings() {
+    let toolUse = ChatMessage(
+      role: .assistant,
+      content: "",
+      messageType: .toolUse,
+      toolName: "Bash",
+      toolInputData: ToolInputData(parameters: ["command": "cat information.txt"])
+    )
+
+    let presentation = EaselToolCardPresentation(toolUse: toolUse, toolResult: nil)
+
+    // "information" contains "format" but must not be read as a formatting command.
+    XCTAssertEqual(presentation.title, "Reading information.txt")
+  }
+
+  func testGrepPresentationSurfacesSearchPattern() {
+    let toolUse = ChatMessage(
+      role: .assistant,
+      content: "",
+      messageType: .toolUse,
+      toolName: "Grep",
+      toolInputData: ToolInputData(parameters: ["pattern": "useState", "include": "*.swift"])
+    )
+
+    let presentation = EaselToolCardPresentation(toolUse: toolUse, toolResult: nil)
+
+    XCTAssertEqual(presentation.title, "Searching for \"useState\"")
+    XCTAssertEqual(presentation.subtitle, "in *.swift")
+  }
+
+  func testGlobPresentationDescribesFileType() {
+    let toolUse = ChatMessage(
+      role: .assistant,
+      content: "",
+      messageType: .toolUse,
+      toolName: "Glob",
+      toolInputData: ToolInputData(parameters: ["pattern": "**/*.swift"])
+    )
+
+    let presentation = EaselToolCardPresentation(toolUse: toolUse, toolResult: nil)
+
+    XCTAssertEqual(presentation.title, "Finding Swift files")
+    XCTAssertNil(presentation.subtitle)
   }
 
   func testToolPresentationSummarizesWriteWithoutRawContentPreview() {
@@ -59,12 +155,12 @@ final class EaselChatRuntimePresentationTests: XCTestCase {
 
     let presentation = EaselToolCardPresentation(toolUse: toolUse, toolResult: nil)
 
-    XCTAssertEqual(presentation.title, "Updating main.ts")
-    XCTAssertEqual(presentation.metadata, "File update - Working")
+    XCTAssertEqual(presentation.title, "Creating main.ts")
+    XCTAssertNil(presentation.subtitle)
     XCTAssertNil(presentation.preview)
   }
 
-  func testToolPresentationDoesNotExposeComplexBashCommand() {
+  func testToolPresentationShowsFriendlyVerbWithRealCommand() {
     let command = "cd /private/tmp/example && xcodebuild -workspace SecretApp.xcworkspace -scheme SecretApp test"
     let toolUse = ChatMessage(
       role: .assistant,
@@ -76,14 +172,15 @@ final class EaselChatRuntimePresentationTests: XCTestCase {
 
     let presentation = EaselToolCardPresentation(toolUse: toolUse, toolResult: nil)
 
-    XCTAssertEqual(presentation.title, "Checking tests")
-    XCTAssertEqual(presentation.metadata, "Quality check - Working")
+    // Friendly verb only — the raw command (and any paths it contains) is never shown.
+    XCTAssertEqual(presentation.title, "Running tests")
+    XCTAssertNil(presentation.subtitle)
     XCTAssertFalse(presentation.title.contains("xcodebuild"))
-    XCTAssertFalse(presentation.metadata.contains("SecretApp"))
+    XCTAssertFalse(presentation.title.contains("/private/tmp"))
     XCTAssertNil(presentation.preview)
   }
 
-  func testFileChangePresentationHidesFullPathInMetadata() {
+  func testFileChangePresentationKeepsFriendlyTitle() {
     let toolUse = ChatMessage(
       role: .assistant,
       content: "",
@@ -101,8 +198,8 @@ final class EaselChatRuntimePresentationTests: XCTestCase {
     let presentation = EaselToolCardPresentation(toolUse: toolUse, toolResult: toolResult)
 
     XCTAssertEqual(presentation.title, "Updating SecretView.swift")
-    XCTAssertEqual(presentation.metadata, "File update - Done")
-    XCTAssertFalse(presentation.metadata.contains("/private/tmp"))
+    XCTAssertFalse(presentation.title.contains("/private/tmp"))
+    XCTAssertFalse(presentation.subtitle?.contains("/private/tmp") ?? false)
   }
 
   func testToolPresentationMapsFailedAndDeniedStates() {
@@ -159,7 +256,7 @@ final class EaselChatRuntimePresentationTests: XCTestCase {
 
     let title = EaselToolCardPresentation.activeActivityTitle(in: [userMessage, toolUse])
 
-    XCTAssertEqual(title, "Checking tests")
+    XCTAssertEqual(title, "Running tests")
   }
 
   func testActiveActivityTitleIgnoresCompletedToolUse() {
@@ -168,16 +265,48 @@ final class EaselChatRuntimePresentationTests: XCTestCase {
       content: "",
       messageType: .toolUse,
       toolName: "Bash",
-      toolInputData: ToolInputData(parameters: ["command": "swift test"])
+      toolInputData: ToolInputData(parameters: ["command": "swift test"]),
+      toolUseID: "test-1"
     )
     let toolResult = ChatMessage(
       role: .toolResult,
       content: "exit 0",
       messageType: .toolResult,
-      toolName: "Bash"
+      toolName: "Bash",
+      toolUseID: "test-1"
     )
 
     let title = EaselToolCardPresentation.activeActivityTitle(in: [toolUse, toolResult])
+
+    XCTAssertNil(title)
+  }
+
+  func testActiveActivityTitleUsesToolIDsForInterleavedResults() {
+    let firstTool = ChatMessage(
+      role: .assistant,
+      content: "",
+      messageType: .toolUse,
+      toolName: "Bash",
+      toolInputData: ToolInputData(parameters: ["command": "swift test"]),
+      toolUseID: "first"
+    )
+    let secondTool = ChatMessage(
+      role: .assistant,
+      content: "",
+      messageType: .toolUse,
+      toolName: "Bash",
+      toolInputData: ToolInputData(parameters: ["command": "git status"]),
+      toolUseID: "second"
+    )
+    let secondResult = ChatMessage(
+      role: .toolResult,
+      content: "exit 0",
+      messageType: .toolResult,
+      toolName: "Bash",
+      toolUseID: "second"
+    )
+
+    let title = EaselToolCardPresentation.activeActivityTitle(in: [firstTool, secondTool, secondResult])
 
     XCTAssertNil(title)
   }

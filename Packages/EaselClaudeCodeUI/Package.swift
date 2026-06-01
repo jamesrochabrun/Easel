@@ -143,7 +143,11 @@ let package = Package(
         // Test targets
         .testTarget(
             name: "ClaudeCodeCoreTests",
-            dependencies: ["ClaudeCodeCore"],
+            dependencies: [
+                "ClaudeCodeCore",
+                .product(name: "ClaudeCodeSDK", package: "ClaudeCodeSDK"),
+                .product(name: "CodexSDK", package: "CodexSDK"),
+            ],
             path: "Tests/ClaudeCodeCoreTests"
         ),
     ]

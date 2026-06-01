@@ -56,14 +56,6 @@ struct EaselToolCardView: View {
     VStack(alignment: .leading, spacing: EaselChatRuntimeStyle.Spacing.cardContentSpacing) {
       headerContainer
 
-      if presentation.status == .running {
-        ProgressView()
-          .progressViewStyle(.linear)
-          .controlSize(.small)
-          .tint(EaselChatRuntimeStyle.running)
-          .accessibilityLabel("In progress")
-      }
-
       if isExpanded {
         if shouldShowDetailedContent {
           detailedContent
@@ -115,9 +107,13 @@ struct EaselToolCardView: View {
           .lineLimit(2)
           .truncationMode(.tail)
 
-        Text(presentation.metadata)
-          .font(EaselChatRuntimeStyle.Typography.secondaryBody)
-          .foregroundStyle(EaselChatRuntimeStyle.secondaryText(for: colorScheme, themeColors: appearanceSettings.themeColors))
+        if let subtitle = presentation.subtitle {
+          Text(subtitle)
+            .font(EaselChatRuntimeStyle.Typography.secondaryBody)
+            .foregroundStyle(EaselChatRuntimeStyle.secondaryText(for: colorScheme, themeColors: appearanceSettings.themeColors))
+            .lineLimit(1)
+            .truncationMode(.tail)
+        }
       }
 
       Spacer(minLength: 12)
