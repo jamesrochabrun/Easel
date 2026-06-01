@@ -4,6 +4,7 @@
 //
 
 import ClaudeCodeCore
+import EaselDesignSystems
 import EaselKit
 import SwiftUI
 

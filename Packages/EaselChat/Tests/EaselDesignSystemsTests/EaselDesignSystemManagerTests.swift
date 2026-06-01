@@ -5,7 +5,7 @@
 
 import Foundation
 import Testing
-@testable import EaselChat
+@testable import EaselDesignSystems
 
 struct EaselDesignSystemManagerTests {
 

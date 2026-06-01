@@ -4,6 +4,7 @@
 //
 
 import ClaudeCodeCore
+import EaselDesignSystems
 import Foundation
 
 @Observable @MainActor

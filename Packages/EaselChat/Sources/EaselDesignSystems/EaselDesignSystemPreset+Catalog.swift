@@ -6,7 +6,7 @@
 import Foundation
 
 extension EaselDesignSystemPreset {
-  var catalog: EaselDesignSystemCatalog {
+  public var catalog: EaselDesignSystemCatalog {
     switch self {
     case .airbnb:
       return EaselDesignSystemCatalog(

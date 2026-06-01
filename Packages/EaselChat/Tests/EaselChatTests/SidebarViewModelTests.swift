@@ -6,6 +6,7 @@
 import ClaudeCodeCore
 import Foundation
 import Testing
+import EaselDesignSystems
 @testable import EaselChat
 
 @MainActor

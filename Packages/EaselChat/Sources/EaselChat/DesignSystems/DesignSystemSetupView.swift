@@ -4,6 +4,7 @@
 //
 
 import EaselKit
+import EaselDesignSystems
 import SwiftUI
 
 public struct DesignSystemSetupView: View {

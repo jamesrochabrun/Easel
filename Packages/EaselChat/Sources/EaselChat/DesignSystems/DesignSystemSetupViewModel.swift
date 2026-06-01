@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import EaselDesignSystems
 
 @Observable @MainActor
 public final class DesignSystemSetupViewModel {
