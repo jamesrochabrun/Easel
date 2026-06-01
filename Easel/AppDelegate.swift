@@ -48,7 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private func configureStatusItem() {
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     if let button = item.button {
-      let image = NSImage(systemSymbolName: "sparkles", accessibilityDescription: "Easel")
+      let image = NSImage(systemSymbolName: "sparkles", accessibilityDescription: "Codex Design")
       image?.isTemplate = true
       button.image = image
       button.target = self
@@ -96,7 +96,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     menu.addItem(NSMenuItem.separator())
 
     let quitItem = NSMenuItem(
-      title: "Quit Easel",
+      title: "Quit Codex Design",
       action: #selector(quitApp(_:)),
       keyEquivalent: "q"
     )

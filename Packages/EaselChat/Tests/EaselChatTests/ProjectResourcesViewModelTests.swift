@@ -88,6 +88,8 @@ private actor StubProjectManager: EaselProjectManaging {
   func createProject(from request: EaselProjectCreateRequest) async throws -> EaselDesignProject {
     projects[0]
   }
+
+  func deleteProject(_ project: EaselDesignProject) async throws {}
 }
 
 private actor StubProjectResourceManager: ProjectResourceManaging {

@@ -11,6 +11,7 @@ struct ProjectHeaderView: View {
   let project: ProjectGroup
   let onToggle: () -> Void
   let onNewChat: () -> Void
+  let onDelete: () -> Void
 
   @State private var isHovering = false
   @Environment(\.colorScheme) private var colorScheme
@@ -42,15 +43,25 @@ struct ProjectHeaderView: View {
 
       Spacer()
 
-      if isHovering {
-        Button(action: onNewChat) {
-          Image(systemName: "plus")
-            .font(.caption)
-            .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
-        }
-        .buttonStyle(.plain)
-        .help("New Codex session")
+      HStack(spacing: 4) {
+        ProjectHeaderActionButton(
+          title: "New Codex session",
+          systemImage: "plus",
+          foregroundColor: EaselDesignSystem.Palette.secondaryText(for: colorScheme),
+          hoverColor: EaselDesignSystem.Palette.hoverSurface(for: colorScheme),
+          action: onNewChat
+        )
+
+        ProjectHeaderActionButton(
+          title: "Delete project",
+          systemImage: "trash",
+          role: .destructive,
+          foregroundColor: EaselDesignSystem.Palette.danger,
+          hoverColor: EaselDesignSystem.Palette.danger.opacity(colorScheme == .dark ? 0.2 : 0.12),
+          action: onDelete
+        )
       }
+      .opacity(isHovering ? 1 : 0.8)
     }
     .padding(.horizontal, 10)
     .padding(.vertical, 8)

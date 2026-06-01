@@ -178,7 +178,7 @@ public struct EaselDesignProject: Codable, Identifiable, Equatable, Sendable {
       "Target fidelity: \(fidelity.displayName)",
       designSystem.promptInstruction,
       "Project resources are stored in `resources/`. Inspect and use those files when they are relevant to the design.",
-      "Keep `npm run dev` working so Easel can preview the project.",
+      "Keep `npm run dev` working so Codex Design can preview the project.",
     ]
 
     switch kind {

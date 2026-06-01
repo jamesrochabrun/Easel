@@ -70,6 +70,26 @@ struct EaselProjectManagerTests {
   }
 
   @Test
+  func deleteProjectRemovesProjectFolder() async throws {
+    let rootDirectory = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: rootDirectory) }
+
+    let manager = LocalEaselProjectManager(rootDirectory: rootDirectory)
+    let project = try await manager.createProject(from: EaselProjectCreateRequest(
+      name: "Delete Me",
+      kind: .prototype,
+      designSystem: .airbnb,
+      fidelity: .highFidelity
+    ))
+
+    try await manager.deleteProject(project)
+
+    #expect(FileManager.default.fileExists(atPath: project.workingDirectory) == false)
+    let loadedProjects = try await manager.loadProjects()
+    #expect(loadedProjects.isEmpty)
+  }
+
+  @Test
   func launchPromptIncludesProjectContextAndSeedPrompt() {
     let project = EaselDesignProject(
       id: UUID(),
