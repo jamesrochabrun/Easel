@@ -12,7 +12,7 @@ import Testing
 struct SidebarViewModelTests {
 
   @Test
-  func creatingProjectLaunchesEmptyConversation() async {
+  func creatingProjectLaunchesWithProjectContextPrompt() async {
     let project = EaselDesignProject(
       id: UUID(),
       name: "Manhattan",
@@ -25,7 +25,8 @@ struct SidebarViewModelTests {
     )
     let viewModel = SidebarViewModel(
       sessionStorage: NoOpSessionStorage(),
-      projectManager: SidebarProjectManagerStub(project: project)
+      projectManager: SidebarProjectManagerStub(project: project),
+      designSystemManager: SidebarDesignSystemManagerStub()
     )
     viewModel.projectName = "Manhattan"
 
@@ -37,7 +38,50 @@ struct SidebarViewModelTests {
     await viewModel.createProjectAndStartSession(seedPrompt: "Create a Manhattan planning dashboard")
 
     #expect(launchedProject?.project == project)
-    #expect(launchedProject?.prompt == "")
+    #expect(launchedProject?.prompt.contains("Manhattan") == true)
+    #expect(launchedProject?.prompt.contains("Create a Manhattan planning dashboard") == true)
+  }
+
+  @Test
+  func designSystemChoicesExcludeUnbackedBuiltInPresets() async {
+    let customSystem = EaselDesignSystemProfile(
+      id: UUID(),
+      name: "AgentHub Design System",
+      blurb: "AgentHub product UI",
+      notes: "",
+      sourceLinks: [],
+      workingDirectory: "/tmp/agenthub-design-system",
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+    let viewModel = SidebarViewModel(
+      sessionStorage: NoOpSessionStorage(),
+      projectManager: SidebarProjectManagerStub(projects: []),
+      designSystemManager: SidebarDesignSystemManagerStub(profiles: [customSystem])
+    )
+
+    await viewModel.loadSessions()
+
+    #expect(viewModel.selectedDesignSystem == .preset(.none))
+    #expect(viewModel.shouldShowCreateOnlyDesignSystemControl == false)
+    #expect(viewModel.availableDesignSystemChoices.map(\.displayName) == [
+      "No design system",
+      "AgentHub Design System",
+    ])
+  }
+
+  @Test
+  func designSystemControlShowsOnlyCreateWhenNoCustomSystemsExist() async {
+    let viewModel = SidebarViewModel(
+      sessionStorage: NoOpSessionStorage(),
+      projectManager: SidebarProjectManagerStub(projects: []),
+      designSystemManager: SidebarDesignSystemManagerStub()
+    )
+
+    await viewModel.loadSessions()
+
+    #expect(viewModel.selectedDesignSystem == .preset(.none))
+    #expect(viewModel.shouldShowCreateOnlyDesignSystemControl)
   }
 
   @Test
@@ -63,7 +107,8 @@ struct SidebarViewModelTests {
     let projectManager = SidebarProjectManagerStub(projects: [project])
     let viewModel = SidebarViewModel(
       sessionStorage: sessionStorage,
-      projectManager: projectManager
+      projectManager: projectManager,
+      designSystemManager: SidebarDesignSystemManagerStub()
     )
     viewModel.selectedSessionId = session.id
 
@@ -81,6 +126,35 @@ struct SidebarViewModelTests {
     #expect(callbackDeletedSessionIDs == [session.id])
     #expect(viewModel.selectedSessionId == nil)
     #expect(viewModel.projectGroups.isEmpty)
+  }
+}
+
+private actor SidebarDesignSystemManagerStub: EaselDesignSystemManaging {
+  private let profiles: [EaselDesignSystemProfile]
+
+  init(profiles: [EaselDesignSystemProfile] = []) {
+    self.profiles = profiles
+  }
+
+  func loadDesignSystems() async throws -> [EaselDesignSystemProfile] {
+    profiles
+  }
+
+  func createDesignSystem(from request: EaselDesignSystemCreateRequest) async throws -> EaselDesignSystemProfile {
+    EaselDesignSystemProfile(
+      id: UUID(),
+      name: "Stub",
+      blurb: request.blurb,
+      notes: request.notes,
+      sourceLinks: request.sourceLinks,
+      workingDirectory: "/tmp/stub",
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+  }
+
+  func loadCatalog(forDesignSystemAt path: String) async throws -> EaselDesignSystemCatalog? {
+    nil
   }
 }
 

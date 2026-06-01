@@ -123,18 +123,76 @@ public struct SidebarView: View {
       }
 
       VStack(alignment: .leading, spacing: 8) {
-        Text("Design system")
-          .font(.callout.weight(.medium))
-          .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
+        HStack {
+          Text("Design system")
+            .font(.callout.weight(.medium))
+            .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
 
-        Picker("Design system", selection: $sidebarViewModel.selectedDesignSystem) {
-          ForEach(EaselDesignSystemPreset.allCases) { system in
-            Text(system.displayName).tag(system)
+          Spacer()
+
+          Button {
+            sidebarViewModel.requestBrowseDesignSystems()
+          } label: {
+            Image(systemName: "rectangle.grid.1x2")
+              .font(.system(size: 13, weight: .medium))
           }
+          .buttonStyle(.plain)
+          .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
+          .help("Browse design systems")
         }
-        .pickerStyle(.menu)
-        .labelsHidden()
-        .frame(maxWidth: .infinity, alignment: .leading)
+
+        if sidebarViewModel.shouldShowCreateOnlyDesignSystemControl {
+          createDesignSystemButton
+        } else {
+          Menu {
+            ForEach(sidebarViewModel.availableDesignSystemChoices) { system in
+              Button {
+                sidebarViewModel.selectDesignSystem(system)
+              } label: {
+                if sidebarViewModel.selectedDesignSystem == system {
+                  Label(system.displayName, systemImage: "checkmark")
+                } else {
+                  Text(system.displayName)
+                }
+              }
+            }
+
+            Divider()
+
+            Button("Create Design System", systemImage: "plus", action: sidebarViewModel.requestCreateDesignSystem)
+          } label: {
+            HStack(spacing: 8) {
+              Text(sidebarViewModel.selectedDesignSystem.displayName)
+                .lineLimit(1)
+
+              Spacer()
+
+              Image(systemName: "chevron.up.chevron.down")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
+            }
+            .font(EaselDesignSystem.Typography.interface(size: 14, weight: .medium))
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 12)
+            .frame(height: 34)
+            .frame(maxWidth: .infinity)
+            .background(EaselDesignSystem.Palette.subtleSurface(for: colorScheme), in: RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.control))
+            .overlay {
+              RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.control)
+                .stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1)
+            }
+          }
+          .menuStyle(.button)
+          .buttonStyle(.plain)
+          .frame(maxWidth: .infinity, alignment: .leading)
+        }
+
+        if let designSystemError = sidebarViewModel.designSystemError {
+          Text(designSystemError)
+            .font(.caption)
+            .foregroundStyle(EaselDesignSystem.Palette.danger)
+            .fixedSize(horizontal: false, vertical: true)
+        }
       }
 
       fidelityPicker
@@ -187,6 +245,32 @@ public struct SidebarView: View {
       RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.card)
         .stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1)
     }
+  }
+
+  private var createDesignSystemButton: some View {
+    Button(action: sidebarViewModel.requestCreateDesignSystem) {
+      HStack(spacing: 8) {
+        Image(systemName: "plus")
+          .font(.callout.weight(.medium))
+
+        Text("Create Design System")
+          .font(.callout.weight(.medium))
+          .lineLimit(1)
+
+        Spacer()
+      }
+      .foregroundStyle(EaselDesignSystem.Palette.primaryActionForeground(for: colorScheme))
+      .padding(.horizontal, 12)
+      .frame(height: 34)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(
+        EaselDesignSystem.Palette.primaryAction(for: colorScheme),
+        in: RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.control)
+      )
+      .contentShape(RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.control))
+    }
+    .buttonStyle(.plain)
+    .disabled(false)
   }
 
   private var fidelityPicker: some View {

@@ -18,7 +18,11 @@ struct CanvasContentView: View {
   @State private var projectFileService = DefaultProjectFileService()
   @State private var sidebarViewModel: SidebarViewModel?
   @State private var resourcesViewModel = ProjectResourcesViewModel()
+  @State private var designSystemSetupViewModel = DesignSystemSetupViewModel()
+  @State private var designSystemBrowserViewModel = DesignSystemBrowserViewModel()
   @State private var selectedCanvasSurface: CanvasSurface = .canvas
+  @State private var isDesignSystemSetupPresented = false
+  @State private var isDesignSystemBrowserPresented = false
   @State private var didHandleInitialPrompt = false
   @Environment(\.colorScheme) private var colorScheme
 
@@ -109,8 +113,15 @@ struct CanvasContentView: View {
           await chatService.initialize()
           await chatService.startNewSession(workingDirectory: launch.project.workingDirectory)
           await startDevServer(for: launch.project.workingDirectory)
+          chatService.sendInitialPromptIfNeeded(launch.prompt)
           await vm.loadSessions()
         }
+      }
+      vm.onCreateDesignSystemRequested = {
+        isDesignSystemSetupPresented = true
+      }
+      vm.onBrowseDesignSystemsRequested = {
+        isDesignSystemBrowserPresented = true
       }
       vm.onDeleteSession = { session in
         Task {
@@ -138,6 +149,32 @@ struct CanvasContentView: View {
         await startDevServer(for: dir)
       }
     }
+    .sheet(isPresented: $isDesignSystemSetupPresented) {
+      DesignSystemSetupView(
+        viewModel: designSystemSetupViewModel,
+        onCancel: {
+          isDesignSystemSetupPresented = false
+        },
+        onCreated: handleDesignSystemCreated
+      )
+      .frame(minWidth: 920, minHeight: 760)
+    }
+    .sheet(isPresented: $isDesignSystemBrowserPresented) {
+      if let sidebarViewModel {
+        DesignSystemBrowserView(
+          sidebarViewModel: sidebarViewModel,
+          viewModel: designSystemBrowserViewModel,
+          onCreateDesignSystem: {
+            isDesignSystemBrowserPresented = false
+            isDesignSystemSetupPresented = true
+          },
+          onDone: {
+            isDesignSystemBrowserPresented = false
+          }
+        )
+        .frame(minWidth: 1040, minHeight: 720)
+      }
+    }
   }
 
   private func startDevServer(for workingDirectory: String) async {
@@ -153,6 +190,20 @@ struct CanvasContentView: View {
     } catch {
       // Dev server failed — preview stays in "waiting" state
       // PreviewURLObserver can still detect URLs from chat messages as fallback
+    }
+  }
+
+  private func handleDesignSystemCreated(_ launch: EaselDesignSystemLaunch) {
+    isDesignSystemSetupPresented = false
+    selectedCanvasSurface = .canvas
+    sidebarViewModel?.selectDesignSystem(.custom(launch.profile))
+
+    Task {
+      await chatService.initialize()
+      await chatService.startNewSession(workingDirectory: launch.profile.workingDirectory)
+      await startDevServer(for: launch.profile.workingDirectory)
+      chatService.sendInitialPromptIfNeeded(launch.prompt)
+      await sidebarViewModel?.loadSessions()
     }
   }
 

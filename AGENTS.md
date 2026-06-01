@@ -24,6 +24,15 @@ Guidelines for any AI agent working on this codebase.
 - Keep the project **modular**: each feature should live in its own Swift package/module when applicable
 - Separate concerns: views, view models, services, and models should be in distinct layers
 
+## Local Persistence
+
+- User-created projects and design systems must remain local and independent of the app install
+- Store managed projects under a user-visible, app-independent folder such as `~/Documents/Easel Projects`
+- Store managed design systems under a user-visible, app-independent folder such as `~/Documents/Easel Design Systems`
+- Do **not** store user project/design-system source files only inside the app bundle, app cache, temporary directories, or app support data that may be removed when the app is deleted
+- Each generated project or design system must be self-contained: include its scaffold, metadata, resources, and any copied assets inside that folder at a safe level such as `resources/` and `.easel/`
+- When importing external files, copy the selected files/resources into the managed local folder instead of depending on fragile external references
+
 ## Testing
 
 - **Always write unit tests** for new code
