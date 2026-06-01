@@ -9,6 +9,12 @@ import EaselKit
 import Foundation
 
 public actor DefaultProjectFileService: ProjectFileProviding {
+  private static let skippedDirectories: Set<String> = [
+    ".git", ".svn", ".build", "DerivedData", "node_modules",
+    ".next", ".nuxt", "dist", "build", "coverage", ".cache",
+  ]
+
+  private static let maxIndexedFileSize: UInt64 = 1_000_000
 
   public init() {}
 
@@ -23,36 +29,43 @@ public actor DefaultProjectFileService: ProjectFileProviding {
   }
 
   public func listTextFiles(in projectPath: String, extensions: Set<String>) async -> [String] {
-    let rootURL = URL(fileURLWithPath: projectPath)
-    guard let enumerator = FileManager.default.enumerator(
-      at: rootURL,
-      includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey],
-      options: [.skipsHiddenFiles]
-    ) else {
-      return []
-    }
+    guard !extensions.isEmpty else { return [] }
 
-    var results: [String] = []
-    for case let fileURL as URL in enumerator {
-      // Skip common non-source directories
-      if fileURL.lastPathComponent == "node_modules" ||
-         fileURL.lastPathComponent == ".git" ||
-         fileURL.lastPathComponent == "dist" ||
-         fileURL.lastPathComponent == "build" ||
-         fileURL.lastPathComponent == ".next" {
-        enumerator.skipDescendants()
-        continue
+    return await Task.detached(priority: .utility) {
+      let rootURL = URL(fileURLWithPath: projectPath).standardizedFileURL.resolvingSymlinksInPath()
+      let resourceKeys: Set<URLResourceKey> = [.isDirectoryKey, .fileSizeKey]
+
+      guard let enumerator = FileManager.default.enumerator(
+        at: rootURL,
+        includingPropertiesForKeys: Array(resourceKeys),
+        options: [.skipsHiddenFiles]
+      ) else {
+        return []
       }
 
-      let ext = fileURL.pathExtension.lowercased()
-      guard extensions.contains(ext) else { continue }
+      var results: [String] = []
+      while let fileURL = enumerator.nextObject() as? URL {
+        let values = try? fileURL.resourceValues(forKeys: resourceKeys)
+        let isDirectory = values?.isDirectory == true
 
-      let resourceValues = try? fileURL.resourceValues(forKeys: [.isRegularFileKey])
-      guard resourceValues?.isRegularFile == true else { continue }
+        if isDirectory {
+          if Self.skippedDirectories.contains(fileURL.lastPathComponent) {
+            enumerator.skipDescendants()
+          }
+          continue
+        }
 
-      results.append(fileURL.standardizedFileURL.resolvingSymlinksInPath().path)
-    }
+        let ext = fileURL.pathExtension.lowercased()
+        guard extensions.contains(ext) else { continue }
 
-    return results
+        if let fileSize = values?.fileSize, UInt64(fileSize) > Self.maxIndexedFileSize {
+          continue
+        }
+
+        results.append(fileURL.standardizedFileURL.resolvingSymlinksInPath().path)
+      }
+
+      return results.sorted()
+    }.value
   }
 }

@@ -4,6 +4,7 @@
 //
 
 import EaselKit
+import Foundation
 import Testing
 
 @MainActor

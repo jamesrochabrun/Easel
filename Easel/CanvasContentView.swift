@@ -15,6 +15,7 @@ struct CanvasContentView: View {
   let chatService: ChatService
 
   @State private var serverManager = ProjectServerManager()
+  @State private var projectFileService = DefaultProjectFileService()
   @State private var sidebarViewModel: SidebarViewModel?
   @State private var resourcesViewModel = ProjectResourcesViewModel()
   @State private var selectedCanvasSurface: CanvasSurface = .canvas
@@ -166,7 +167,9 @@ struct CanvasContentView: View {
       ZStack {
         WebInspectorPreviewView(
           previewURLProvider: chatService,
-          inspectorBridge: chatService
+          inspectorBridge: chatService,
+          projectPath: chatService.currentWorkingDirectory,
+          projectFileProvider: projectFileService
         )
         .opacity(selectedCanvasSurface == .canvas ? 1 : 0)
         .allowsHitTesting(selectedCanvasSurface == .canvas)
