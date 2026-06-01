@@ -198,7 +198,7 @@ public struct InlinePlanApprovalView: View {
     if isResolved {
       switch approvalStatus {
       case .approved, .approvedWithAutoAccept:
-        return EaselChatRuntimeStyle.completed
+        return EaselChatRuntimeStyle.completedForeground(for: colorScheme)
       case .denied:
         return EaselChatRuntimeStyle.failed
       default:

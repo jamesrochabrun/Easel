@@ -254,7 +254,7 @@ struct TaskGroupView: View {
     } else {
       Image(systemName: "checkmark.circle.fill")
         .font(EaselChatRuntimeStyle.Typography.toolIcon)
-        .foregroundStyle(EaselChatRuntimeStyle.completed)
+        .foregroundStyle(EaselChatRuntimeStyle.completedForeground(for: colorScheme, themeColors: appearanceSettings.themeColors))
         .frame(width: 14, height: 14)
         .accessibilityHidden(true)
     }

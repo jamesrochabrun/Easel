@@ -25,7 +25,7 @@ public final class AppearanceSettings {
     static let fontSize: Double = 12.0
     static let theme: AppTheme = .codex
     static let customPrimaryHex = "#0F1110"
-    static let customSecondaryHex = "#10A37F"
+    static let customSecondaryHex = "#2E2F2F"
     static let customTertiaryHex = "#D9DAD6"
   }
   
