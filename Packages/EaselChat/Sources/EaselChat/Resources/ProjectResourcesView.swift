@@ -44,6 +44,9 @@ public struct ProjectResourcesView: View {
     .task(id: currentProjectPath ?? "") {
       await viewModel.refresh(currentProjectPath: currentProjectPath)
     }
+    .task(id: resourcesObservationID) {
+      await observeResourceDirectoryChanges()
+    }
     .fileImporter(
       isPresented: $isImporterPresented,
       allowedContentTypes: [.item],
@@ -58,6 +61,10 @@ public struct ProjectResourcesView: View {
         }
       }
     }
+  }
+
+  private var resourcesObservationID: String {
+    viewModel.selectedProjectPath ?? currentProjectPath ?? ""
   }
 
   private var controls: some View {
@@ -150,6 +157,29 @@ public struct ProjectResourcesView: View {
           }
         }
         .padding(16)
+      }
+    }
+  }
+
+  private func observeResourceDirectoryChanges() async {
+    guard let projectPath = viewModel.selectedProjectPath ?? currentProjectPath,
+          !projectPath.isEmpty else {
+      return
+    }
+
+    let observer = ProjectResourceDirectoryChangeObserver(projectPath: projectPath)
+    _ = await observer.hasChangedSinceLastSnapshot()
+
+    while !Task.isCancelled {
+      try? await Task.sleep(for: .milliseconds(800))
+      guard !Task.isCancelled else { return }
+
+      if await observer.hasChangedSinceLastSnapshot() {
+        try? await Task.sleep(for: .milliseconds(150))
+        guard !Task.isCancelled else { return }
+
+        _ = await observer.hasChangedSinceLastSnapshot()
+        await viewModel.refresh(currentProjectPath: projectPath)
       }
     }
   }

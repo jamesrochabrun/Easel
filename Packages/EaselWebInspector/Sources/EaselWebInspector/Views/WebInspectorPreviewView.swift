@@ -112,6 +112,7 @@ public struct WebInspectorPreviewView: View {
   @State private var consoleMessageHandler = WebPreviewConsoleMessageHandler()
   @State private var scrollRestorationCoordinator = WebPreviewScrollRestorationCoordinator()
   @State private var manualReloadToken = UUID()
+  @State private var autoReloadToken = UUID()
   @State private var queueSendFailureMessage: String?
   @State private var isLoading = false
   @Environment(\.colorScheme) private var colorScheme
@@ -139,6 +140,13 @@ public struct WebInspectorPreviewView: View {
       hasPreview: previewURLProvider.previewURL != nil,
       isEditMode: isAdvancedEditingEnabled && inspectBehavior == .edit
     )
+  }
+
+  private var autoReloadTaskID: String {
+    [
+      normalizedProjectPath ?? "",
+      previewURLProvider.previewURL?.absoluteString ?? "",
+    ].joined(separator: "|")
   }
 
   private var activeSelectorToRestore: String? {
@@ -184,6 +192,9 @@ public struct WebInspectorPreviewView: View {
     .tint(EaselDesignSystem.Palette.accent)
     .task(id: normalizedProjectPath) {
       await configureInspectorViewModelForCurrentProject()
+    }
+    .task(id: autoReloadTaskID) {
+      await observeProjectFileChangesForAutoReload()
     }
     .onChange(of: inspectBehavior) { _, newBehavior in
       guard inspectState.isActive else { return }
@@ -578,13 +589,54 @@ public struct WebInspectorPreviewView: View {
   }
 
   private func refreshPreview() {
-    if let previewWebView {
-      previewWebView.reload()
+    if let previewWebView, let previewURL = previewURLProvider.previewURL {
+      reloadPreviewWebViewIgnoringCache(previewWebView, fallbackURL: previewURL, reason: "manual")
       return
     }
 
     manualReloadToken = UUID()
     scrollRestorationCoordinator.reset(to: manualReloadToken)
+  }
+
+  private func autoReloadPreview() {
+    guard let previewURL = previewURLProvider.previewURL else { return }
+
+    if let previewWebView {
+      reloadPreviewWebViewIgnoringCache(previewWebView, fallbackURL: previewURL, reason: "auto")
+      return
+    }
+
+    autoReloadToken = UUID()
+    scrollRestorationCoordinator.reset(to: autoReloadToken)
+  }
+
+  private func reloadPreviewWebViewIgnoringCache(
+    _ webView: WKWebView,
+    fallbackURL: URL,
+    reason: String
+  ) {
+    let request = WebPreviewReloadRequestFactory.request(
+      currentURL: webView.url,
+      fallbackURL: fallbackURL
+    )
+    inspectorLog.info("Hard reloading embedded preview (\(reason)): \(request.url?.absoluteString ?? fallbackURL.absoluteString)")
+
+    Task { @MainActor in
+      await clearPreviewCache(in: webView.configuration.websiteDataStore)
+      guard !Task.isCancelled else { return }
+      webView.load(request)
+    }
+  }
+
+  private func clearPreviewCache(in dataStore: WKWebsiteDataStore) async {
+    await withCheckedContinuation { continuation in
+      dataStore.removeData(
+        ofTypes: [WKWebsiteDataTypeDiskCache, WKWebsiteDataTypeMemoryCache],
+        modifiedSince: .distantPast
+      ) {
+        continuation.resume()
+      }
+    }
   }
 
   private func handleManualUpdate() {
@@ -858,6 +910,29 @@ public struct WebInspectorPreviewView: View {
   private func installConsoleHook(in webView: WKWebView) {
     guard isAdvancedEditingEnabled else { return }
     webView.evaluateJavaScript(Self.consoleHookScript) { _, _ in }
+  }
+
+  private func observeProjectFileChangesForAutoReload() async {
+    guard previewURLProvider.previewURL != nil,
+          let normalizedProjectPath else {
+      return
+    }
+
+    let observer = WebPreviewProjectFileChangeObserver(projectPath: normalizedProjectPath)
+    _ = await observer.hasChangedSinceLastSnapshot()
+
+    while !Task.isCancelled {
+      try? await Task.sleep(for: .milliseconds(600))
+      guard !Task.isCancelled else { return }
+
+      if await observer.hasChangedSinceLastSnapshot() {
+        inspectorLog.info("Detected project file changes; scheduling embedded preview hard reload")
+        try? await Task.sleep(for: .milliseconds(150))
+        _ = await observer.hasChangedSinceLastSnapshot()
+        guard !Task.isCancelled else { return }
+        autoReloadPreview()
+      }
+    }
   }
 
   private func configureInspectorViewModelForCurrentProject() async {

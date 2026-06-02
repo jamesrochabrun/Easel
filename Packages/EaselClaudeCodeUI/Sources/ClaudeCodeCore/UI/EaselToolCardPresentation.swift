@@ -427,7 +427,7 @@ struct EaselToolCardPresentation: Equatable {
     case "chmod", "chown", "xattr":
       return "Updating file permissions"
     case "curl", "wget", "http", "https":
-      return "Fetching from the web"
+      return isLocalhostPreviewCommand(tokens) ? "Checking for updates" : "Fetching from the web"
     case "open":
       return object.map { "Opening \($0)" } ?? "Opening a file"
     case "git":
@@ -490,6 +490,20 @@ struct EaselToolCardPresentation: Equatable {
       return fileDisplayName(unquoted)
     }
     return nil
+  }
+
+  private static func isLocalhostPreviewCommand(_ tokens: [String]) -> Bool {
+    tokens.dropFirst().contains { token in
+      let unquoted = token
+        .trimmingCharacters(in: CharacterSet(charactersIn: "'\"`"))
+        .lowercased()
+      return unquoted.contains("http://localhost:")
+        || unquoted.contains("https://localhost:")
+        || unquoted.contains("http://127.0.0.1:")
+        || unquoted.contains("https://127.0.0.1:")
+        || unquoted.contains("http://[::1]:")
+        || unquoted.contains("https://[::1]:")
+    }
   }
 
   private static func looksLikePath(_ value: String) -> Bool {

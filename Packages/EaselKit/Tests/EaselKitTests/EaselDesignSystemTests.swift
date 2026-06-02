@@ -13,6 +13,7 @@ struct EaselDesignSystemTests {
     #expect(EaselDesignSystem.Palette.inkHex == "#0F1110")
     #expect(EaselDesignSystem.Palette.accentHex == "#2E2F2F")
     #expect(EaselDesignSystem.Palette.accentForegroundDarkHex == "#AEB7B0")
+    #expect(EaselDesignSystem.Palette.selectionAccentDarkHex == "#7DD3FC")
     #expect(EaselDesignSystem.Palette.canvasLightHex == "#F7F7F4")
     #expect(EaselDesignSystem.Palette.canvasDarkHex == "#0D0F0E")
   }

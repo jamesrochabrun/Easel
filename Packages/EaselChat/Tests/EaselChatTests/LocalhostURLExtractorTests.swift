@@ -107,6 +107,20 @@ struct LocalhostURLExtractorTests {
   }
 
   @Test
+  func handlesTrailingBacktick() {
+    let text = "Preview: `http://127.0.0.1:4173/`"
+    let url = extractor.extractPreviewURL(from: text)
+    #expect(url?.absoluteString == "http://127.0.0.1:4173/")
+  }
+
+  @Test
+  func stripsEncodedTrailingBacktick() {
+    let text = "Preview: http://127.0.0.1:4173/%60"
+    let url = extractor.extractPreviewURL(from: text)
+    #expect(url?.absoluteString == "http://127.0.0.1:4173/")
+  }
+
+  @Test
   func handlesURLInParentheses() {
     let text = "Server running (http://localhost:3000)"
     let url = extractor.extractPreviewURL(from: text)
