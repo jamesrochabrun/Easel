@@ -21,7 +21,10 @@ struct EaselUserMessageBubble: View {
         )
           .padding(.horizontal, 14)
           .padding(.vertical, 10)
-          .background(EaselChatRuntimeStyle.userBubble(for: colorScheme), in: RoundedRectangle(cornerRadius: EaselChatRuntimeStyle.cardRadius))
+          .background(
+            EaselChatRuntimeStyle.userMessageBubble(for: colorScheme),
+            in: RoundedRectangle(cornerRadius: EaselChatRuntimeStyle.cardRadius)
+          )
 
         Text(relativeFormatter.string(from: message.timestamp))
           .font(.caption)

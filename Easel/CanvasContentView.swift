@@ -21,6 +21,7 @@ struct CanvasContentView: View {
   @State private var designSystemSetupViewModel = DesignSystemSetupViewModel()
   @State private var designSystemBrowserViewModel = DesignSystemBrowserViewModel()
   @State private var selectedCanvasSurface: CanvasSurface = .canvas
+  @State private var panelLayoutState: CanvasPanelLayoutState = .allPanels
   @State private var isDesignSystemSetupPresented = false
   @State private var isDesignSystemBrowserPresented = false
   @State private var didHandleInitialPrompt = false
@@ -31,7 +32,7 @@ struct CanvasContentView: View {
 
   var body: some View {
     HStack(spacing: 0) {
-      if let sidebarVM = sidebarViewModel, sidebarVM.isSidebarVisible {
+      if let sidebarVM = sidebarViewModel, panelLayoutState.showsSidebar {
         SidebarView(sidebarViewModel: sidebarVM)
           .frame(width: sidebarWidth)
           .frame(maxHeight: .infinity)
@@ -42,44 +43,53 @@ struct CanvasContentView: View {
           .frame(width: 1)
       }
 
-      VStack(spacing: 0) {
-        HStack {
-          Button {
-            sidebarViewModel?.toggleSidebar()
-          } label: {
-            Image(systemName: "sidebar.left")
-              .font(.system(size: 14, weight: .medium))
-              .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
-              .frame(width: 28, height: 28)
-          }
-          .buttonStyle(.plain)
-          .keyboardShortcut("b", modifiers: .command)
-          .help("Toggle Sidebar (⌘B)")
+      if panelLayoutState.showsChatPanel {
+        VStack(spacing: 0) {
+          HStack {
+            Button(action: toggleSidebarPanel) {
+              Label("Toggle sidebar", systemImage: "sidebar.left")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
+                .labelStyle(.iconOnly)
+                .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+            .help("Toggle Sidebar")
 
-          Spacer()
+            Spacer()
+          }
+          .padding(.horizontal, EaselDesignSystem.Spacing.large)
+          .padding(.vertical, EaselDesignSystem.Spacing.small)
+          .frame(minHeight: EaselDesignSystem.Spacing.toolbarHeight)
+          .background(EaselDesignSystem.Palette.surface(for: colorScheme))
+
+          Rectangle()
+            .fill(EaselDesignSystem.Palette.border(for: colorScheme))
+            .frame(height: 1)
+
+          ChatPanelView(chatService: chatService)
+            .frame(maxHeight: .infinity)
         }
-        .padding(.horizontal, EaselDesignSystem.Spacing.large)
-        .padding(.vertical, EaselDesignSystem.Spacing.small)
-        .frame(minHeight: EaselDesignSystem.Spacing.toolbarHeight)
-        .background(EaselDesignSystem.Palette.surface(for: colorScheme))
+        .frame(width: chatPanelWidth)
+        .frame(maxHeight: .infinity)
+        .transition(.move(edge: .leading).combined(with: .opacity))
 
         Rectangle()
           .fill(EaselDesignSystem.Palette.border(for: colorScheme))
-          .frame(height: 1)
-
-        ChatPanelView(chatService: chatService)
-          .frame(maxHeight: .infinity)
+          .frame(width: 1)
       }
-      .frame(width: chatPanelWidth)
-      .frame(maxHeight: .infinity)
-
-      Rectangle()
-        .fill(EaselDesignSystem.Palette.border(for: colorScheme))
-        .frame(width: 1)
 
       canvasSurfacePanel
     }
-    .animation(.easeInOut(duration: 0.25), value: sidebarViewModel?.isSidebarVisible)
+    .background(alignment: .topLeading) {
+      Button("Cycle panel layout", action: cyclePanelLayout)
+        .keyboardShortcut("b", modifiers: .command)
+        .buttonStyle(.plain)
+        .frame(width: 1, height: 1)
+        .opacity(0.001)
+        .accessibilityHidden(true)
+    }
+    .animation(.easeInOut(duration: 0.25), value: panelLayoutState)
     .background(EaselDesignSystem.Palette.canvas(for: colorScheme))
     .tint(EaselDesignSystem.Palette.accent)
     .task {
@@ -134,6 +144,7 @@ struct CanvasContentView: View {
           await vm.loadSessions()
         }
       }
+      vm.isSidebarVisible = panelLayoutState.showsSidebar
       sidebarViewModel = vm
 
       if !didHandleInitialPrompt {
@@ -207,6 +218,29 @@ struct CanvasContentView: View {
     }
   }
 
+  private func cyclePanelLayout() {
+    var nextState = panelLayoutState
+    nextState.advanceCommandShortcutCycle()
+    setPanelLayoutState(nextState)
+  }
+
+  private func toggleSidebarPanel() {
+    var nextState = panelLayoutState
+    nextState.toggleSidebar()
+    setPanelLayoutState(nextState)
+  }
+
+  private func toggleCanvasFullWidth() {
+    var nextState = panelLayoutState
+    nextState.toggleCanvasFullWidth()
+    setPanelLayoutState(nextState)
+  }
+
+  private func setPanelLayoutState(_ state: CanvasPanelLayoutState) {
+    panelLayoutState = state
+    sidebarViewModel?.isSidebarVisible = state.showsSidebar
+  }
+
   private var canvasSurfacePanel: some View {
     VStack(spacing: 0) {
       canvasSurfaceTopBar
@@ -253,6 +287,16 @@ struct CanvasContentView: View {
 
       Spacer()
 
+      Button(action: toggleCanvasFullWidth) {
+        Label(canvasWidthButtonTitle, systemImage: canvasWidthButtonSystemImage)
+          .font(.system(size: 13, weight: .medium))
+          .labelStyle(.iconOnly)
+          .frame(width: 28, height: 28)
+      }
+      .buttonStyle(.plain)
+      .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
+      .help(canvasWidthButtonTitle)
+
       if let currentWorkingDirectory = chatService.currentWorkingDirectory {
         Label(URL(fileURLWithPath: currentWorkingDirectory).lastPathComponent, systemImage: "folder")
           .font(.caption.weight(.medium))
@@ -266,6 +310,16 @@ struct CanvasContentView: View {
     .padding(.vertical, 10)
     .frame(minHeight: 52)
     .background(.regularMaterial)
+  }
+
+  private var canvasWidthButtonTitle: String {
+    panelLayoutState.isCanvasFullWidth ? "Restore Side Panels" : "Expand Canvas Full Width"
+  }
+
+  private var canvasWidthButtonSystemImage: String {
+    panelLayoutState.isCanvasFullWidth
+      ? "arrow.down.right.and.arrow.up.left"
+      : "arrow.up.left.and.arrow.down.right"
   }
 }
 

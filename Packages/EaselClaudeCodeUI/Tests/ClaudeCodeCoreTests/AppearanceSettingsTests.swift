@@ -62,6 +62,18 @@ final class AppearanceSettingsTests: XCTestCase {
       hexString(for: EaselChatRuntimeStyle.appBackground(for: .dark)),
       EaselDesignSystem.Palette.canvasDarkHex
     )
+    XCTAssertEqual(
+      hexString(for: EaselChatRuntimeStyle.userBubble(for: .light)),
+      EaselDesignSystem.Palette.accentHex
+    )
+    XCTAssertEqual(
+      hexString(for: EaselChatRuntimeStyle.userMessageBubble(for: .light)),
+      EaselDesignSystem.Palette.surfaceElevatedLightHex
+    )
+    XCTAssertEqual(
+      hexString(for: EaselChatRuntimeStyle.userMessageBubble(for: .dark)),
+      EaselDesignSystem.Palette.borderDarkHex
+    )
   }
 
   func testToolCardsUseGraphiteChromeAndCompletion() {

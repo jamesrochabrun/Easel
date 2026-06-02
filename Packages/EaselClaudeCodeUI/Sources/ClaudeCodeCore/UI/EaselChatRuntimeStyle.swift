@@ -79,8 +79,18 @@ enum EaselChatRuntimeStyle {
     EaselDesignSystem.Palette.primaryAction(for: colorScheme)
   }
 
+  static func userMessageBubble(for colorScheme: ColorScheme, themeColors: ThemeColors = .current) -> Color {
+    colorScheme == .dark
+      ? EaselDesignSystem.Palette.border(for: colorScheme)
+      : EaselDesignSystem.Palette.surfaceElevated(for: colorScheme)
+  }
+
   static func userText(for colorScheme: ColorScheme, themeColors: ThemeColors = .current) -> Color {
     readableForeground(for: userBubble(for: colorScheme, themeColors: themeColors))
+  }
+
+  static func userMessageText(for colorScheme: ColorScheme, themeColors: ThemeColors = .current) -> Color {
+    readableForeground(for: userMessageBubble(for: colorScheme, themeColors: themeColors))
   }
 
   static let completed = EaselDesignSystem.Palette.accent

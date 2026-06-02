@@ -108,25 +108,25 @@ struct EaselToolCardPresentation: Equatable {
       return bashTitle(for: parameters?["command"])
 
     case "Read":
-      if let name = fileName(parameters?["file_path"]) {
+      if let name = fileDisplayName(parameters?["file_path"]) {
         return "Reading \(name)"
       }
       return "Reading a file"
 
     case "Write":
-      if let name = fileName(parameters?["file_path"]) {
+      if let name = fileDisplayName(parameters?["file_path"]) {
         return "Creating \(name)"
       }
       return "Creating a file"
 
     case "Edit", "MultiEdit":
-      if let name = fileName(parameters?["file_path"]) {
+      if let name = fileDisplayName(parameters?["file_path"]) {
         return "Editing \(name)"
       }
       return "Editing a file"
 
     case "FileChange":
-      if let name = fileName(parameters?["file_path"]) {
+      if let name = fileDisplayName(parameters?["file_path"]) {
         return "Updating \(name)"
       }
       return "Updating files"
@@ -144,7 +144,7 @@ struct EaselToolCardPresentation: Equatable {
       return "Finding files"
 
     case "LS":
-      if let name = fileName(parameters?["path"]) {
+      if let name = fileDisplayName(parameters?["path"]) {
         return "Browsing \(name)"
       }
       return "Looking through files"
@@ -201,7 +201,7 @@ struct EaselToolCardPresentation: Equatable {
       if let include = nonEmpty(parameters?["include"]) {
         return "in \(include)"
       }
-      if let name = fileName(parameters?["path"]) {
+      if let name = fileDisplayName(parameters?["path"]) {
         return "in \(name)"
       }
       return nil
@@ -487,7 +487,7 @@ struct EaselToolCardPresentation: Equatable {
       guard !token.hasPrefix("-") else { continue }
       let unquoted = token.trimmingCharacters(in: CharacterSet(charactersIn: "'\"`"))
       guard !unquoted.isEmpty, looksLikePath(unquoted) else { continue }
-      return lastPathComponent(unquoted)
+      return fileDisplayName(unquoted)
     }
     return nil
   }
@@ -586,10 +586,24 @@ struct EaselToolCardPresentation: Equatable {
   }
 
   /// Last path component for a file path parameter, ignoring empty values.
-  private static func fileName(_ path: String?) -> String? {
+  private static func fileDisplayName(_ path: String?) -> String? {
     guard let path = nonEmpty(path) else { return nil }
+    if let skillName = skillName(forManifestPath: path) {
+      return "\(skillName) skill"
+    }
     let component = URL(fileURLWithPath: path).lastPathComponent
     return component.isEmpty ? nil : component
+  }
+
+  private static func skillName(forManifestPath path: String) -> String? {
+    let url = URL(fileURLWithPath: path)
+    guard url.lastPathComponent.caseInsensitiveCompare("SKILL.md") == .orderedSame else {
+      return nil
+    }
+
+    let skillName = url.deletingLastPathComponent().lastPathComponent
+    guard !skillName.isEmpty, skillName != "." else { return nil }
+    return skillName
   }
 
   private static func host(from urlString: String?) -> String? {
