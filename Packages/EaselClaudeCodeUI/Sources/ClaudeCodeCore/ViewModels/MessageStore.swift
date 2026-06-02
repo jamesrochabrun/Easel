@@ -39,18 +39,11 @@ final class MessageStore {
   ///         If the message ID is not found, the operation is silently ignored
   func updateMessage(id: UUID, content: String, isComplete: Bool, isError: Bool = false) {
     guard let index = messages.firstIndex(where: { $0.id == id }) else { return }
-    
-    let updatedMessage = ChatMessage(
-      id: id,
-      role: messages[index].role,
-      content: content,
-      isComplete: isComplete,
-      messageType: messages[index].messageType,
-      toolName: messages[index].toolName,
-      toolInputData: messages[index].toolInputData,
-      toolUseID: messages[index].toolUseID,
-      isError: isError
-    )
+
+    var updatedMessage = messages[index]
+    updatedMessage.content = content
+    updatedMessage.isComplete = isComplete
+    updatedMessage.isError = isError
     messages[index] = updatedMessage
   }
   

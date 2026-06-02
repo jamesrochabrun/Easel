@@ -129,13 +129,13 @@ final class CodexChatRuntime {
     options.promptViaStdin = true
     options.timeout = 10_000
     options.skipGitRepoCheck = true
+    options.jsonEvents = true
 
     for (key, value) in configOverrides {
       options.configOverrides[key] = value
     }
 
     if isFirstTurn {
-      options.jsonEvents = true
       options.sandbox = .workspaceWrite
       options.approval = .never
       options.fullAuto = true

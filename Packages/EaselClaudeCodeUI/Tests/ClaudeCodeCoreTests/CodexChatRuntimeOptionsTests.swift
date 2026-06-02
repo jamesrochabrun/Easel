@@ -33,6 +33,7 @@ final class CodexChatRuntimeOptionsTests: XCTestCase {
     XCTAssertTrue(options.skipGitRepoCheck)
     XCTAssertEqual(options.resumeSessionId, "thread-id")
     XCTAssertFalse(options.resumeLastSession)
+    XCTAssertTrue(options.jsonEvents)
   }
 
   @MainActor
@@ -46,5 +47,6 @@ final class CodexChatRuntimeOptionsTests: XCTestCase {
 
     XCTAssertTrue(options.skipGitRepoCheck)
     XCTAssertTrue(options.resumeLastSession)
+    XCTAssertTrue(options.jsonEvents)
   }
 }
