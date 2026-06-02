@@ -29,11 +29,12 @@ struct CanvasContentView: View {
 
   private let chatPanelWidth: CGFloat = 380
   private let sidebarWidth: CGFloat = 340
+  private let windowControlLeadingReserve: CGFloat = 78
 
   var body: some View {
     HStack(spacing: 0) {
       if let sidebarVM = sidebarViewModel, panelLayoutState.showsSidebar {
-        SidebarView(sidebarViewModel: sidebarVM)
+        SidebarView(sidebarViewModel: sidebarVM, reservesWindowControls: true)
           .frame(width: sidebarWidth)
           .frame(maxHeight: .infinity)
           .transition(.move(edge: .leading))
@@ -58,9 +59,9 @@ struct CanvasContentView: View {
 
             Spacer()
           }
-          .padding(.horizontal, EaselDesignSystem.Spacing.large)
-          .padding(.vertical, EaselDesignSystem.Spacing.small)
-          .frame(minHeight: EaselDesignSystem.Spacing.toolbarHeight)
+          .padding(.leading, chatToolbarLeadingPadding)
+          .padding(.trailing, EaselDesignSystem.Spacing.large)
+          .frame(height: EaselDesignSystem.Spacing.toolbarHeight)
           .background(EaselDesignSystem.Palette.surface(for: colorScheme))
 
           Rectangle()
@@ -91,6 +92,7 @@ struct CanvasContentView: View {
     }
     .animation(.easeInOut(duration: 0.25), value: panelLayoutState)
     .background(EaselDesignSystem.Palette.canvas(for: colorScheme))
+    .ignoresSafeArea(.container, edges: .top)
     .tint(EaselDesignSystem.Palette.accent)
     .task {
       if let appDelegate = NSApp.delegate as? AppDelegate {
@@ -306,10 +308,18 @@ struct CanvasContentView: View {
           .help(currentWorkingDirectory)
       }
     }
-    .padding(.horizontal, 16)
-    .padding(.vertical, 10)
-    .frame(minHeight: 52)
+    .padding(.leading, canvasToolbarLeadingPadding)
+    .padding(.trailing, 16)
+    .frame(height: EaselDesignSystem.Spacing.toolbarHeight)
     .background(.regularMaterial)
+  }
+
+  private var chatToolbarLeadingPadding: CGFloat {
+    panelLayoutState.showsSidebar ? EaselDesignSystem.Spacing.large : windowControlLeadingReserve
+  }
+
+  private var canvasToolbarLeadingPadding: CGFloat {
+    panelLayoutState.showsChatPanel ? 16 : windowControlLeadingReserve
   }
 
   private var canvasWidthButtonTitle: String {

@@ -21,6 +21,6 @@ struct EaselDesignSystemTests {
   func codexShapeTokensStayCompact() {
     #expect(EaselDesignSystem.Radius.control == 6)
     #expect(EaselDesignSystem.Radius.card == 8)
-    #expect(EaselDesignSystem.Spacing.toolbarHeight == 40)
+    #expect(EaselDesignSystem.Spacing.toolbarHeight == 36)
   }
 }

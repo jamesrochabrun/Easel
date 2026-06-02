@@ -99,7 +99,7 @@ public enum EaselDesignSystem {
     public static let large: CGFloat = 12
     public static let xLarge: CGFloat = 16
     public static let panelPadding: CGFloat = 12
-    public static let toolbarHeight: CGFloat = 40
+    public static let toolbarHeight: CGFloat = 36
   }
 
   public enum Typography {
