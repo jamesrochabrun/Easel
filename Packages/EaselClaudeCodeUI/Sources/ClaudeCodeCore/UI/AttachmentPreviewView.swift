@@ -266,7 +266,15 @@ private struct FullImageView: View {
 /// Displays a horizontal scrolling list of attachments
 struct AttachmentListView: View {
   @Binding var attachments: [FileAttachment]
-  let processor = AttachmentProcessor()
+  let attachmentProcessingService: any AttachmentProcessingService
+
+  init(
+    attachments: Binding<[FileAttachment]>,
+    attachmentProcessingService: any AttachmentProcessingService = AttachmentProcessor()
+  ) {
+    _attachments = attachments
+    self.attachmentProcessingService = attachmentProcessingService
+  }
   
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
@@ -325,7 +333,7 @@ struct AttachmentListView: View {
         }
         
         if !unprocessedAttachments.isEmpty {
-          await processor.processAttachments(unprocessedAttachments)
+          await attachmentProcessingService.processAttachments(unprocessedAttachments)
         }
       }
     }
