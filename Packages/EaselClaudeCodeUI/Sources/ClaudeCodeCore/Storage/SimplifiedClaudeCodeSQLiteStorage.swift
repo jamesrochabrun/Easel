@@ -8,8 +8,11 @@ import SQLite
 public actor SimplifiedClaudeCodeSQLiteStorage: SessionStorageProtocol {
 
   private var migrationManager: SimplifiedClaudeCodeSQLiteMigrationManager?
+  private let applicationSupportDirectory: URL?
 
-  public init() {}
+  public init(applicationSupportDirectory: URL? = nil) {
+    self.applicationSupportDirectory = applicationSupportDirectory
+  }
 
   public func saveSession(id: String, firstMessage: String, workingDirectory: String?, branchName: String?, isWorktree: Bool) async throws {
     try await initializeDatabaseIfNeeded()
@@ -103,38 +106,44 @@ public actor SimplifiedClaudeCodeSQLiteStorage: SessionStorageProtocol {
   public func updateSessionMessages(id: String, messages: [ChatMessage]) async throws {
     try await initializeDatabaseIfNeeded()
 
-    // Insert new messages
-    for (_, message) in messages.enumerated() {
-      let insertMessage = messagesTable.insert(
-        messageIdColumn <- message.id.uuidString,
-        messageSessionIdColumn <- id,
-        messageContentColumn <- message.content,
-        messageRoleColumn <- message.role.rawValue,
-        messageTimestampColumn <- message.timestamp,
-        messageTypeColumn <- message.messageType.rawValue,
-        messageToolNameColumn <- message.toolName,
-        messageToolInputDataColumn <- try? JSONEncoder().encode(message.toolInputData).base64EncodedString(),
-        messageIsErrorColumn <- message.isError,
-        messageIsCompleteColumn <- message.isComplete,
-        messageWasCancelledColumn <- message.wasCancelled,
-        messageTaskGroupIdColumn <- message.taskGroupId?.uuidString,
-        messageIsTaskContainerColumn <- message.isTaskContainer,
-      )
-      
-      try database.run(insertMessage)
-      
-      // Insert attachments if any
-      if let attachments = message.attachments {
-        for (index, attachment) in attachments.enumerated() {
-          let insertAttachment = attachmentsTable.insert(
-            attachmentIdColumn <- "\(message.id.uuidString)_\(index)",
-            attachmentMessageIdColumn <- message.id.uuidString,
-            attachmentFileNameColumn <- attachment.fileName,
-            attachmentFilePathColumn <- attachment.filePath,
-            attachmentFileTypeColumn <- attachment.type,
-          )
-          
-          try database.run(insertAttachment)
+    try database.transaction {
+      let existingMessages = messagesTable.filter(messageSessionIdColumn == id)
+      try database.run(existingMessages.delete())
+
+      // Insert new messages
+      for (_, message) in messages.enumerated() {
+        let insertMessage = messagesTable.insert(
+          messageIdColumn <- message.id.uuidString,
+          messageSessionIdColumn <- id,
+          messageContentColumn <- message.content,
+          messageRoleColumn <- message.role.rawValue,
+          messageTimestampColumn <- message.timestamp,
+          messageTypeColumn <- message.messageType.rawValue,
+          messageToolNameColumn <- message.toolName,
+          messageToolUseIdColumn <- message.toolUseID,
+          messageToolInputDataColumn <- try? JSONEncoder().encode(message.toolInputData).base64EncodedString(),
+          messageIsErrorColumn <- message.isError,
+          messageIsCompleteColumn <- message.isComplete,
+          messageWasCancelledColumn <- message.wasCancelled,
+          messageTaskGroupIdColumn <- message.taskGroupId?.uuidString,
+          messageIsTaskContainerColumn <- message.isTaskContainer,
+        )
+
+        try database.run(insertMessage)
+
+        // Insert attachments if any
+        if let attachments = message.attachments {
+          for (index, attachment) in attachments.enumerated() {
+            let insertAttachment = attachmentsTable.insert(
+              attachmentIdColumn <- "\(message.id.uuidString)_\(index)",
+              attachmentMessageIdColumn <- message.id.uuidString,
+              attachmentFileNameColumn <- attachment.fileName,
+              attachmentFilePathColumn <- attachment.filePath,
+              attachmentFileTypeColumn <- attachment.type,
+            )
+
+            try database.run(insertAttachment)
+          }
         }
       }
     }
@@ -142,32 +151,35 @@ public actor SimplifiedClaudeCodeSQLiteStorage: SessionStorageProtocol {
   
   public func updateSessionId(oldId: String, newId: String) async throws {
     try await initializeDatabaseIfNeeded()
-
-    // First, check if the new session already exists (phantom session case)
-    let existingNewSession = try database.pluck(sessionsTable.filter(sessionIdColumn == newId))
-    if existingNewSession != nil {
-      return
-    }
+    guard oldId != newId else { return }
 
     // Get the old session details
     guard let oldSessionRow = try database.pluck(sessionsTable.filter(sessionIdColumn == oldId)) else {
       return
     }
 
-    // Create new session record FIRST with data from old session
-    let insertNewSession = sessionsTable.insert(
-      sessionIdColumn <- newId,
-      createdAtColumn <- oldSessionRow[createdAtColumn],
-      firstUserMessageColumn <- oldSessionRow[firstUserMessageColumn],
-      lastAccessedAtColumn <- Date(),
-      workingDirectoryColumn <- oldSessionRow[workingDirectoryColumn],
-      branchNameColumn <- oldSessionRow[branchNameColumn],
-      isWorktreeColumn <- oldSessionRow[isWorktreeColumn]
-    )
-    try database.run(insertNewSession)
-    // Finally, delete the old session record
-    let deleteOldSession = sessionsTable.filter(sessionIdColumn == oldId)
-    try database.run(deleteOldSession.delete())
+    try database.transaction {
+      // Create the new session record first so message foreign keys can move to it.
+      let existingNewSession = try database.pluck(sessionsTable.filter(sessionIdColumn == newId))
+      if existingNewSession == nil {
+        let insertNewSession = sessionsTable.insert(
+          sessionIdColumn <- newId,
+          createdAtColumn <- oldSessionRow[createdAtColumn],
+          firstUserMessageColumn <- oldSessionRow[firstUserMessageColumn],
+          lastAccessedAtColumn <- Date(),
+          workingDirectoryColumn <- oldSessionRow[workingDirectoryColumn],
+          branchNameColumn <- oldSessionRow[branchNameColumn],
+          isWorktreeColumn <- oldSessionRow[isWorktreeColumn]
+        )
+        try database.run(insertNewSession)
+      }
+
+      let oldMessages = messagesTable.filter(messageSessionIdColumn == oldId)
+      try database.run(oldMessages.update(messageSessionIdColumn <- newId))
+
+      let deleteOldSession = sessionsTable.filter(sessionIdColumn == oldId)
+      try database.run(deleteOldSession.delete())
+    }
   }
   
   private var database: Connection!
@@ -195,6 +207,7 @@ public actor SimplifiedClaudeCodeSQLiteStorage: SessionStorageProtocol {
   private let messageTimestampColumn = Expression<Date>("timestamp")
   private let messageTypeColumn = Expression<String>("message_type")
   private let messageToolNameColumn = Expression<String?>("tool_name")
+  private let messageToolUseIdColumn = Expression<String?>("tool_use_id")
   private let messageToolInputDataColumn = Expression<String?>("tool_input_data")
   private let messageIsErrorColumn = Expression<Bool>("is_error")
   private let messageIsCompleteColumn = Expression<Bool>("is_complete")
@@ -214,12 +227,17 @@ public actor SimplifiedClaudeCodeSQLiteStorage: SessionStorageProtocol {
 
     // Create database in Application Support directory
     let fileManager = FileManager.default
-    let appSupportDir = try fileManager.url(
-      for: .applicationSupportDirectory,
-      in: .userDomainMask,
-      appropriateFor: nil,
-      create: true,
-    )
+    let appSupportDir: URL
+    if let applicationSupportDirectory {
+      appSupportDir = applicationSupportDirectory
+    } else {
+      appSupportDir = try fileManager.url(
+        for: .applicationSupportDirectory,
+        in: .userDomainMask,
+        appropriateFor: nil,
+        create: true,
+      )
+    }
 
     // Create application-specific directory within Application Support
     // Structure: ~/Library/Application Support/ClaudeCodeUI/
@@ -279,6 +297,7 @@ public actor SimplifiedClaudeCodeSQLiteStorage: SessionStorageProtocol {
       table.column(messageTimestampColumn)
       table.column(messageTypeColumn)
       table.column(messageToolNameColumn)
+      table.column(messageToolUseIdColumn)
       table.column(messageToolInputDataColumn)
       table.column(messageIsErrorColumn)
       table.column(messageIsCompleteColumn)
@@ -338,6 +357,7 @@ public actor SimplifiedClaudeCodeSQLiteStorage: SessionStorageProtocol {
           else { return nil }
           return try? JSONDecoder().decode(ToolInputData.self, from: data)
         }(),
+        toolUseID: messageRow[messageToolUseIdColumn],
         isError: messageRow[messageIsErrorColumn],
         codeSelections: nil, // Simplified for now
         attachments: nil, // Could load from attachments table if needed
