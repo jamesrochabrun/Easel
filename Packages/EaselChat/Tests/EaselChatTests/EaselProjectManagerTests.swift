@@ -91,30 +91,6 @@ struct EaselProjectManagerTests {
   }
 
   @Test
-  func launchPromptIncludesProjectContextAndSeedPrompt() {
-    let project = EaselDesignProject(
-      id: UUID(),
-      name: "Checkout Prototype",
-      kind: .prototype,
-      designSystem: .material,
-      fidelity: .wireframe,
-      workingDirectory: "/tmp/checkout-prototype",
-      createdAt: Date(),
-      updatedAt: Date()
-    )
-
-    let prompt = project.launchPrompt(seedPrompt: "Make checkout faster")
-
-    #expect(prompt.contains("Checkout Prototype"))
-    #expect(prompt.contains("/tmp/checkout-prototype"))
-    #expect(prompt.contains("Wireframe"))
-    #expect(prompt.contains("Material Design"))
-    #expect(prompt.contains("User brief: Make checkout faster"))
-    #expect(prompt.contains("resources/"))
-    #expect(prompt.contains("npm run dev"))
-  }
-
-  @Test
   func projectDecodingSupportsLegacyPresetDesignSystemValue() throws {
     let json = """
     {

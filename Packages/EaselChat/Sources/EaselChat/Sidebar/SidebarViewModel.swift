@@ -103,7 +103,7 @@ public final class SidebarViewModel {
     selectedProjectKind = .prototype
     selectedFidelity = .highFidelity
     projectName = Self.suggestedProjectName(from: trimmed)
-    await createProjectAndStartSession(seedPrompt: trimmed)
+    await createProjectAndStartSession()
   }
 
   func selectSession(_ session: StoredSession) {
@@ -151,7 +151,7 @@ public final class SidebarViewModel {
     }
   }
 
-  func createProjectAndStartSession(seedPrompt: String? = nil) async {
+  func createProjectAndStartSession() async {
     let name = projectName.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !name.isEmpty else { return }
 
@@ -172,10 +172,7 @@ public final class SidebarViewModel {
       projectName = ""
       selectedSessionId = nil
       await loadSessions()
-      onProjectLaunchRequested?(EaselProjectLaunch(
-        project: project,
-        prompt: project.launchPrompt(seedPrompt: seedPrompt)
-      ))
+      onProjectLaunchRequested?(EaselProjectLaunch(project: project))
     } catch {
       creationError = error.localizedDescription
     }

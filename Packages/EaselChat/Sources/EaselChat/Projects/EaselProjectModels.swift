@@ -64,14 +64,6 @@ public enum EaselProjectFidelity: String, CaseIterable, Codable, Identifiable, S
     }
   }
 
-  var promptDescription: String {
-    switch self {
-    case .wireframe:
-      return "a clear wireframe with strong structure, hierarchy, and interaction states"
-    case .highFidelity:
-      return "a polished high-fidelity design with refined visual details, realistic content, and production-quality interaction states"
-    }
-  }
 }
 
 public struct EaselProjectCreateRequest: Sendable, Equatable {
@@ -155,39 +147,12 @@ public struct EaselDesignProject: Codable, Identifiable, Equatable, Sendable {
     self.updatedAt = updatedAt
   }
 
-  public func launchPrompt(seedPrompt: String? = nil) -> String {
-    var lines: [String] = [
-      "You are building a Codex Design \(kind.displayName.lowercased()) project in this folder.",
-      "Project name: \(name)",
-      "Working directory: \(workingDirectory)",
-      "Target fidelity: \(fidelity.displayName)",
-      designSystem.promptInstruction,
-      "Project resources are stored in `resources/`. Inspect and use those files when they are relevant to the design.",
-      "Keep `npm run dev` working so Codex Design can preview the project.",
-    ]
-
-    switch kind {
-    case .prototype:
-      lines.append("Create \(fidelity.promptDescription) for the requested product experience.")
-    case .slideDeck:
-      lines.append("Create a slide deck experience with a strong narrative arc, polished slide layouts, speaker-friendly pacing, and responsive presentation controls.")
-    }
-
-    if let seedPrompt, !seedPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      lines.append("User brief: \(seedPrompt.trimmingCharacters(in: .whitespacesAndNewlines))")
-    }
-
-    lines.append("Start by inspecting the existing scaffold, then replace or extend it as needed.")
-    return lines.joined(separator: "\n")
-  }
 }
 
 public struct EaselProjectLaunch: Sendable, Equatable {
   public let project: EaselDesignProject
-  public let prompt: String
 
-  public init(project: EaselDesignProject, prompt: String) {
+  public init(project: EaselDesignProject) {
     self.project = project
-    self.prompt = prompt
   }
 }

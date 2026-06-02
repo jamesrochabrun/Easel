@@ -28,30 +28,6 @@ public struct EaselDesignSystemChoice: Codable, Hashable, Identifiable, Sendable
     return EaselDesignSystemPreset(rawValue: referenceID)
   }
 
-  public var promptInstruction: String {
-    if let preset {
-      return preset.promptInstruction
-    }
-
-    var lines = [
-      "Use the custom design system \"\(displayName)\"."
-    ]
-
-    if let workingDirectory, !workingDirectory.isEmpty {
-      lines.append("Design system folder: \(workingDirectory). Inspect `.easel/catalog.json`, `resources/`, and preview files before designing.")
-    }
-
-    if let notes, !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      lines.append("Design system notes: \(notes.trimmingCharacters(in: .whitespacesAndNewlines))")
-    }
-
-    if !sourceLinks.isEmpty {
-      lines.append("Design system source links: \(sourceLinks.joined(separator: ", "))")
-    }
-
-    return lines.joined(separator: "\n")
-  }
-
   public static func preset(_ preset: EaselDesignSystemPreset) -> EaselDesignSystemChoice {
     EaselDesignSystemChoice(
       kind: .preset,

@@ -55,8 +55,6 @@ struct EaselDesignSystemManagerTests {
 
     let loadedSystems = try await manager.loadDesignSystems()
     #expect(loadedSystems.map(\.id) == [profile.id])
-    #expect(profile.creationPrompt().contains(".easel/catalog.json"))
-    #expect(profile.creationPrompt().contains("resources/"))
   }
 
   @Test

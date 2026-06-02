@@ -123,7 +123,6 @@ struct CanvasContentView: View {
           await chatService.initialize()
           await chatService.startNewSession(workingDirectory: launch.project.workingDirectory)
           await startDevServer(for: launch.project.workingDirectory)
-          chatService.sendInitialPromptIfNeeded(launch.prompt)
           await vm.loadSessions()
         }
       }
@@ -213,7 +212,6 @@ struct CanvasContentView: View {
       await chatService.initialize()
       await chatService.startNewSession(workingDirectory: launch.profile.workingDirectory)
       await startDevServer(for: launch.profile.workingDirectory)
-      chatService.sendInitialPromptIfNeeded(launch.prompt)
       await sidebarViewModel?.loadSessions()
     }
   }

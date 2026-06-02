@@ -13,7 +13,7 @@ import EaselDesignSystems
 struct SidebarViewModelTests {
 
   @Test
-  func creatingProjectLaunchesWithProjectContextPrompt() async {
+  func creatingProjectLaunchesEmptyChatForProject() async {
     let project = EaselDesignProject(
       id: UUID(),
       name: "Manhattan",
@@ -36,11 +36,9 @@ struct SidebarViewModelTests {
       launchedProject = launch
     }
 
-    await viewModel.createProjectAndStartSession(seedPrompt: "Create a Manhattan planning dashboard")
+    await viewModel.createProjectAndStartSession()
 
     #expect(launchedProject?.project == project)
-    #expect(launchedProject?.prompt.contains("Manhattan") == true)
-    #expect(launchedProject?.prompt.contains("Create a Manhattan planning dashboard") == true)
   }
 
   @Test
