@@ -270,7 +270,7 @@ private struct EaselMarkdownThemeColors {
   init(role: MessageRole, colorScheme: ColorScheme, themeColors: ThemeColors) {
     switch role {
     case .user:
-      let userText = EaselChatRuntimeStyle.userText(for: colorScheme, themeColors: themeColors)
+      let userText = EaselChatRuntimeStyle.userMessageText(for: colorScheme, themeColors: themeColors)
       primaryText = userText
       secondaryText = userText.opacity(0.78)
       link = userText

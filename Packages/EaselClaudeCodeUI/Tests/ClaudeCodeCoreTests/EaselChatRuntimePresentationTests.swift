@@ -27,6 +27,20 @@ final class EaselChatRuntimePresentationTests: XCTestCase {
     XCTAssertNil(presentation.preview)
   }
 
+  func testReadSkillManifestTitleIncludesSkillName() {
+    let toolUse = ChatMessage(
+      role: .assistant,
+      content: "",
+      messageType: .toolUse,
+      toolName: "Read",
+      toolInputData: ToolInputData(parameters: ["file_path": "/Users/test/.codex/skills/swiftui-pro/SKILL.md"])
+    )
+
+    let presentation = EaselToolCardPresentation(toolUse: toolUse, toolResult: nil)
+
+    XCTAssertEqual(presentation.title, "Reading swiftui-pro skill")
+  }
+
   func testToolPresentationMapsRunningBashCommandToFriendlyActivity() {
     let toolUse = ChatMessage(
       role: .assistant,
@@ -52,6 +66,7 @@ final class EaselChatRuntimePresentationTests: XCTestCase {
       ("ls", "Looking through files"),
       ("cat package.json", "Reading package.json"),
       ("sed -n '1,260p' index.html", "Reading index.html"),
+      ("sed -n '1,140p' /Users/test/.codex/skills/swiftui-pro/SKILL.md", "Reading swiftui-pro skill"),
       ("find resources -maxdepth 2 -type f -print", "Looking through resources"),
       ("pwd && rg --files -g '!*node_modules*' -g '!*.png'", "Searching files"),
       ("cp src/a.txt dist/a.txt", "Copying files"),
