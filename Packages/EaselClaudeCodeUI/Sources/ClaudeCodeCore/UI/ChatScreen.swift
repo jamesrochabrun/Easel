@@ -48,7 +48,18 @@ public struct ChatScreen: View {
   ///   - customPermissionService: Service for custom permission management
   ///   - columnVisibility: Binding to control navigation split view visibility
   ///   - uiConfiguration: UI configuration settings
-  public init(viewModel: ChatViewModel, contextManager: ContextManager, xcodeObservationViewModel: XcodeObservationViewModel, permissionsService: PermissionsService, terminalService: TerminalService, customPermissionService: CustomPermissionService, columnVisibility: Binding<NavigationSplitViewVisibility>, uiConfiguration: UIConfiguration = .default) {
+  public init(
+    viewModel: ChatViewModel,
+    contextManager: ContextManager,
+    xcodeObservationViewModel: XcodeObservationViewModel,
+    permissionsService: PermissionsService,
+    terminalService: TerminalService,
+    customPermissionService: CustomPermissionService,
+    columnVisibility: Binding<NavigationSplitViewVisibility>,
+    uiConfiguration: UIConfiguration = .default,
+    attachmentImportService: any ChatAttachmentImportService = DefaultChatAttachmentImportService(),
+    attachmentProcessingService: any AttachmentProcessingService = AttachmentProcessor()
+  ) {
     self.viewModel = viewModel
     self.contextManager = contextManager
     self.xcodeObservationViewModel = xcodeObservationViewModel
@@ -57,6 +68,8 @@ public struct ChatScreen: View {
     _customPermissionService = State(initialValue: customPermissionService)
     _columnVisibility = columnVisibility
     self.uiConfiguration = uiConfiguration
+    self.attachmentImportService = attachmentImportService
+    self.attachmentProcessingService = attachmentProcessingService
     // Note: KeyboardShortcutManager will be initialized in onAppear
     // after GlobalPreferencesStorage is available from @Environment
   }
@@ -88,6 +101,9 @@ public struct ChatScreen: View {
   /// Configuration object defining UI appearance and behavior
   /// Includes settings like app name, theme, and feature toggles
   let uiConfiguration: UIConfiguration
+
+  let attachmentImportService: any ChatAttachmentImportService
+  let attachmentProcessingService: any AttachmentProcessingService
   
   /// Binding controlling the visibility of navigation split view columns
   /// Used to toggle sidebar visibility in the navigation interface
@@ -143,7 +159,9 @@ public struct ChatScreen: View {
         permissionsService: permissionsService,
         uiConfiguration: uiConfiguration,
         placeholder: "Message \(uiConfiguration.appName)...",
-        triggerFocus: $triggerTextEditorFocus)
+        triggerFocus: $triggerTextEditorFocus,
+        attachmentImportService: attachmentImportService,
+        attachmentProcessingService: attachmentProcessingService)
     }
     .background(EaselChatRuntimeStyle.appBackground(for: colorScheme, themeColors: appearanceSettings.themeColors))
     .environment(appearanceSettings)

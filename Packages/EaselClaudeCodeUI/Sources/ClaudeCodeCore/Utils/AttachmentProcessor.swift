@@ -21,6 +21,8 @@ public actor AttachmentProcessor {
   
   // Thumbnail size for preview
   private let thumbnailSize = CGSize(width: 100, height: 100)
+
+  public init() {}
   
   /// Process a file attachment and update its state
   public func process(_ attachment: FileAttachment) async {
