@@ -82,7 +82,7 @@ public final class DesignSystemSetupViewModel {
       let profile = try await designSystemManager.createDesignSystem(from: request)
       errorMessage = nil
       reset()
-      return EaselDesignSystemLaunch(profile: profile, prompt: profile.creationPrompt())
+      return EaselDesignSystemLaunch(profile: profile)
     } catch {
       errorMessage = error.localizedDescription
       return nil

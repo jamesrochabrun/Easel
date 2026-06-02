@@ -30,7 +30,6 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
   /// Called when a session changes (created or switched), so the sidebar can refresh
   public var onSessionChanged: (() -> Void)?
 
-  private var hasSentInitialPrompt = false
   private var isInitializing = false
   private let previewURLObserver = PreviewURLObserver()
   private let persistentPreferencesManager: PersistentPreferencesManager
@@ -211,7 +210,6 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
 
     currentSessionId = nil
     previewURL = nil
-    hasSentInitialPrompt = false
     startPreviewObservation()
   }
 
@@ -228,14 +226,6 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
   public func setPreviewURL(_ url: URL) {
     chatLog.info("Preview URL set: \(url.absoluteString)")
     self.previewURL = url
-  }
-
-  // MARK: - Initial Prompt
-
-  public func sendInitialPromptIfNeeded(_ prompt: String) {
-    guard !hasSentInitialPrompt, !prompt.isEmpty else { return }
-    hasSentInitialPrompt = true
-    chatViewModel?.sendMessage(prompt)
   }
 
   // MARK: - Private
