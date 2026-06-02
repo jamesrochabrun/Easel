@@ -3,6 +3,7 @@
 //  EaselChatTests
 //
 
+import Foundation
 import Testing
 @testable import EaselChat
 
@@ -26,5 +27,24 @@ struct ChatServiceTests {
     service.sendInspectorPrompt("test")
     service.sendContextPrompt("test")
     service.sendCropPrompt("test")
+  }
+
+  @Test
+  func appManagedPreviewURLIgnoresDetectedReplacementURL() {
+    let service = ChatService()
+    service.setPreviewURL(URL(string: "http://localhost:4301/")!)
+
+    service.applyDetectedPreviewURL(URL(string: "http://127.0.0.1:5173/")!)
+
+    #expect(service.previewURL?.absoluteString == "http://localhost:4301/")
+  }
+
+  @Test
+  func detectedPreviewURLAppliesWhenNoManagedURLExists() {
+    let service = ChatService()
+
+    service.applyDetectedPreviewURL(URL(string: "http://127.0.0.1:5173/")!)
+
+    #expect(service.previewURL?.absoluteString == "http://127.0.0.1:5173/")
   }
 }

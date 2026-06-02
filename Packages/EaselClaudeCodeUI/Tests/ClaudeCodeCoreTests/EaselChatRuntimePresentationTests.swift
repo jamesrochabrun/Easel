@@ -70,6 +70,8 @@ final class EaselChatRuntimePresentationTests: XCTestCase {
       ("find resources -maxdepth 2 -type f -print", "Looking through resources"),
       ("pwd && rg --files -g '!*node_modules*' -g '!*.png'", "Searching files"),
       ("cp src/a.txt dist/a.txt", "Copying files"),
+      ("curl http://127.0.0.1:4173/", "Checking for updates"),
+      ("curl http://localhost:3000/", "Checking for updates"),
       ("curl https://example.com", "Fetching from the web"),
     ]
 

@@ -23,6 +23,7 @@ public enum EaselDesignSystem {
     public static let textTertiaryLightHex = "#8B928C"
     public static let textTertiaryDarkHex = "#747C76"
     public static let accentForegroundDarkHex = "#AEB7B0"
+    public static let selectionAccentDarkHex = "#7DD3FC"
 
     public static let ink = color(15, 17, 16)
     public static let accent = color(46, 47, 47)
@@ -50,6 +51,10 @@ public enum EaselDesignSystem {
 
     public static func selectedSurface(for colorScheme: ColorScheme) -> Color {
       colorScheme == .dark ? accent.opacity(0.18) : accent.opacity(0.12)
+    }
+
+    public static func selectionAccent(for colorScheme: ColorScheme) -> Color {
+      colorScheme == .dark ? color(125, 211, 252) : accent
     }
 
     public static func hoverSurface(for colorScheme: ColorScheme) -> Color {

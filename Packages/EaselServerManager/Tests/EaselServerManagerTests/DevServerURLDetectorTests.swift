@@ -70,4 +70,18 @@ struct DevServerURLDetectorTests {
     let url = DevServerURLDetector.extractURL(from: output)
     #expect(url?.absoluteString == "http://localhost:3000")
   }
+
+  @Test
+  func trimsTrailingBacktick() {
+    let output = "Local: `http://127.0.0.1:4173/`"
+    let url = DevServerURLDetector.extractURL(from: output)
+    #expect(url?.absoluteString == "http://127.0.0.1:4173/")
+  }
+
+  @Test
+  func stripsEncodedTrailingBacktick() {
+    let output = "Local: http://127.0.0.1:4173/%60"
+    let url = DevServerURLDetector.extractURL(from: output)
+    #expect(url?.absoluteString == "http://127.0.0.1:4173/")
+  }
 }

@@ -297,11 +297,16 @@ public struct SidebarView: View {
             }
             .padding(8)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(EaselDesignSystem.Palette.subtleSurface(for: colorScheme), in: RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.card))
+            .background(
+              fidelityTileBackground(isSelected: sidebarViewModel.selectedFidelity == fidelity),
+              in: RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.card)
+            )
             .overlay {
               RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.card)
                 .stroke(
-                  sidebarViewModel.selectedFidelity == fidelity ? EaselDesignSystem.Palette.accent : Color.clear,
+                  sidebarViewModel.selectedFidelity == fidelity
+                    ? EaselDesignSystem.Palette.selectionAccent(for: colorScheme)
+                    : Color.clear,
                   lineWidth: 2
                 )
             }
@@ -311,6 +316,16 @@ public struct SidebarView: View {
         }
       }
     }
+  }
+
+  private func fidelityTileBackground(isSelected: Bool) -> Color {
+    guard isSelected else {
+      return EaselDesignSystem.Palette.subtleSurface(for: colorScheme)
+    }
+
+    return colorScheme == .dark
+      ? EaselDesignSystem.Palette.selectionAccent(for: colorScheme).opacity(0.12)
+      : EaselDesignSystem.Palette.selectedSurface(for: colorScheme)
   }
 
   private func fidelityThumbnail(for fidelity: EaselProjectFidelity) -> some View {

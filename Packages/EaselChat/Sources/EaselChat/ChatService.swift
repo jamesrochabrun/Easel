@@ -35,6 +35,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
   private let persistentPreferencesManager: PersistentPreferencesManager
   private let mcpToolsDiscovery: MCPToolsDiscoveryService
   private let logger: ClaudeCodeLogger
+  private var previewURLSource: PreviewURLSource?
 
   // MARK: - Init
 
@@ -94,6 +95,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
         customPermissionService: container.customPermissionService,
         mcpToolsDiscovery: mcpToolsDiscovery,
         logger: logger,
+        systemPromptPrefix: EaselAgentInstructions.systemPromptPrefix,
         shouldManageSessions: true,
         onSessionChange: { [weak self] newSessionId in
           Task { @MainActor in
@@ -124,27 +126,28 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
     previewURLObserver.stopObserving()
     initError = nil
     isInitialized = false
+    clearPreviewURL()
     Task { await initialize() }
   }
 
   // MARK: - ChatServiceProtocol
 
   public func sendMessage(_ text: String, context: String? = nil, hiddenContext: String? = nil) {
-    chatViewModel?.sendMessage(text, context: context, hiddenContext: hiddenContext)
+    sendMessageToViewModel(text, context: context, hiddenContext: hiddenContext)
   }
 
   // MARK: - InspectorBridgeProtocol
 
   public func sendInspectorPrompt(_ prompt: String) {
-    chatViewModel?.sendMessage(prompt)
+    sendMessageToViewModel(prompt)
   }
 
   public func sendContextPrompt(_ prompt: String) {
-    chatViewModel?.sendMessage(prompt, hiddenContext: prompt)
+    sendMessageToViewModel(prompt, hiddenContext: prompt)
   }
 
   public func sendCropPrompt(_ prompt: String) {
-    chatViewModel?.sendMessage(prompt)
+    sendMessageToViewModel(prompt)
   }
 
   // MARK: - Session Management
@@ -177,11 +180,11 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
 
     currentSessionId = session.id
     setCurrentWorkingDirectory(chatViewModel?.projectPath)
-    previewURL = nil
+    clearPreviewURL()
 
     // Immediately scan loaded messages for a dev server URL
     if let detectedURL = previewURLObserver.scanExistingMessages(sessionToLoad.messages) {
-      previewURL = detectedURL
+      applyDetectedPreviewURL(detectedURL)
     }
 
     startPreviewObservation()
@@ -209,7 +212,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
     }
 
     currentSessionId = nil
-    previewURL = nil
+    clearPreviewURL()
     startPreviewObservation()
   }
 
@@ -225,7 +228,8 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
 
   public func setPreviewURL(_ url: URL) {
     chatLog.info("Preview URL set: \(url.absoluteString)")
-    self.previewURL = url
+    previewURL = url
+    previewURLSource = .appManaged
   }
 
   // MARK: - Private
@@ -237,13 +241,42 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
       },
       onURLDetected: { [weak self] url in
         chatLog.info("Live observation detected URL: \(url.absoluteString)")
-        self?.previewURL = url
+        self?.applyDetectedPreviewURL(url)
       }
     )
+  }
+
+  func applyDetectedPreviewURL(_ url: URL) {
+    guard previewURLSource != .appManaged else {
+      chatLog.info("Ignoring detected preview URL because app-managed preview is active: \(url.absoluteString)")
+      return
+    }
+
+    previewURL = url
+    previewURLSource = .detected
+  }
+
+  private func clearPreviewURL() {
+    previewURL = nil
+    previewURLSource = nil
+  }
+
+  private func sendMessageToViewModel(_ text: String, context: String? = nil, hiddenContext: String? = nil) {
+    let combinedHiddenContext = EaselAgentInstructions.appendingHiddenContext(
+      hiddenContext,
+      projectPath: currentWorkingDirectory,
+      previewURL: previewURL
+    )
+    chatViewModel?.sendMessage(text, context: context, hiddenContext: combinedHiddenContext)
   }
 
   private func setCurrentWorkingDirectory(_ path: String?) {
     let normalized = path?.trimmingCharacters(in: .whitespacesAndNewlines)
     currentWorkingDirectory = normalized?.isEmpty == false ? normalized : nil
   }
+}
+
+private enum PreviewURLSource {
+  case appManaged
+  case detected
 }
