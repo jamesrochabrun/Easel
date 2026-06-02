@@ -1,5 +1,5 @@
 {
-  "originHash" : "44843029bf9742ced15e78a97b4c9d176415a1f780d7abf7222d7ad19e52f342",
+  "originHash" : "4f2249e27d66f9bac5c495087738b6b1379962933cd7c8d9c25214700ca1261c",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -38,15 +38,6 @@
       }
     },
     {
-      "identity" : "down",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/jamesrochabrun/Down",
-      "state" : {
-        "revision" : "e1f17ec54dd5a272a15a1f784a4b77f2faf1eb8b",
-        "version" : "1.0.0"
-      }
-    },
-    {
       "identity" : "eventsource",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/mattt/eventsource.git",
@@ -71,6 +62,15 @@
       "state" : {
         "revision" : "1aef85578fdd4f9eaeeb8d53b7b4fc31bf08fe27",
         "version" : "2.4.0"
+      }
+    },
+    {
+      "identity" : "networkimage",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/gonzalezreal/NetworkImage",
+      "state" : {
+        "revision" : "2849f5323265386e200484b0d0f896e73c3411b9",
+        "version" : "6.0.1"
       }
     },
     {
@@ -139,10 +139,10 @@
     {
       "identity" : "swift-cmark",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/swiftlang/swift-cmark.git",
+      "location" : "https://github.com/swiftlang/swift-cmark",
       "state" : {
-        "revision" : "5d9bdaa4228b381639fff09403e39a04926e2dbe",
-        "version" : "0.7.1"
+        "revision" : "924936d0427cb25a61169739a7660230bffa6ea6",
+        "version" : "0.8.0"
       }
     },
     {
@@ -206,6 +206,15 @@
       "state" : {
         "revision" : "8c0f217f01000dd30f60d6e536569ad4e74291f9",
         "version" : "1.11.0"
+      }
+    },
+    {
+      "identity" : "swift-markdown-ui",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/gonzalezreal/swift-markdown-ui",
+      "state" : {
+        "revision" : "5f613358148239d0292c0cef674a3c2314737f9e",
+        "version" : "2.4.1"
       }
     },
     {

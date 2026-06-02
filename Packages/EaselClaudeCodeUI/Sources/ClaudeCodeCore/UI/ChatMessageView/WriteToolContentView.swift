@@ -5,17 +5,8 @@ struct WriteToolContentView: View {
   let content: String
   let filePath: String
   let fontSize: Double
-  let textFormatter: TextFormatter
-  let maxWidth: CGFloat
   
   @Environment(\.colorScheme) private var colorScheme
-  
-  private var contentFormatter: TextFormatter {
-    let formatter = TextFormatter(projectRoot: URL(fileURLWithPath: filePath).deletingLastPathComponent())
-    let markdownContent = wrapInCodeBlockIfNeeded(content)
-    formatter.ingest(delta: markdownContent)
-    return formatter
-  }
   
   private var formattedMessage: ChatMessage {
     let markdownContent = wrapInCodeBlockIfNeeded(content)
@@ -35,11 +26,9 @@ struct WriteToolContentView: View {
       ScrollView {
         VStack(alignment: .leading, spacing: 0) {
           MessageTextFormatterView(
-            textFormatter: contentFormatter,
             message: formattedMessage,
             fontSize: fontSize - 1,
             horizontalPadding: 12,
-            maxWidth: maxWidth,
             showArtifact: nil
           )
           .padding(.vertical, 8)
@@ -182,9 +171,7 @@ struct WriteToolContentView: View {
     - Item 3
     """,
     filePath: "/Users/example/Documents/test.swift",
-    fontSize: 13,
-    textFormatter: TextFormatter(projectRoot: nil),
-    maxWidth: 600
+    fontSize: 13
   )
   .frame(width: 600)
   .padding()

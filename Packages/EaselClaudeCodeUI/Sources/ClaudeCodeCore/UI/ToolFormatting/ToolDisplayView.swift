@@ -11,7 +11,6 @@ import SwiftUI
 struct ToolDisplayView: View {
   let message: ChatMessage
   let fontSize: Double
-  let textFormatter: TextFormatter
   @State private var isCopied = false
   @Environment(\.colorScheme) private var colorScheme
   
@@ -74,7 +73,6 @@ struct ToolDisplayView: View {
       // Use the existing markdown formatter view
       // Markdown content is rendered using MessageTextFormatterView
       MessageTextFormatterView(
-        textFormatter: createMarkdownTextFormatter(for: content.formattedContent),
         message: ChatMessage(
           role: .assistant,
           content: content.formattedContent,
@@ -82,7 +80,6 @@ struct ToolDisplayView: View {
         ),
         fontSize: fontSize,
         horizontalPadding: 0,
-        maxWidth: .infinity,
         showArtifact: nil
       )
       
@@ -321,9 +318,4 @@ struct ToolDisplayView: View {
     EaselChatRuntimeStyle.secondaryText(for: colorScheme)
   }
   
-  private func createMarkdownTextFormatter(for content: String) -> TextFormatter {
-    let formatter = TextFormatter(projectRoot: nil)
-    formatter.ingest(delta: content)
-    return formatter
-  }
 }

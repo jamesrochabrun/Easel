@@ -12,10 +12,13 @@ struct EaselUserMessageBubble: View {
       Spacer(minLength: 48)
 
       VStack(alignment: .trailing, spacing: 5) {
-        Text(message.content)
-          .font(.system(size: fontSize))
-          .foregroundStyle(EaselChatRuntimeStyle.userText(for: colorScheme))
-          .textSelection(.enabled)
+        EaselMarkdownMessageView(
+          content: message.content,
+          role: message.role,
+          fontSize: CGFloat(fontSize),
+          isComplete: message.isComplete,
+          fillsAvailableWidth: false
+        )
           .padding(.horizontal, 14)
           .padding(.vertical, 10)
           .background(EaselChatRuntimeStyle.userBubble(for: colorScheme), in: RoundedRectangle(cornerRadius: EaselChatRuntimeStyle.cardRadius))

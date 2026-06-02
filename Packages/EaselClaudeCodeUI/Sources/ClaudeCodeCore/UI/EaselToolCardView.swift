@@ -10,7 +10,6 @@ struct EaselToolCardView: View {
   let viewModel: ChatViewModel
   let showArtifact: ((Artifact) -> Void)?
 
-  @State private var textFormatter: TextFormatter
   @State private var isExpanded: Bool
   @Environment(AppearanceSettings.self) private var appearanceSettings
   @Environment(\.colorScheme) private var colorScheme
@@ -31,9 +30,6 @@ struct EaselToolCardView: View {
     self.fontSize = fontSize
     self.viewModel = viewModel
     self.showArtifact = showArtifact
-
-    let projectRoot = settingsStorage.projectPath.isEmpty ? nil : URL(fileURLWithPath: settingsStorage.projectPath)
-    _textFormatter = State(initialValue: TextFormatter(projectRoot: projectRoot))
 
     // Default collapsed, but expand for tools that need immediate visibility
     let toolName = toolUse.toolName ?? ""
@@ -152,7 +148,6 @@ struct EaselToolCardView: View {
   private var detailedContent: some View {
     MessageContentView(
       message: toolUse,
-      textFormatter: textFormatter,
       fontSize: fontSize,
       horizontalPadding: 0,
       showArtifact: showArtifact,

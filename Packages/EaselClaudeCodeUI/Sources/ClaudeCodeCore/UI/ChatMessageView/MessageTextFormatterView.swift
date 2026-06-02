@@ -1,25 +1,29 @@
 import SwiftUI
-import Down
-import AppKit
 
 struct MessageTextFormatterView: View {
-  let textFormatter: TextFormatter
   let message: ChatMessage
   let fontSize: Double
   let horizontalPadding: CGFloat
-  let maxWidth: CGFloat
   let showArtifact: ((Artifact) -> Void)?
   
   @Environment(\.colorScheme) private var colorScheme
   
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
-      ForEach(textFormatter.elements) { element in
-        textElementView(element)
+      if !message.content.isEmpty {
+        EaselMarkdownMessageView(
+          content: message.content,
+          role: message.role,
+          fontSize: CGFloat(fontSize),
+          isComplete: message.isComplete,
+          showArtifact: showArtifact
+        )
+        .padding(.horizontal, horizontalPadding)
+        .padding(.vertical, 8)
       }
       
       // Show loading indicator if still streaming
-      if !message.isComplete && textFormatter.elements.isEmpty {
+      if !message.isComplete && message.content.isEmpty {
         MessageLoadingIndicator(messageTint: messageTint)
       }
       
@@ -34,50 +38,6 @@ struct MessageTextFormatterView: View {
         }
       }
     }
-  }
-  
-  @ViewBuilder
-  private func textElementView(_ element: TextFormatter.Element) -> some View {
-    switch element {
-    case .text(let text):
-      let attributedText = message.role == .user ? plainText(for: text) : markdown(for: text)
-      LongText(attributedText, maxWidth: maxWidth - 2 * horizontalPadding)
-        .textSelection(.enabled)
-        .padding(.horizontal, horizontalPadding)
-        .padding(.vertical, 8)
-      
-    case .codeBlock(let code):
-      CodeBlockContentView(code: code, role: message.role, showArtifact: showArtifact)
-        .padding(.horizontal, 4)
-        .padding(.vertical, 4)
-      
-    case .table(let table):
-      TableContentView(table: table, role: message.role)
-        .padding(.horizontal, 4)
-        .padding(.vertical, 4)
-    }
-  }
-  
-  private func markdown(for text: TextFormatter.Element.TextElement) -> AttributedString {
-    let markDown = Down(markdownString: text.text)
-    do {
-      let attributedString = try markDown.toAttributedString(using: style)
-      return AttributedString(attributedString.trimmedAttributedString())
-    } catch {
-      print("Error parsing markdown: \(error)")
-      return AttributedString(text.text)
-    }
-  }
-  
-  private func plainText(for text: TextFormatter.Element.TextElement) -> AttributedString {
-    var attrs = AttributedString(text.text)
-    attrs.foregroundColor = SwiftUI.Color(style.baseFontColor)
-    attrs.font = Font(style.baseFont as CTFont)
-    return attrs
-  }
-  
-  private var style: MarkdownStyle {
-    MarkdownStyle(colorScheme: colorScheme)
   }
   
   private var messageTint: SwiftUI.Color {

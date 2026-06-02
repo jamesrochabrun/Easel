@@ -26,7 +26,6 @@ private enum JSONKeys {
 /// ```swift
 /// MessageContentView(
 ///     message: chatMessage,
-///     textFormatter: TextFormatter(),
 ///     fontSize: 14.0,
 ///     horizontalPadding: 16.0,
 ///     maxWidth: 600.0,
@@ -39,11 +38,6 @@ struct MessageContentView: View {
   /// Contains the message content, role (user/assistant/system), type (text/toolUse/toolResult/etc),
   /// and associated metadata such as tool parameters and results.
   let message: ChatMessage
-  
-  /// Text formatter for rendering markdown and code blocks.
-  /// Handles syntax highlighting, code block formatting, inline code,
-  /// links, emphasis, and other markdown elements in assistant messages.
-  let textFormatter: TextFormatter
   
   /// Base font size for message content in points.
   /// This value is used as the foundation for all text rendering,
@@ -84,7 +78,6 @@ struct MessageContentView: View {
   ///
   /// - Parameters:
   ///   - message: The chat message to display, containing content, role, and metadata
-  ///   - textFormatter: Formatter for rendering markdown and code blocks with syntax highlighting
   ///   - fontSize: Base font size in points for message content
   ///   - horizontalPadding: Padding between message content and container edges
   ///   - showArtifact: Optional callback to display artifacts like Mermaid diagrams
@@ -95,7 +88,6 @@ struct MessageContentView: View {
   ///   - viewModel: Optional view model for handling approval actions
   init(
     message: ChatMessage,
-    textFormatter: TextFormatter,
     fontSize: Double,
     horizontalPadding: CGFloat,
     showArtifact: ((Artifact) -> Void)?,
@@ -106,7 +98,6 @@ struct MessageContentView: View {
     viewModel: ChatViewModel? = nil
   ) {
     self.message = message
-    self.textFormatter = textFormatter
     self.fontSize = fontSize
     self.horizontalPadding = horizontalPadding
     self.showArtifact = showArtifact
@@ -138,18 +129,32 @@ struct MessageContentView: View {
     if isCollapsible {
       collapsibleContent
     } else if message.role == .assistant && message.messageType == .text {
-      // Use formatted text for assistant messages
-      MessageTextFormatterView(
-        textFormatter: textFormatter,
-        message: message,
-        fontSize: fontSize,
-        horizontalPadding: horizontalPadding,
-        maxWidth: maxWidth,
+      markdownTextContent
+    } else {
+      plainTextContent
+    }
+  }
+
+  @ViewBuilder
+  private var markdownTextContent: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      EaselMarkdownMessageView(
+        content: message.content,
+        role: message.role,
+        fontSize: CGFloat(fontSize),
+        isComplete: message.isComplete,
         showArtifact: showArtifact
       )
-    } else {
-      // Use plain text for other messages
-      plainTextContent
+      .padding(.horizontal, horizontalPadding)
+      .padding(.vertical, 8)
+
+      if !message.isComplete && message.content.isEmpty {
+        MessageLoadingIndicator(messageTint: messageTint)
+      }
+
+      if message.wasCancelled {
+        cancelledIndicator
+      }
     }
   }
   
@@ -209,9 +214,7 @@ struct MessageContentView: View {
       WriteToolContentView(
         content: content,
         filePath: filePath,
-        fontSize: fontSize,
-        textFormatter: textFormatter,
-        maxWidth: maxWidth
+        fontSize: fontSize
       )
     } else {
       defaultToolDisplay
@@ -225,8 +228,7 @@ struct MessageContentView: View {
     // Use the new ToolDisplayView for sophisticated formatting
     ToolDisplayView(
       message: message,
-      fontSize: fontSize,
-      textFormatter: textFormatter
+      fontSize: fontSize
     )
   }
   
@@ -242,14 +244,39 @@ struct MessageContentView: View {
       
       // Show cancelled indicator if message was cancelled
       if message.wasCancelled {
-        HStack {
-          Text("Interrupted by user")
-            .font(.system(size: fontSize - 1))
-            .foregroundColor(.red)
-            .padding(.horizontal, horizontalPadding)
-            .padding(.vertical, 8)
-        }
+        cancelledIndicator
       }
+    }
+  }
+
+  private var cancelledIndicator: some View {
+    HStack {
+      Text("Interrupted by user")
+        .font(.system(size: fontSize - 1))
+        .foregroundColor(.red)
+        .padding(.horizontal, horizontalPadding)
+        .padding(.vertical, 8)
+    }
+  }
+
+  private var messageTint: SwiftUI.Color {
+    switch message.messageType {
+    case .text:
+      return message.role == .assistant ? EaselChatRuntimeStyle.secondaryText(for: colorScheme) : .primary
+    case .toolUse:
+      return SwiftUI.Color(red: 255/255, green: 149/255, blue: 0/255)
+    case .toolResult:
+      return SwiftUI.Color(red: 52/255, green: 199/255, blue: 89/255)
+    case .toolError:
+      return SwiftUI.Color(red: 255/255, green: 59/255, blue: 48/255)
+    case .toolDenied:
+      return SwiftUI.Color.secondary
+    case .thinking:
+      return SwiftUI.Color(red: 90/255, green: 200/255, blue: 250/255)
+    case .webSearch:
+      return SwiftUI.Color(red: 0/255, green: 199/255, blue: 190/255)
+    case .codeExecution:
+      return EaselChatRuntimeStyle.running
     }
   }
   

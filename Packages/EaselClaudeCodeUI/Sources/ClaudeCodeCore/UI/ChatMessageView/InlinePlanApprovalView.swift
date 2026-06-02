@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import Down
 
 /// A view that displays a plan for approval inline within a chat message
 public struct InlinePlanApprovalView: View {
@@ -19,7 +18,6 @@ public struct InlinePlanApprovalView: View {
   @State private var showingDenyFeedback = false
   @State private var denyFeedback = ""
   @State private var isExpanded = true
-  @State private var textFormatter: TextFormatter
 
   @Environment(\.colorScheme) private var colorScheme
 
@@ -35,11 +33,6 @@ public struct InlinePlanApprovalView: View {
     self.viewModel = viewModel
     self.isResolved = isResolved
     self.approvalStatus = approvalStatus
-
-    // Initialize TextFormatter with the plan content
-    let formatter = TextFormatter(projectRoot: nil)
-    formatter.ingest(delta: planContent)
-    _textFormatter = State(initialValue: formatter)
   }
 
   public var body: some View {
@@ -82,11 +75,14 @@ public struct InlinePlanApprovalView: View {
       if isExpanded {
         // Plan content with proper formatting - no scroll, show full content
         VStack(alignment: .leading, spacing: 0) {
-          PlanContentView(
-            textFormatter: textFormatter,
+          EaselMarkdownMessageView(
+            content: planContent,
+            role: .assistant,
             fontSize: 13,
-            colorScheme: colorScheme
+            isComplete: true
           )
+          .padding(.horizontal, 14)
+          .padding(.vertical, 10)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(contentBackground)
@@ -272,53 +268,5 @@ public struct InlinePlanApprovalView: View {
     viewModel.permissionMode = .default
     let message = feedback ?? "Plan denied. Please provide an alternative approach."
     viewModel.sendMessage(message)
-  }
-}
-
-/// A view that renders plan content with proper formatting
-private struct PlanContentView: View {
-  let textFormatter: TextFormatter
-  let fontSize: Double
-  let colorScheme: ColorScheme
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      ForEach(textFormatter.elements) { element in
-        elementView(element)
-      }
-    }
-  }
-
-  @ViewBuilder
-  private func elementView(_ element: TextFormatter.Element) -> some View {
-    switch element {
-    case .text(let text):
-      let attributedText = markdown(for: text)
-      Text(attributedText)
-        .textSelection(.enabled)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 6)
-
-    case .codeBlock(let code):
-      CodeBlockContentView(code: code, role: .assistant)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 4)
-
-    case .table(let table):
-      TableContentView(table: table, role: .assistant)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 4)
-    }
-  }
-
-  private func markdown(for text: TextFormatter.Element.TextElement) -> AttributedString {
-    let markDown = Down(markdownString: text.text)
-    do {
-      let style = MarkdownStyle(colorScheme: colorScheme)
-      let attributedString = try markDown.toAttributedString(using: style)
-      return AttributedString(attributedString.trimmedAttributedString())
-    } catch {
-      return AttributedString(text.text)
-    }
   }
 }
