@@ -27,7 +27,11 @@ struct WindowControllerTests {
     #expect(controller.canvasWindow.styleMask.contains(.closable))
     #expect(controller.canvasWindow.styleMask.contains(.miniaturizable))
     #expect(controller.canvasWindow.styleMask.contains(.resizable))
+    #expect(controller.canvasWindow.styleMask.contains(.fullSizeContentView))
     #expect(!controller.canvasWindow.styleMask.contains(.nonactivatingPanel))
+    #expect(controller.canvasWindow.titleVisibility == .hidden)
+    #expect(controller.canvasWindow.titlebarAppearsTransparent)
+    #expect(controller.canvasWindow.isMovableByWindowBackground)
     #expect(controller.canvasWindow.delegate === controller)
     #expect(!controller.canvasWindow.isReleasedWhenClosed)
   }

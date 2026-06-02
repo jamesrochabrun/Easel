@@ -142,11 +142,14 @@ final class WindowController: NSObject, WindowControlling, NSWindowDelegate {
   private static func makeCanvasWindow() -> NSWindow {
     let window = NSWindow(
       contentRect: .zero,
-      styleMask: [.titled, .closable, .miniaturizable, .resizable],
+      styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
       backing: .buffered,
       defer: true
     )
     window.title = "Codex Design"
+    window.titleVisibility = .hidden
+    window.titlebarAppearsTransparent = true
+    window.isMovableByWindowBackground = true
     window.isReleasedWhenClosed = false
     window.collectionBehavior = [.fullScreenPrimary]
     return window

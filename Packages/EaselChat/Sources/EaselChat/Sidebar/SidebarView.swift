@@ -10,6 +10,7 @@ import SwiftUI
 
 public struct SidebarView: View {
   @Bindable var sidebarViewModel: SidebarViewModel
+  private let reservesWindowControls: Bool
 
   @State private var showDeleteSessionConfirmation = false
   @State private var showDeleteProjectConfirmation = false
@@ -17,8 +18,9 @@ public struct SidebarView: View {
   @State private var projectToDelete: ProjectGroup?
   @Environment(\.colorScheme) private var colorScheme
 
-  public init(sidebarViewModel: SidebarViewModel) {
+  public init(sidebarViewModel: SidebarViewModel, reservesWindowControls: Bool = false) {
     self.sidebarViewModel = sidebarViewModel
+    self.reservesWindowControls = reservesWindowControls
   }
 
   public var body: some View {
@@ -73,26 +75,25 @@ public struct SidebarView: View {
   }
 
   private var headerView: some View {
-    VStack(alignment: .leading, spacing: 6) {
-      HStack(alignment: .firstTextBaseline, spacing: 8) {
-        Image(systemName: "sparkles")
-          .font(EaselDesignSystem.Typography.interface(size: 15, weight: .semibold))
-          .foregroundStyle(EaselDesignSystem.Palette.accent)
+    HStack(spacing: 9) {
+      Image(systemName: "sparkles")
+        .font(EaselDesignSystem.Typography.interface(size: 14, weight: .semibold))
+        .foregroundStyle(EaselDesignSystem.Palette.accent)
+        .frame(width: 18, height: 18)
 
-        Text("Codex Design")
-          .font(EaselDesignSystem.Typography.interface(size: 22, weight: .semibold))
-          .foregroundStyle(.primary)
-          .lineLimit(1)
-      }
-
-      Text("Prototype workspace")
-        .font(.callout)
-        .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
+      Text("Codex Design")
+        .font(EaselDesignSystem.Typography.interface(size: 16, weight: .semibold))
+        .foregroundStyle(.primary)
         .lineLimit(1)
     }
-    .padding(.horizontal, 16)
-    .padding(.vertical, 14)
+    .padding(.leading, headerLeadingPadding)
+    .padding(.trailing, 16)
     .frame(maxWidth: .infinity, alignment: .leading)
+    .frame(height: EaselDesignSystem.Spacing.toolbarHeight)
+  }
+
+  private var headerLeadingPadding: CGFloat {
+    reservesWindowControls ? 78 : 16
   }
 
   private var newProjectCard: some View {
