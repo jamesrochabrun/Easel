@@ -15,6 +15,7 @@ enum EaselAgentInstructions {
     - Your sandbox cannot bind network sockets. Never run `npm run dev`, `python -m http.server`, or any command that starts a server or opens a port — it fails with "Operation not permitted". The app runs the dev server for you; just keep the project's `dev` script valid.
     - Do not open external browser apps or use shell commands such as `open`, `open -a`, `xdg-open`, or `start` to preview project UI.
     - Write or copy every generated project asset into the project's resources/ folder before referencing it from app UI.
+    - For slide deck projects, author slides as HTML sections marked with `data-easel-slide` inside a `data-easel-deck` stage. Keep each slide 16:9 and add `data-title` when the slide title is not obvious from a heading.
     """
 
   static let codexDeveloperInstructionsPrefix = """
@@ -216,7 +217,11 @@ enum EaselAgentInstructions {
     - Would the design still feel premium if all decorative shadows were removed?
     """
 
-  static func hiddenContext(projectPath: String?, previewURL: URL?) -> String {
+  static func hiddenContext(
+    projectPath: String?,
+    projectKind: EaselProjectKind? = nil,
+    previewURL: URL?
+  ) -> String {
     var lines = [
       "--- Codex Design Runtime Context ---",
       "The right-side Canvas panel is the preview surface for this session. It is already live, and the app hard-reloads it automatically whenever you save a file.",
@@ -230,6 +235,14 @@ enum EaselAgentInstructions {
       lines.append("Current project path: \(projectPath)")
     }
 
+    if let projectKind {
+      lines.append("Current project type: \(projectKind.displayName)")
+
+      if projectKind == .slideDeck {
+        lines.append("Slide deck contract: keep slides as `section[data-easel-slide]` elements inside a `data-easel-deck` stage, preserve a 16:9 slide canvas, and set `data-title` for thumbnail labels when needed.")
+      }
+    }
+
     if let previewURL {
       lines.append("Current embedded preview URL: \(previewURL.absoluteString)")
     }
@@ -237,8 +250,17 @@ enum EaselAgentInstructions {
     return lines.joined(separator: "\n")
   }
 
-  static func appendingHiddenContext(_ hiddenContext: String?, projectPath: String?, previewURL: URL?) -> String {
-    [hiddenContext, self.hiddenContext(projectPath: projectPath, previewURL: previewURL)]
+  static func appendingHiddenContext(
+    _ hiddenContext: String?,
+    projectPath: String?,
+    projectKind: EaselProjectKind? = nil,
+    previewURL: URL?
+  ) -> String {
+    [hiddenContext, self.hiddenContext(
+      projectPath: projectPath,
+      projectKind: projectKind,
+      previewURL: previewURL
+    )]
       .compactMap { value in
         let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed?.isEmpty == false ? trimmed : nil

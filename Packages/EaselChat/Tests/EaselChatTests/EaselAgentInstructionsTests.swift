@@ -40,6 +40,20 @@ struct EaselAgentInstructionsTests {
   }
 
   @Test
+  func hiddenContextIncludesSlideDeckContractWhenProjectIsSlideDeck() {
+    let context = EaselAgentInstructions.hiddenContext(
+      projectPath: "/tmp/deck",
+      projectKind: .slideDeck,
+      previewURL: nil
+    )
+
+    #expect(context.contains("Current project type: Slide deck"))
+    #expect(context.contains("section[data-easel-slide]"))
+    #expect(context.contains("data-easel-deck"))
+    #expect(context.contains("16:9"))
+  }
+
+  @Test
   func appendsExistingHiddenContext() {
     let context = EaselAgentInstructions.appendingHiddenContext(
       "Currently viewing: /tmp/easel/index.html",
