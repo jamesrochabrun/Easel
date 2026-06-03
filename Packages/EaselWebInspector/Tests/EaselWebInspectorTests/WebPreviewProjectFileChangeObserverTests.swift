@@ -55,6 +55,38 @@ struct WebPreviewProjectFileChangeObserverTests {
     #expect(!(await observer.hasChangedSinceLastSnapshot()))
   }
 
+  @Test("Ignored generated output folders do not report changes")
+  func ignoredGeneratedOutputFoldersDoNotReportChanges() async throws {
+    let directory = try makeTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    try write("initial", to: directory.appendingPathComponent("index.html"))
+    let observer = WebPreviewProjectFileChangeObserver(projectPath: directory.path)
+    _ = await observer.hasChangedSinceLastSnapshot()
+
+    try write("bundle", to: directory.appendingPathComponent("dist/assets/main.js"))
+    try write("cache", to: directory.appendingPathComponent(".next/cache/app.json"))
+    try write("coverage", to: directory.appendingPathComponent("coverage/report.json"))
+
+    #expect(!(await observer.hasChangedSinceLastSnapshot()))
+  }
+
+  @Test("Snapshot excludes generated output folders")
+  func snapshotExcludesGeneratedOutputFolders() throws {
+    let directory = try makeTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    try write("initial", to: directory.appendingPathComponent("index.html"))
+    try write("bundle", to: directory.appendingPathComponent("dist/assets/main.js"))
+    try write("cache", to: directory.appendingPathComponent(".next/cache/app.json"))
+
+    let snapshot = WebPreviewProjectFileSnapshot.snapshot(projectPath: directory.path)
+
+    #expect(snapshot.files["index.html"] != nil)
+    #expect(snapshot.files["dist/assets/main.js"] == nil)
+    #expect(snapshot.files[".next/cache/app.json"] == nil)
+  }
+
   private func makeTemporaryDirectory() throws -> URL {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent("EaselWebInspectorTests-\(UUID().uuidString)", isDirectory: true)

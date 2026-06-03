@@ -41,7 +41,7 @@ struct WebPreviewProjectFileSnapshot: Equatable {
     guard let enumerator = fileManager.enumerator(
       at: rootURL,
       includingPropertiesForKeys: [.isDirectoryKey, .contentModificationDateKey, .fileSizeKey],
-      options: [.skipsHiddenFiles]
+      options: [.skipsHiddenFiles, .skipsPackageDescendants]
     ) else {
       return WebPreviewProjectFileSnapshot(files: [:])
     }
@@ -74,14 +74,25 @@ struct WebPreviewProjectFileSnapshot: Equatable {
 
   private static let ignoredDirectoryNames: Set<String> = [
     ".git",
+    ".svn",
     ".swiftpm",
     ".build",
     ".easel",
+    ".cache",
+    ".next",
+    ".nuxt",
+    ".turbo",
+    ".vercel",
+    "DerivedData",
+    "build",
+    "coverage",
+    "dist",
     "node_modules",
+    "out",
   ]
 
   private static func relativePath(for fileURL: URL, rootURL: URL) -> String? {
-    let filePath = fileURL.standardizedFileURL.resolvingSymlinksInPath().path
+    let filePath = fileURL.standardizedFileURL.path
     let rootPath = rootURL.path
     guard filePath.hasPrefix(rootPath + "/") else {
       return nil
