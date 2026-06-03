@@ -166,6 +166,37 @@ struct ProjectResourceManagerTests {
     #expect(preview.content == .text("const title = 'Easel'"))
   }
 
+  @Test
+  func saveTextWritesSelectedProjectFileAndReturnsTextPreview() async throws {
+    let rootDirectory = temporaryRoot(named: "ProjectResourceSaveTests")
+    defer {
+      try? FileManager.default.removeItem(at: rootDirectory)
+    }
+
+    let projectManager = LocalEaselProjectManager(rootDirectory: rootDirectory)
+    let project = try await projectManager.createProject(from: EaselProjectCreateRequest(
+      name: "Editable Code",
+      kind: .prototype,
+      designSystem: .none,
+      fidelity: .wireframe
+    ))
+    let projectURL = URL(fileURLWithPath: project.workingDirectory)
+    let fileURL = projectURL.appendingPathComponent("app.js")
+    try write("const title = 'Draft'", to: fileURL)
+
+    let manager = LocalProjectResourceManager()
+    let sections = try await manager.loadProjectStructure(forProjectAt: project.workingDirectory)
+    let script = try #require(sections.first { $0.role == .scripts }?.items.first)
+    let preview = try await manager.saveText(
+      "const title = 'Saved'",
+      for: .projectFile(script)
+    )
+
+    let savedText = try String(contentsOf: fileURL, encoding: .utf8)
+    #expect(savedText == "const title = 'Saved'")
+    #expect(preview.content == .text("const title = 'Saved'"))
+  }
+
   private func temporaryRoot(named name: String) -> URL {
     FileManager.default.temporaryDirectory
       .appendingPathComponent("\(name)-\(UUID().uuidString)", isDirectory: true)

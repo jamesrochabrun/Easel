@@ -103,6 +103,18 @@ public final class ProjectResourcesViewModel {
     errorMessage = error.localizedDescription
   }
 
+  public func saveTextPreview(_ text: String, for item: ProjectResourcePanelItem) async throws {
+    let preview = try await resourceManager.saveText(text, for: item)
+
+    guard selectedItem?.id == item.id else {
+      return
+    }
+
+    selectedPreview = preview
+    try await reloadFilesForProject(at: item.projectPath)
+    errorMessage = nil
+  }
+
   public func select(_ item: ProjectResourcePanelItem) async {
     selectedItem = item
     selectedPreview = nil
@@ -149,16 +161,27 @@ public final class ProjectResourcesViewModel {
     reconcileSelection()
   }
 
+  private func reloadFilesForProject(at projectPath: String) async throws {
+    async let loadedResources = resourceManager.loadResources(forProjectAt: projectPath)
+    async let loadedProjectStructure = resourceManager.loadProjectStructure(forProjectAt: projectPath)
+    let (resources, projectStructureSections) = try await (loadedResources, loadedProjectStructure)
+
+    self.resources = resources
+    self.projectStructureSections = projectStructureSections
+    reconcileSelection()
+  }
+
   private func reconcileSelection() {
     guard let selectedItem else { return }
 
     let resourceItems = resources.map(ProjectResourcePanelItem.resource)
     let projectFileItems = projectStructureSections.flatMap(\.items).map(ProjectResourcePanelItem.projectFile)
-    let itemIDs = Set((resourceItems + projectFileItems).map(\.id))
-    if !itemIDs.contains(selectedItem.id) {
-      self.selectedItem = nil
-      selectedPreview = nil
-      isPreviewLoading = false
+    let allItems = resourceItems + projectFileItems
+
+    if let matchingItem = allItems.first(where: { $0.id == selectedItem.id }) {
+      self.selectedItem = matchingItem
+    } else {
+      clearSelection()
     }
   }
 

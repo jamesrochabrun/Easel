@@ -21,6 +21,9 @@ let package = Package(
     .package(path: "../EaselKit"),
     .package(path: "../../../ClaudeCodeSDK"),
     .package(path: "../EaselClaudeCodeUI"),
+    .package(path: "../CodeEditSymbols"),
+    .package(url: "https://github.com/CodeEditApp/CodeEditSourceEditor", exact: "0.15.2"),
+    .package(url: "https://github.com/CodeEditApp/CodeEditLanguages", exact: "0.1.20"),
   ],
   targets: [
     .target(
@@ -36,6 +39,8 @@ let package = Package(
         "EaselKit",
         .product(name: "ClaudeCodeSDK", package: "ClaudeCodeSDK"),
         .product(name: "ClaudeCodeCore", package: "EaselClaudeCodeUI"),
+        .product(name: "CodeEditSourceEditor", package: "CodeEditSourceEditor"),
+        .product(name: "CodeEditLanguages", package: "CodeEditLanguages"),
       ],
       swiftSettings: [
         .swiftLanguageMode(.v5)

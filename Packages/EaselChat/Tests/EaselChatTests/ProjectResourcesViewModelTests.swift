@@ -74,6 +74,34 @@ struct ProjectResourcesViewModelTests {
     #expect(viewModel.isPreviewLoading == false)
   }
 
+  @Test
+  func saveTextPreviewPersistsTextAndUpdatesSelectedPreview() async throws {
+    let project = makeProject(name: "Project", path: "/tmp/project")
+    let page = makeProjectStructureItem(projectPath: project.workingDirectory, fileName: "index.html")
+    let item = ProjectResourcePanelItem.projectFile(page)
+    let resourceManager = StubProjectResourceManager(
+      resourcesByProject: [:],
+      projectStructureByProject: [
+        project.workingDirectory: [ProjectStructureSection(role: .pages, items: [page])]
+      ],
+      previewsByItemID: [
+        item.id: ProjectResourcePreview(itemID: item.id, content: .text("<h1>Draft</h1>"))
+      ]
+    )
+    let viewModel = ProjectResourcesViewModel(
+      projectManager: StubProjectManager(projects: [project]),
+      resourceManager: resourceManager
+    )
+
+    await viewModel.refresh(currentProjectPath: project.workingDirectory)
+    await viewModel.select(item)
+    try await viewModel.saveTextPreview("<h1>Saved</h1>", for: item)
+
+    let savedText = await resourceManager.savedText(for: item.id)
+    #expect(savedText == "<h1>Saved</h1>")
+    #expect(viewModel.selectedPreview?.content == .text("<h1>Saved</h1>"))
+  }
+
   private func makeProject(name: String, path: String) -> EaselDesignProject {
     EaselDesignProject(
       id: UUID(),
@@ -136,6 +164,7 @@ private actor StubProjectResourceManager: ProjectResourceManaging {
   private var projectStructureByProject: [String: [ProjectStructureSection]]
   private let importedResources: [ProjectResource]
   private let previewsByItemID: [String: ProjectResourcePreview]
+  private var savedTextsByItemID: [String: String] = [:]
 
   init(
     resourcesByProject: [String: [ProjectResource]],
@@ -161,8 +190,17 @@ private actor StubProjectResourceManager: ProjectResourceManaging {
     previewsByItemID[item.id] ?? ProjectResourcePreview(itemID: item.id, content: .visual)
   }
 
+  func saveText(_ text: String, for item: ProjectResourcePanelItem) async throws -> ProjectResourcePreview {
+    savedTextsByItemID[item.id] = text
+    return ProjectResourcePreview(itemID: item.id, content: .text(text))
+  }
+
   func importResources(from sourceURLs: [URL], intoProjectAt projectPath: String) async throws -> [ProjectResource] {
     resourcesByProject[projectPath] = importedResources
     return importedResources
+  }
+
+  func savedText(for itemID: String) -> String? {
+    savedTextsByItemID[itemID]
   }
 }

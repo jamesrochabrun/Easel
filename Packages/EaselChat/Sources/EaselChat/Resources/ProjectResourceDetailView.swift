@@ -11,6 +11,7 @@ struct ProjectResourceDetailView: View {
   let isLoading: Bool
   let onOpen: (ProjectResourcePanelItem) -> Void
   let onReveal: (ProjectResourcePanelItem) -> Void
+  let onSaveText: (ProjectResourcePanelItem, String) async throws -> Void
   let onClose: () -> Void
 
   var body: some View {
@@ -35,7 +36,8 @@ struct ProjectResourceDetailView: View {
           ProjectResourcePreviewContentView(
             item: item,
             preview: preview,
-            isLoading: isLoading
+            isLoading: isLoading,
+            onSaveText: onSaveText
           )
         }
       } else {

@@ -137,6 +137,7 @@ public struct ProjectResourcesView: View {
         onSelect: selectItem,
         onOpen: openItem,
         onReveal: revealItem,
+        onSaveText: saveText,
         onClose: viewModel.clearSelection
       )
     }
@@ -154,6 +155,10 @@ public struct ProjectResourcesView: View {
 
   private func revealItem(_ item: ProjectResourcePanelItem) {
     openURL(item.fileURL.deletingLastPathComponent())
+  }
+
+  private func saveText(_ item: ProjectResourcePanelItem, _ text: String) async throws {
+    try await viewModel.saveTextPreview(text, for: item)
   }
 
   private func observeResourceDirectoryChanges() async {

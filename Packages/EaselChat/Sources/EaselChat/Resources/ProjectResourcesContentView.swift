@@ -14,6 +14,7 @@ struct ProjectResourcesContentView: View {
   let onSelect: (ProjectResourcePanelItem) -> Void
   let onOpen: (ProjectResourcePanelItem) -> Void
   let onReveal: (ProjectResourcePanelItem) -> Void
+  let onSaveText: (ProjectResourcePanelItem, String) async throws -> Void
   let onClose: () -> Void
 
   var body: some View {
@@ -25,6 +26,7 @@ struct ProjectResourcesContentView: View {
           isLoading: isPreviewLoading,
           onOpen: onOpen,
           onReveal: onReveal,
+          onSaveText: onSaveText,
           onClose: onClose
         )
         .transition(detailTransition)
