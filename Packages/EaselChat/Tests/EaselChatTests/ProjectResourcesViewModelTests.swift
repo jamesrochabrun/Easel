@@ -15,10 +15,13 @@ struct ProjectResourcesViewModelTests {
     let firstProject = makeProject(name: "First", path: "/tmp/first")
     let secondProject = makeProject(name: "Second", path: "/tmp/second")
     let resource = makeResource(projectPath: secondProject.workingDirectory, fileName: "hero.png")
+    let page = makeProjectStructureItem(projectPath: secondProject.workingDirectory, fileName: "index.html")
     let viewModel = ProjectResourcesViewModel(
       projectManager: StubProjectManager(projects: [firstProject, secondProject]),
       resourceManager: StubProjectResourceManager(resourcesByProject: [
         secondProject.workingDirectory: [resource]
+      ], projectStructureByProject: [
+        secondProject.workingDirectory: [ProjectStructureSection(role: .pages, items: [page])]
       ])
     )
 
@@ -26,6 +29,7 @@ struct ProjectResourcesViewModelTests {
 
     #expect(viewModel.selectedProjectPath == secondProject.workingDirectory)
     #expect(viewModel.resources == [resource])
+    #expect(viewModel.projectStructureSections == [ProjectStructureSection(role: .pages, items: [page])])
   }
 
   @Test
@@ -46,6 +50,28 @@ struct ProjectResourcesViewModelTests {
 
     #expect(viewModel.selectedProjectPath == project.workingDirectory)
     #expect(viewModel.resources == [importedResource])
+  }
+
+  @Test
+  func selectResourceLoadsPreview() async {
+    let project = makeProject(name: "Project", path: "/tmp/project")
+    let resource = makeResource(projectPath: project.workingDirectory, fileName: "notes.txt")
+    let item = ProjectResourcePanelItem.resource(resource)
+    let preview = ProjectResourcePreview(itemID: item.id, content: .text("Preview body"))
+    let viewModel = ProjectResourcesViewModel(
+      projectManager: StubProjectManager(projects: [project]),
+      resourceManager: StubProjectResourceManager(
+        resourcesByProject: [project.workingDirectory: [resource]],
+        previewsByItemID: [item.id: preview]
+      )
+    )
+
+    await viewModel.refresh(currentProjectPath: project.workingDirectory)
+    await viewModel.select(item)
+
+    #expect(viewModel.selectedItem == item)
+    #expect(viewModel.selectedPreview == preview)
+    #expect(viewModel.isPreviewLoading == false)
   }
 
   private func makeProject(name: String, path: String) -> EaselDesignProject {
@@ -72,6 +98,19 @@ struct ProjectResourcesViewModelTests {
       modifiedAt: Date()
     )
   }
+
+  private func makeProjectStructureItem(projectPath: String, fileName: String) -> ProjectStructureItem {
+    ProjectStructureItem(
+      projectPath: projectPath,
+      fileName: fileName,
+      relativePath: fileName,
+      fileURL: URL(fileURLWithPath: "\(projectPath)/\(fileName)"),
+      kind: .document,
+      role: fileName.hasSuffix(".html") ? .pages : .documents,
+      byteCount: 256,
+      modifiedAt: Date()
+    )
+  }
 }
 
 private actor StubProjectManager: EaselProjectManaging {
@@ -94,18 +133,32 @@ private actor StubProjectManager: EaselProjectManaging {
 
 private actor StubProjectResourceManager: ProjectResourceManaging {
   private var resourcesByProject: [String: [ProjectResource]]
+  private var projectStructureByProject: [String: [ProjectStructureSection]]
   private let importedResources: [ProjectResource]
+  private let previewsByItemID: [String: ProjectResourcePreview]
 
   init(
     resourcesByProject: [String: [ProjectResource]],
-    importedResources: [ProjectResource] = []
+    projectStructureByProject: [String: [ProjectStructureSection]] = [:],
+    importedResources: [ProjectResource] = [],
+    previewsByItemID: [String: ProjectResourcePreview] = [:]
   ) {
     self.resourcesByProject = resourcesByProject
+    self.projectStructureByProject = projectStructureByProject
     self.importedResources = importedResources
+    self.previewsByItemID = previewsByItemID
   }
 
   func loadResources(forProjectAt projectPath: String) async throws -> [ProjectResource] {
     resourcesByProject[projectPath] ?? []
+  }
+
+  func loadProjectStructure(forProjectAt projectPath: String) async throws -> [ProjectStructureSection] {
+    projectStructureByProject[projectPath] ?? []
+  }
+
+  func loadPreview(for item: ProjectResourcePanelItem) async throws -> ProjectResourcePreview {
+    previewsByItemID[item.id] ?? ProjectResourcePreview(itemID: item.id, content: .visual)
   }
 
   func importResources(from sourceURLs: [URL], intoProjectAt projectPath: String) async throws -> [ProjectResource] {

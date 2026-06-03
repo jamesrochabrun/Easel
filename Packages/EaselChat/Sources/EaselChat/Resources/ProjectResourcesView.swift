@@ -14,10 +14,6 @@ public struct ProjectResourcesView: View {
 
   @State private var isImporterPresented = false
 
-  private let columns = [
-    GridItem(.adaptive(minimum: 168, maximum: 220), spacing: 12)
-  ]
-
   public init(
     viewModel: ProjectResourcesViewModel,
     currentProjectPath: String?
@@ -69,26 +65,6 @@ public struct ProjectResourcesView: View {
 
   private var controls: some View {
     HStack(spacing: 10) {
-      if viewModel.projects.isEmpty {
-        Text("No projects")
-          .font(.callout)
-          .foregroundStyle(.secondary)
-      } else {
-        Picker("Project", selection: $viewModel.selectedProjectPath) {
-          ForEach(viewModel.projects) { project in
-            Text(project.name)
-              .tag(Optional(project.workingDirectory))
-          }
-        }
-        .pickerStyle(.menu)
-        .frame(minWidth: 220, maxWidth: 320, alignment: .leading)
-        .onChange(of: viewModel.selectedProjectPath) {
-          Task {
-            await viewModel.loadResourcesForSelection()
-          }
-        }
-      }
-
       if let selectedProject = viewModel.selectedProject {
         Label(selectedProject.kind.displayName, systemImage: selectedProject.kind.systemImage)
           .font(.caption.weight(.medium))
@@ -96,6 +72,10 @@ public struct ProjectResourcesView: View {
           .padding(.horizontal, 8)
           .padding(.vertical, 5)
           .background(.thinMaterial, in: Capsule())
+      } else {
+        Text("No active project")
+          .font(.callout)
+          .foregroundStyle(.secondary)
       }
 
       Spacer()
@@ -110,14 +90,14 @@ public struct ProjectResourcesView: View {
       }
       .buttonStyle(.plain)
       .foregroundStyle(.secondary)
-      .help("Refresh resources")
+      .help("Refresh design files")
       .disabled(viewModel.isLoading || viewModel.isImporting)
 
       Button {
         isImporterPresented = true
       } label: {
         Label(
-          viewModel.isImporting ? "Adding" : "Add Resources",
+          viewModel.isImporting ? "Adding" : "Add Design Files",
           systemImage: viewModel.isImporting ? "hourglass" : "plus"
         )
       }
@@ -133,7 +113,7 @@ public struct ProjectResourcesView: View {
   @ViewBuilder
   private var content: some View {
     if viewModel.isLoading {
-      ProgressView("Loading resources...")
+      ProgressView("Loading design files...")
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     } else if viewModel.projects.isEmpty {
       ProjectResourcesEmptyState(
@@ -141,24 +121,39 @@ public struct ProjectResourcesView: View {
         title: "No projects yet",
         message: "Create or open a project before adding resources."
       )
-    } else if viewModel.resources.isEmpty {
+    } else if !viewModel.hasProjectFiles {
       ProjectResourcesEmptyState(
-        systemImage: "photo.on.rectangle.angled",
-        title: "No resources",
-        message: "Add images, documents, PDFs, and other project assets here."
+        systemImage: "doc.badge.plus",
+        title: "No design files",
+        message: "This project does not contain imported resources or generated files yet."
       )
     } else {
-      ScrollView {
-        LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
-          ForEach(viewModel.resources) { resource in
-            ProjectResourceCard(resource: resource) {
-              openURL(resource.fileURL)
-            }
-          }
-        }
-        .padding(16)
-      }
+      ProjectResourcesContentView(
+        resources: viewModel.resources,
+        projectStructureSections: viewModel.projectStructureSections,
+        selectedItem: viewModel.selectedItem,
+        selectedPreview: viewModel.selectedPreview,
+        isPreviewLoading: viewModel.isPreviewLoading,
+        onSelect: selectItem,
+        onOpen: openItem,
+        onReveal: revealItem,
+        onClose: viewModel.clearSelection
+      )
     }
+  }
+
+  private func selectItem(_ item: ProjectResourcePanelItem) {
+    Task {
+      await viewModel.select(item)
+    }
+  }
+
+  private func openItem(_ item: ProjectResourcePanelItem) {
+    openURL(item.fileURL)
+  }
+
+  private func revealItem(_ item: ProjectResourcePanelItem) {
+    openURL(item.fileURL.deletingLastPathComponent())
   }
 
   private func observeResourceDirectoryChanges() async {

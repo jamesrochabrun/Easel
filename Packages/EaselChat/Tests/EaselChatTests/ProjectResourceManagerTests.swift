@@ -104,8 +104,74 @@ struct ProjectResourceManagerTests {
     }
   }
 
+  @Test
+  func loadProjectStructureGroupsGeneratedFilesAndSkipsManagedResources() async throws {
+    let rootDirectory = temporaryRoot(named: "ProjectResourceStructureTests")
+    defer {
+      try? FileManager.default.removeItem(at: rootDirectory)
+    }
+
+    let projectManager = LocalEaselProjectManager(rootDirectory: rootDirectory)
+    let project = try await projectManager.createProject(from: EaselProjectCreateRequest(
+      name: "Project Structure",
+      kind: .prototype,
+      designSystem: .apple,
+      fidelity: .highFidelity
+    ))
+    let projectURL = URL(fileURLWithPath: project.workingDirectory)
+    try write("html", to: projectURL.appendingPathComponent("index.html"))
+    try write("console.log('stage')", to: projectURL.appendingPathComponent("deck-stage.js"))
+    try FileManager.default.createDirectory(
+      at: projectURL.appendingPathComponent("styles", isDirectory: true),
+      withIntermediateDirectories: true
+    )
+    try write("body {}", to: projectURL.appendingPathComponent("styles/site.css"))
+    try write("managed asset", to: projectURL.appendingPathComponent("resources/hero.png"))
+
+    let manager = LocalProjectResourceManager()
+    let sections = try await manager.loadProjectStructure(forProjectAt: project.workingDirectory)
+    let pages = sections.first { $0.role == .pages }?.items.map(\.relativePath) ?? []
+    let scripts = sections.first { $0.role == .scripts }?.items.map(\.relativePath) ?? []
+    let styles = sections.first { $0.role == .styles }?.items.map(\.relativePath) ?? []
+    let allPaths = sections.flatMap(\.items).map(\.relativePath)
+
+    #expect(pages == ["index.html"])
+    #expect(scripts == ["deck-stage.js"])
+    #expect(styles == ["styles/site.css"])
+    #expect(allPaths.contains("resources/hero.png") == false)
+  }
+
+  @Test
+  func loadPreviewReturnsTextForTextFiles() async throws {
+    let rootDirectory = temporaryRoot(named: "ProjectResourcePreviewTests")
+    defer {
+      try? FileManager.default.removeItem(at: rootDirectory)
+    }
+
+    let projectManager = LocalEaselProjectManager(rootDirectory: rootDirectory)
+    let project = try await projectManager.createProject(from: EaselProjectCreateRequest(
+      name: "Preview Text",
+      kind: .prototype,
+      designSystem: .none,
+      fidelity: .wireframe
+    ))
+    let projectURL = URL(fileURLWithPath: project.workingDirectory)
+    try write("const title = 'Easel'", to: projectURL.appendingPathComponent("app.js"))
+
+    let manager = LocalProjectResourceManager()
+    let sections = try await manager.loadProjectStructure(forProjectAt: project.workingDirectory)
+    let script = try #require(sections.first { $0.role == .scripts }?.items.first)
+    let preview = try await manager.loadPreview(for: .projectFile(script))
+
+    #expect(preview.content == .text("const title = 'Easel'"))
+  }
+
   private func temporaryRoot(named name: String) -> URL {
     FileManager.default.temporaryDirectory
       .appendingPathComponent("\(name)-\(UUID().uuidString)", isDirectory: true)
+  }
+
+  private func write(_ string: String, to url: URL) throws {
+    try string.data(using: .utf8)?.write(to: url)
   }
 }

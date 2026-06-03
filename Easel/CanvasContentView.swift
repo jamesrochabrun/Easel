@@ -342,7 +342,7 @@ private enum CanvasSurface: String, CaseIterable, Identifiable {
     case .canvas:
       return "Canvas"
     case .resources:
-      return "Resources"
+      return "Design Files"
     }
   }
 
