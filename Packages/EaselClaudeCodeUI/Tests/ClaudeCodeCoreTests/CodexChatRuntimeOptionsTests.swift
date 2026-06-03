@@ -22,6 +22,38 @@ final class CodexChatRuntimeOptionsTests: XCTestCase {
   }
 
   @MainActor
+  func testDeveloperInstructionsArePassedAsCodexConfigOverride() {
+    let options = CodexChatRuntime.makeOptions(
+      isFirstTurn: true,
+      currentSessionId: nil,
+      workingDirectory: "/tmp/easel",
+      developerInstructions: "You are a frontend designer-agent.\nAlways update the embedded preview.",
+      configOverrides: [:]
+    )
+
+    XCTAssertEqual(
+      options.configOverrides["developer_instructions"],
+      "\"You are a frontend designer-agent.\\nAlways update the embedded preview.\""
+    )
+  }
+
+  @MainActor
+  func testDeveloperInstructionsAreEscapedAsTomlString() {
+    let options = CodexChatRuntime.makeOptions(
+      isFirstTurn: true,
+      currentSessionId: nil,
+      workingDirectory: "/tmp/easel",
+      developerInstructions: "line \"one\"\nline two",
+      configOverrides: [:]
+    )
+
+    XCTAssertEqual(
+      options.configOverrides["developer_instructions"],
+      #""line \"one\"\nline two""#
+    )
+  }
+
+  @MainActor
   func testResumeBySessionSkipsGitRepoCheck() {
     let options = CodexChatRuntime.makeOptions(
       isFirstTurn: false,
