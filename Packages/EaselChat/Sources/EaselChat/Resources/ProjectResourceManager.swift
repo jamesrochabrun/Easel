@@ -8,6 +8,8 @@ import UniformTypeIdentifiers
 
 public protocol ProjectResourceManaging: Sendable {
   func loadResources(forProjectAt projectPath: String) async throws -> [ProjectResource]
+  func loadProjectStructure(forProjectAt projectPath: String) async throws -> [ProjectStructureSection]
+  func loadPreview(for item: ProjectResourcePanelItem) async throws -> ProjectResourcePreview
   func importResources(from sourceURLs: [URL], intoProjectAt projectPath: String) async throws -> [ProjectResource]
 }
 
@@ -26,6 +28,22 @@ public enum ProjectResourceError: LocalizedError, Equatable, Sendable {
 }
 
 public actor LocalProjectResourceManager: ProjectResourceManaging {
+  private static let skippedProjectDirectoryNames: Set<String> = [
+    ".git", ".svn", ".build", "DerivedData", "node_modules",
+    ".next", ".nuxt", "dist", "build", "coverage", ".cache",
+    ".easel", ProjectResource.resourcesDirectoryName
+  ]
+
+  private static let textPreviewExtensions: Set<String> = [
+    "c", "cc", "cpp", "cs", "css", "csv", "go", "h", "hpp",
+    "htm", "html", "java", "js", "json", "jsx", "kt", "less",
+    "log", "m", "md", "markdown", "mm", "php", "plist", "py",
+    "rb", "rs", "sass", "scss", "sh", "swift", "toml", "ts",
+    "tsx", "tsv", "txt", "xml", "yaml", "yml"
+  ]
+
+  private static let maxTextPreviewByteCount: Int64 = 500_000
+
   private let fileManager: FileManager
   private let encoder: JSONEncoder
   private let decoder: JSONDecoder
@@ -51,11 +69,7 @@ public actor LocalProjectResourceManager: ProjectResourceManaging {
       return []
     }
 
-    let resourceURLs = try fileManager.contentsOfDirectory(
-      at: resourcesURL,
-      includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey, .isDirectoryKey],
-      options: [.skipsHiddenFiles]
-    )
+    let resourceURLs = files(in: resourcesURL)
 
     return resourceURLs.compactMap { url in
       resource(from: url, projectURL: projectURL)
@@ -72,6 +86,64 @@ public actor LocalProjectResourceManager: ProjectResourceManaging {
         return lhs.fileName.localizedCaseInsensitiveCompare(rhs.fileName) == .orderedAscending
       }
     }
+  }
+
+  public func loadProjectStructure(forProjectAt projectPath: String) async throws -> [ProjectStructureSection] {
+    let projectURL = try validatedProjectURL(for: projectPath)
+    let projectFiles = files(
+      in: projectURL,
+      skippingDirectoryNames: Self.skippedProjectDirectoryNames
+    )
+
+    let items = projectFiles.compactMap { url in
+      projectStructureItem(from: url, projectURL: projectURL)
+    }
+    let groupedItems = Dictionary(grouping: items, by: \.role)
+
+    return ProjectStructureRole.allCases.compactMap { role in
+      guard let items = groupedItems[role], !items.isEmpty else {
+        return nil
+      }
+
+      return ProjectStructureSection(
+        role: role,
+        items: items.sorted { lhs, rhs in
+          lhs.relativePath.localizedCaseInsensitiveCompare(rhs.relativePath) == .orderedAscending
+        }
+      )
+    }
+  }
+
+  public func loadPreview(for item: ProjectResourcePanelItem) async throws -> ProjectResourcePreview {
+    guard fileManager.fileExists(atPath: item.fileURL.path) else {
+      return ProjectResourcePreview(
+        itemID: item.id,
+        content: .unavailable("The selected file could not be found.")
+      )
+    }
+
+    guard isTextPreviewCandidate(item.fileURL) else {
+      return ProjectResourcePreview(itemID: item.id, content: .visual)
+    }
+
+    if item.byteCount > Self.maxTextPreviewByteCount {
+      return ProjectResourcePreview(
+        itemID: item.id,
+        content: .unavailable("This text file is too large to preview inline.")
+      )
+    }
+
+    let data = try Data(contentsOf: item.fileURL)
+    if let text = String(data: data, encoding: .utf8)
+      ?? String(data: data, encoding: .utf16)
+      ?? String(data: data, encoding: .ascii) {
+      return ProjectResourcePreview(itemID: item.id, content: .text(text))
+    }
+
+    return ProjectResourcePreview(
+      itemID: item.id,
+      content: .unavailable("This file is not stored as readable text.")
+    )
   }
 
   public func importResources(from sourceURLs: [URL], intoProjectAt projectPath: String) async throws -> [ProjectResource] {
@@ -131,6 +203,34 @@ public actor LocalProjectResourceManager: ProjectResourceManaging {
     return values?.isDirectory != true
   }
 
+  private func files(
+    in directoryURL: URL,
+    skippingDirectoryNames skippedDirectoryNames: Set<String> = []
+  ) -> [URL] {
+    guard let enumerator = fileManager.enumerator(
+      at: directoryURL,
+      includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey, .isDirectoryKey],
+      options: [.skipsHiddenFiles]
+    ) else {
+      return []
+    }
+
+    var urls: [URL] = []
+    while let url = enumerator.nextObject() as? URL {
+      let values = try? url.resourceValues(forKeys: [.isDirectoryKey])
+      if values?.isDirectory == true {
+        if skippedDirectoryNames.contains(url.lastPathComponent) {
+          enumerator.skipDescendants()
+        }
+        continue
+      }
+
+      urls.append(url)
+    }
+
+    return urls
+  }
+
   private func resource(from url: URL, projectURL: URL) -> ProjectResource? {
     let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey, .isDirectoryKey])
     guard values?.isDirectory != true else {
@@ -141,7 +241,7 @@ public actor LocalProjectResourceManager: ProjectResourceManaging {
     return ProjectResource(
       projectPath: projectURL.path,
       fileName: fileName,
-      relativePath: "\(ProjectResource.resourcesDirectoryName)/\(fileName)",
+      relativePath: relativePath(for: url, relativeTo: projectURL),
       fileURL: url,
       kind: kind(for: url),
       byteCount: Int64(values?.fileSize ?? 0),
@@ -149,8 +249,32 @@ public actor LocalProjectResourceManager: ProjectResourceManaging {
     )
   }
 
+  private func projectStructureItem(from url: URL, projectURL: URL) -> ProjectStructureItem? {
+    let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey, .isDirectoryKey])
+    guard values?.isDirectory != true else {
+      return nil
+    }
+
+    let fileName = url.lastPathComponent
+    let kind = kind(for: url)
+    return ProjectStructureItem(
+      projectPath: projectURL.path,
+      fileName: fileName,
+      relativePath: relativePath(for: url, relativeTo: projectURL),
+      fileURL: url,
+      kind: kind,
+      role: role(for: url, kind: kind),
+      byteCount: Int64(values?.fileSize ?? 0),
+      modifiedAt: values?.contentModificationDate
+    )
+  }
+
   private func kind(for url: URL) -> ProjectResource.Kind {
-    let pathExtension = url.pathExtension
+    let pathExtension = url.pathExtension.lowercased()
+    if Self.textPreviewExtensions.contains(pathExtension) {
+      return .document
+    }
+
     guard !pathExtension.isEmpty, let type = UTType(filenameExtension: pathExtension) else {
       return .other
     }
@@ -170,6 +294,55 @@ public actor LocalProjectResourceManager: ProjectResourceManaging {
     } else {
       return .other
     }
+  }
+
+  private func role(for url: URL, kind: ProjectResource.Kind) -> ProjectStructureRole {
+    switch url.pathExtension.lowercased() {
+    case "html", "htm":
+      return .pages
+    case "js", "jsx", "mjs", "cjs", "ts", "tsx":
+      return .scripts
+    case "css", "scss", "sass", "less":
+      return .styles
+    case "json", "plist", "yaml", "yml", "toml", "xml", "csv", "tsv":
+      return .data
+    default:
+      switch kind {
+      case .image, .video, .audio:
+        return .assets
+      case .pdf, .document:
+        return .documents
+      case .archive, .other:
+        return .other
+      }
+    }
+  }
+
+  private func isTextPreviewCandidate(_ url: URL) -> Bool {
+    let pathExtension = url.pathExtension.lowercased()
+    if Self.textPreviewExtensions.contains(pathExtension) {
+      return true
+    }
+
+    guard let type = UTType(filenameExtension: pathExtension) else {
+      return false
+    }
+
+    return type.conforms(to: .text)
+      || type.conforms(to: .plainText)
+      || type.conforms(to: .rtf)
+  }
+
+  private func relativePath(for fileURL: URL, relativeTo rootURL: URL) -> String {
+    let resolvedFilePath = fileURL.standardizedFileURL.resolvingSymlinksInPath().path
+    let resolvedRootPath = rootURL.standardizedFileURL.resolvingSymlinksInPath().path
+    let rootPrefix = resolvedRootPath + "/"
+
+    guard resolvedFilePath.hasPrefix(rootPrefix) else {
+      return fileURL.lastPathComponent
+    }
+
+    return String(resolvedFilePath.dropFirst(rootPrefix.count))
   }
 
   private func sanitizedFileName(_ name: String) -> String {

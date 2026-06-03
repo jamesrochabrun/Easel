@@ -9,8 +9,12 @@ import Foundation
 public final class ProjectResourcesViewModel {
   public private(set) var projects: [EaselDesignProject] = []
   public private(set) var resources: [ProjectResource] = []
+  public private(set) var projectStructureSections: [ProjectStructureSection] = []
+  public private(set) var selectedItem: ProjectResourcePanelItem?
+  public private(set) var selectedPreview: ProjectResourcePreview?
   public private(set) var isLoading = false
   public private(set) var isImporting = false
+  public private(set) var isPreviewLoading = false
   public private(set) var errorMessage: String?
   public var selectedProjectPath: String?
 
@@ -30,6 +34,10 @@ public final class ProjectResourcesViewModel {
     return projects.first { $0.workingDirectory == selectedProjectPath }
   }
 
+  public var hasProjectFiles: Bool {
+    !resources.isEmpty || projectStructureSections.contains { !$0.items.isEmpty }
+  }
+
   public func refresh(currentProjectPath: String? = nil) async {
     isLoading = true
     defer { isLoading = false }
@@ -47,6 +55,9 @@ public final class ProjectResourcesViewModel {
     } catch {
       projects = []
       resources = []
+      projectStructureSections = []
+      selectedItem = nil
+      selectedPreview = nil
       selectedProjectPath = nil
       errorMessage = error.localizedDescription
     }
@@ -58,6 +69,9 @@ public final class ProjectResourcesViewModel {
       errorMessage = nil
     } catch {
       resources = []
+      projectStructureSections = []
+      selectedItem = nil
+      selectedPreview = nil
       errorMessage = error.localizedDescription
     }
   }
@@ -73,6 +87,8 @@ public final class ProjectResourcesViewModel {
         from: sourceURLs,
         intoProjectAt: selectedProjectPath
       )
+      projectStructureSections = try await resourceManager.loadProjectStructure(forProjectAt: selectedProjectPath)
+      reconcileSelection()
       let loadedProjects = try await projectManager.loadProjects()
       projects = loadedProjects
       self.selectedProjectPath = loadedProjects.first { $0.workingDirectory == selectedProjectPath }?.workingDirectory
@@ -87,13 +103,63 @@ public final class ProjectResourcesViewModel {
     errorMessage = error.localizedDescription
   }
 
+  public func select(_ item: ProjectResourcePanelItem) async {
+    selectedItem = item
+    selectedPreview = nil
+    isPreviewLoading = true
+
+    do {
+      let preview = try await resourceManager.loadPreview(for: item)
+      guard selectedItem?.id == item.id else { return }
+
+      selectedPreview = preview
+      isPreviewLoading = false
+    } catch {
+      guard selectedItem?.id == item.id else { return }
+
+      selectedPreview = ProjectResourcePreview(
+        itemID: item.id,
+        content: .unavailable(error.localizedDescription)
+      )
+      isPreviewLoading = false
+    }
+  }
+
+  public func clearSelection() {
+    selectedItem = nil
+    selectedPreview = nil
+    isPreviewLoading = false
+  }
+
   private func loadResourcesForSelectedProject() async throws {
     guard let selectedProjectPath else {
       resources = []
+      projectStructureSections = []
+      selectedItem = nil
+      selectedPreview = nil
       return
     }
 
-    resources = try await resourceManager.loadResources(forProjectAt: selectedProjectPath)
+    async let loadedResources = resourceManager.loadResources(forProjectAt: selectedProjectPath)
+    async let loadedProjectStructure = resourceManager.loadProjectStructure(forProjectAt: selectedProjectPath)
+    let (resources, projectStructureSections) = try await (loadedResources, loadedProjectStructure)
+
+    self.resources = resources
+    self.projectStructureSections = projectStructureSections
+    reconcileSelection()
+  }
+
+  private func reconcileSelection() {
+    guard let selectedItem else { return }
+
+    let resourceItems = resources.map(ProjectResourcePanelItem.resource)
+    let projectFileItems = projectStructureSections.flatMap(\.items).map(ProjectResourcePanelItem.projectFile)
+    let itemIDs = Set((resourceItems + projectFileItems).map(\.id))
+    if !itemIDs.contains(selectedItem.id) {
+      self.selectedItem = nil
+      selectedPreview = nil
+      isPreviewLoading = false
+    }
   }
 
   private static func preferredSelection(
