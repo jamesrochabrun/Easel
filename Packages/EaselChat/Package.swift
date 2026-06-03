@@ -21,6 +21,7 @@ let package = Package(
     .package(path: "../EaselKit"),
     .package(path: "../../../ClaudeCodeSDK"),
     .package(path: "../EaselClaudeCodeUI"),
+    .package(url: "https://github.com/appstefan/highlightswift", from: "1.1.0"),
   ],
   targets: [
     .target(
@@ -36,6 +37,7 @@ let package = Package(
         "EaselKit",
         .product(name: "ClaudeCodeSDK", package: "ClaudeCodeSDK"),
         .product(name: "ClaudeCodeCore", package: "EaselClaudeCodeUI"),
+        .product(name: "HighlightSwift", package: "highlightswift"),
       ],
       swiftSettings: [
         .swiftLanguageMode(.v5)
@@ -57,6 +59,7 @@ let package = Package(
         "EaselDesignSystems",
         "EaselKit",
         .product(name: "ClaudeCodeCore", package: "EaselClaudeCodeUI"),
+        .product(name: "HighlightSwift", package: "highlightswift"),
       ],
       swiftSettings: [
         .swiftLanguageMode(.v5)
