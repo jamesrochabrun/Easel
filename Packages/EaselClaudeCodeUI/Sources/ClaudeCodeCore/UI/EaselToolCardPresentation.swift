@@ -347,7 +347,30 @@ struct EaselToolCardPresentation: Equatable {
   private static func bashTitle(for command: String?) -> String {
     let cleaned = cleanedCommand(command)
     guard !cleaned.isEmpty else { return "Checking the project" }
+    if let imageActivity = generatedImageActivity(for: cleaned) {
+      return imageActivity
+    }
     return semanticBashVerb(for: cleaned) ?? programActivity(for: cleaned)
+  }
+
+  /// Codex stores freshly generated images under its own home (`~/.codex/generated_images/…`)
+  /// with opaque `ig_<hash>.png` names. Commands that locate, inspect, or copy those files
+  /// are just the agent handling the image it generated — describe that, never the internal
+  /// path (`.codex`) or hash filename, which mean nothing to the user.
+  private static func generatedImageActivity(for command: String) -> String? {
+    // Codex always saves generated images under a `generated_images/` directory; key on
+    // that exact marker so unrelated `.codex/` paths (skills, config) are not mislabeled.
+    guard command.lowercased().contains("generated_images") else { return nil }
+
+    let program = lastPathComponent(stripShellQuotes(tokenize(primarySegment(of: command)).first ?? ""))
+    switch program {
+    case "cp", "mv", "rsync", "scp", "ditto":
+      return "Saving the generated image"
+    case "find", "fd", "ls", "rg", "grep":
+      return "Locating the generated image"
+    default:
+      return "Checking the generated image"
+    }
   }
 
   /// Recognises confident, high-level intents that read better than a per-program verb.
@@ -402,8 +425,15 @@ struct EaselToolCardPresentation: Equatable {
   private static func programActivity(for command: String) -> String {
     let tokens = tokenize(primarySegment(of: command))
     guard let rawProgram = tokens.first else { return "Checking the project" }
-    let program = lastPathComponent(rawProgram)
+    let program = lastPathComponent(stripShellQuotes(rawProgram))
     let object = fileArgument(in: tokens)
+
+    // An interpreter fed an inline script or heredoc (e.g. `python3 - <<'PY'`) has no
+    // meaningful file argument — describe it generically instead of grabbing a stray
+    // word from the script body (which produced titles like "Running from").
+    if isInterpreter(program), isInlineScriptInvocation(tokens) {
+      return "Running a script"
+    }
 
     switch program {
     case "ls", "tree", "exa", "lsd", "dir":
@@ -414,6 +444,8 @@ struct EaselToolCardPresentation: Equatable {
       return "Searching files"
     case "find", "fd":
       return object.map { "Looking through \($0)" } ?? "Looking through files"
+    case "file", "stat", "wc", "du":
+      return object.map { "Inspecting \($0)" } ?? "Inspecting a file"
     case "mkdir":
       return "Creating a folder"
     case "touch":
@@ -437,8 +469,34 @@ struct EaselToolCardPresentation: Equatable {
     case "node", "deno", "bun", "python", "python3", "ruby", "go", "cargo", "php", "java", "make", "swift":
       return object.map { "Running \($0)" } ?? "Running \(program)"
     default:
-      return "Running \(program)"
+      return runningFallback(for: program)
     }
+  }
+
+  private static func stripShellQuotes(_ value: String) -> String {
+    value.trimmingCharacters(in: CharacterSet(charactersIn: "'\"`"))
+  }
+
+  private static func isInterpreter(_ program: String) -> Bool {
+    ["node", "deno", "bun", "python", "python3", "ruby", "php", "perl", "osascript"].contains(program)
+  }
+
+  /// True when an interpreter is invoked with an inline script rather than a file —
+  /// stdin (`-`), a heredoc (`<<`), or an inline expression flag (`-e`/`-c`).
+  private static func isInlineScriptInvocation(_ tokens: [String]) -> Bool {
+    tokens.dropFirst().contains { token in
+      token == "-" || token.contains("<<") || token == "-e" || token == "-c"
+    }
+  }
+
+  /// Only surface a raw program name when it reads like a real command; otherwise use a
+  /// neutral fallback so shell-parsing artifacts (stray quotes, heredoc words) never leak
+  /// into the headline.
+  private static func runningFallback(for program: String) -> String {
+    let isCleanName = !program.isEmpty && program.allSatisfy {
+      $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" || $0 == "."
+    }
+    return isCleanName ? "Running \(program)" : "Working in the terminal"
   }
 
   private static func gitActivity(for tokens: [String]) -> String {
