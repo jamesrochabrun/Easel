@@ -12,7 +12,6 @@ private let previewLog = Logger(subsystem: "com.easel.chat", category: "PreviewU
 @MainActor
 final class PreviewURLObserver {
   private let extractor: URLExtracting
-  private var lastScannedCount: Int = 0
   private var isObserving = false
 
   init(extractor: URLExtracting = LocalhostURLExtractor()) {
@@ -25,13 +24,12 @@ final class PreviewURLObserver {
   ) {
     guard !isObserving else { return }
     isObserving = true
-    previewLog.info("Started observing for preview URLs")
+    previewLog.debug("Started observing for preview URLs")
     observe(messages: messages, onURLDetected: onURLDetected)
   }
 
   func stopObserving() {
     isObserving = false
-    lastScannedCount = 0
   }
 
   private func observe(
@@ -44,6 +42,8 @@ final class PreviewURLObserver {
       Task { @MainActor [weak self] in
         guard let self, self.isObserving else { return }
         self.scanForURLs(in: messages(), onURLDetected: onURLDetected)
+        // scanForURLs stops observation once a URL is found; don't re-arm in that case.
+        guard self.isObserving else { return }
         self.observe(messages: messages, onURLDetected: onURLDetected)
       }
     }
@@ -52,7 +52,7 @@ final class PreviewURLObserver {
   /// Performs an immediate scan of the given messages for a localhost URL.
   /// Returns the detected URL, or nil if none found.
   func scanExistingMessages(_ messages: [ChatMessage]) -> URL? {
-    previewLog.info("Scanning \(messages.count) messages for preview URL")
+    previewLog.debug("Scanning \(messages.count) messages for preview URL")
     let rescanStart = max(0, messages.count - 5)
     let recentMessages = Array(messages.suffix(from: rescanStart))
 
@@ -67,7 +67,7 @@ final class PreviewURLObserver {
         }
       }
     }
-    previewLog.info("No preview URL found in messages")
+    previewLog.debug("No preview URL found in messages")
     return nil
   }
 
@@ -75,9 +75,9 @@ final class PreviewURLObserver {
     in messages: [ChatMessage],
     onURLDetected: @escaping @MainActor (URL) -> Void
   ) {
-    lastScannedCount = messages.count
-    if let url = scanExistingMessages(messages) {
-      onURLDetected(url)
-    }
+    guard let url = scanExistingMessages(messages) else { return }
+    // One-shot: a preview URL was found, so stop the per-message rescans.
+    stopObserving()
+    onURLDetected(url)
   }
 }

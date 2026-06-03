@@ -92,6 +92,62 @@ final class EaselChatRuntimePresentationTests: XCTestCase {
     }
   }
 
+  func testBashTitleHandlesComplexCommandsWithoutLeakingParseArtifacts() {
+    let cases: [(command: String, title: String)] = [
+      // Inline Python verification scripts must not grab a word from the heredoc body
+      // (previously produced "Running from").
+      ("python3 - <<'PY'\nfrom pathlib import Path\nprint('ok')\nPY", "Running a script"),
+      ("python3 -c \"print(1)\"", "Running a script"),
+      // A quoted program token must be unwrapped (previously produced "Running 'find").
+      ("'find resources -type f -print'", "Looking through resources"),
+      // `file` is a real program but read better as inspection than "Running file".
+      ("file \"$HOME/.codex/x/_image_id_.png\"", "Inspecting _image_id_.png"),
+    ]
+
+    for testCase in cases {
+      let toolUse = ChatMessage(
+        role: .assistant,
+        content: "",
+        messageType: .toolUse,
+        toolName: "Bash",
+        toolInputData: ToolInputData(parameters: ["command": testCase.command])
+      )
+
+      let presentation = EaselToolCardPresentation(toolUse: toolUse, toolResult: nil)
+
+      XCTAssertEqual(presentation.title, testCase.title, "command: \(testCase.command)")
+      XCTAssertFalse(presentation.title.contains("from"), "command: \(testCase.command)")
+      XCTAssertFalse(presentation.title.contains("'"), "command: \(testCase.command)")
+    }
+  }
+
+  func testBashTitleDescribesCodexGeneratedImageHandlingWithoutLeakingInternals() {
+    let cases: [(command: String, title: String)] = [
+      // Locating the generated image inside Codex's private home (was "Looking through .codex").
+      ("find \"$HOME/.codex\" -path '*generated_images*' -type f -mmin -10 -print", "Locating the generated image"),
+      // Inspecting the opaque temp file (was "Inspecting ig_0f31a90af…").
+      ("file /Users/test/.codex/generated_images/019e/ig_0f31a90af2b6ed46.png", "Checking the generated image"),
+      // Copying it into the project should read as saving the image, not "Copying files".
+      ("cp /Users/test/.codex/generated_images/019e/ig_abc.png resources/hero.png", "Saving the generated image"),
+    ]
+
+    for testCase in cases {
+      let toolUse = ChatMessage(
+        role: .assistant,
+        content: "",
+        messageType: .toolUse,
+        toolName: "Bash",
+        toolInputData: ToolInputData(parameters: ["command": testCase.command])
+      )
+
+      let presentation = EaselToolCardPresentation(toolUse: toolUse, toolResult: nil)
+
+      XCTAssertEqual(presentation.title, testCase.title, "command: \(testCase.command)")
+      XCTAssertFalse(presentation.title.contains(".codex"), "command: \(testCase.command)")
+      XCTAssertFalse(presentation.title.contains("ig_"), "command: \(testCase.command)")
+    }
+  }
+
   func testEmptyCodexCommandIsNotDisplayable() {
     // No-op executions (empty script) must be filtered out, not shown as "Running a command".
     XCTAssertFalse(CodexMessageMapper.isDisplayableCommand("/bin/zsh -lc ''"))

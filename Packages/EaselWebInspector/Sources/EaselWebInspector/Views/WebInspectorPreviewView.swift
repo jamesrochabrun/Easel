@@ -115,6 +115,7 @@ public struct WebInspectorPreviewView: View {
   @State private var autoReloadToken = UUID()
   @State private var queueSendFailureMessage: String?
   @State private var isLoading = false
+  @State private var isShowingBuildPlaceholder = false
   @Environment(\.colorScheme) private var colorScheme
 
   private static let consoleMessageName = "easelConsole"
@@ -385,9 +386,41 @@ public struct WebInspectorPreviewView: View {
         isFileURL: false,
         reloadToken: scrollRestorationCoordinator.effectiveReloadToken
       )
+      .overlay {
+        if isShowingBuildPlaceholder {
+          buildPlaceholderView
+        }
+      }
     } else {
       placeholderView
     }
+  }
+
+  /// Covers the embedded preview while the dev server is serving a directory listing —
+  /// the transient, unstyled page shown when the agent has deleted `index.html` and is
+  /// still generating its replacement. Keeps the surface on-brand instead of exposing the
+  /// raw autoindex.
+  private var buildPlaceholderView: some View {
+    ZStack {
+      EaselDesignSystem.Palette.surface(for: colorScheme)
+
+      VStack(spacing: 14) {
+        ProgressView()
+          .controlSize(.large)
+
+        Text("Building your project…")
+          .font(.system(size: 16, weight: .medium))
+          .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
+
+        Text("Your preview updates the moment it's ready.")
+          .font(.system(size: 13))
+          .foregroundStyle(EaselDesignSystem.Palette.tertiaryText(for: colorScheme))
+      }
+      .accessibilityElement(children: .combine)
+      .accessibilityLabel("Building your project. Your preview updates the moment it's ready.")
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .transition(.opacity)
   }
 
   private var placeholderView: some View {
@@ -819,7 +852,19 @@ public struct WebInspectorPreviewView: View {
     handleOverlayReloadingState(loading)
 
     guard !loading else { return }
+    updateBuildPlaceholderVisibility()
     installConsoleHookIfReady()
+  }
+
+  /// After a load settles, show the branded placeholder when the dev server returned a
+  /// directory listing (no index document yet) and hide it once a real page loads. Left
+  /// untouched while a load is in flight so the listing never flashes during a reload.
+  private func updateBuildPlaceholderVisibility() {
+    let showsListing = WebPreviewDirectoryListingDetector.isDirectoryListing(title: previewWebView?.title)
+    guard isShowingBuildPlaceholder != showsListing else { return }
+    withAnimation(.easeInOut(duration: 0.2)) {
+      isShowingBuildPlaceholder = showsListing
+    }
   }
 
   private func handleOverlayReloadingState(_ loading: Bool) {
@@ -926,7 +971,7 @@ public struct WebInspectorPreviewView: View {
       guard !Task.isCancelled else { return }
 
       if await observer.hasChangedSinceLastSnapshot() {
-        inspectorLog.info("Detected project file changes; scheduling embedded preview hard reload")
+        inspectorLog.debug("Detected project file changes; scheduling embedded preview hard reload")
         try? await Task.sleep(for: .milliseconds(150))
         _ = await observer.hasChangedSinceLastSnapshot()
         guard !Task.isCancelled else { return }

@@ -96,6 +96,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
         mcpToolsDiscovery: mcpToolsDiscovery,
         logger: logger,
         systemPromptPrefix: EaselAgentInstructions.systemPromptPrefix,
+        codexDeveloperInstructionsPrefix: EaselAgentInstructions.codexDeveloperInstructionsPrefix,
         shouldManageSessions: true,
         onSessionChange: { [weak self] newSessionId in
           Task { @MainActor in
@@ -230,6 +231,9 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
     chatLog.info("Preview URL set: \(url.absoluteString)")
     previewURL = url
     previewURLSource = .appManaged
+    // The app now owns the preview. Detected URLs from messages are ignored while
+    // app-managed, so stop the message scan loop to avoid pointless per-message rescans.
+    previewURLObserver.stopObserving()
   }
 
   // MARK: - Private

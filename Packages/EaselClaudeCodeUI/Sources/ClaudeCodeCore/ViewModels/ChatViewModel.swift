@@ -55,6 +55,9 @@ public final class ChatViewModel {
   /// Optional system prompt prefix that gets prepended to the additional system prompt
   private let systemPromptPrefix: String?
 
+  /// Optional Codex developer instructions prefix. Falls back to systemPromptPrefix when nil.
+  private let codexDeveloperInstructionsPrefix: String?
+
   private let streamProcessor: StreamProcessor
   private let messageStore = MessageStore()
   @ObservationIgnored private var codexRuntime: CodexChatRuntime?
@@ -376,6 +379,7 @@ EOF
       mcpToolsDiscovery: MCPToolsDiscoveryService(),
       logger: logger,
       systemPromptPrefix: nil,
+      codexDeveloperInstructionsPrefix: nil,
       shouldManageSessions: false,
       onSessionChange: nil,
       onUserMessageSent: nil
@@ -391,6 +395,7 @@ EOF
     mcpToolsDiscovery: MCPToolsDiscoveryService = MCPToolsDiscoveryService(),
     logger: ClaudeCodeLogger = ClaudeCodeLogger(),
     systemPromptPrefix: String? = nil,
+    codexDeveloperInstructionsPrefix: String? = nil,
     shouldManageSessions: Bool = true,
     onSessionChange: ((String) -> Void)? = nil,
     onUserMessageSent: ((String, [TextSelection]?, [FileAttachment]?) -> Void)? = nil)
@@ -403,6 +408,7 @@ EOF
     self.mcpToolsDiscovery = mcpToolsDiscovery
     self.debugLogger = logger
     self.systemPromptPrefix = systemPromptPrefix
+    self.codexDeveloperInstructionsPrefix = codexDeveloperInstructionsPrefix
     self.shouldManageSessions = shouldManageSessions
     self.onSessionChange = onSessionChange
     self.onUserMessageSent = onUserMessageSent
@@ -1221,6 +1227,7 @@ EOF
 
     let runtime = getCodexRuntime()
     runtime.workingDirectory = claudeClient.configuration.workingDirectory
+    runtime.developerInstructions = combinedCodexDeveloperInstructions()
     try await runtime.send(
       prompt: prompt,
       messageId: messageId,
@@ -1245,10 +1252,25 @@ EOF
       messageDisplay: messageStore,
       sessionManager: sessionManager,
       workingDirectory: claudeClient.configuration.workingDirectory,
+      developerInstructions: combinedCodexDeveloperInstructions(),
       onSessionChange: onSessionChange
     )
     codexRuntime = runtime
     return runtime
+  }
+
+  private func combinedCodexDeveloperInstructions() -> String? {
+    let parts = [
+      codexDeveloperInstructionsPrefix ?? systemPromptPrefix,
+      globalPreferences.systemPrompt,
+      globalPreferences.appendSystemPrompt,
+    ]
+      .compactMap { value -> String? in
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed?.isEmpty == false ? trimmed : nil
+      }
+
+    return parts.isEmpty ? nil : parts.joined(separator: "\n\n")
   }
   
   private func continueConversation(sessionId: String, prompt: String, messageId: UUID) async throws {

@@ -53,4 +53,41 @@ struct WebPreviewReloadRequestFactoryTests {
 
     #expect(request.url?.absoluteString == "http://127.0.0.1:4173/?easelReload=00000000-0000-0000-0000-000000000004")
   }
+
+  @Test("Falls back to root when the webview drifted to a static asset")
+  func fallsBackWhenCurrentURLIsAsset() throws {
+    let token = UUID(uuidString: "00000000-0000-0000-0000-000000000005")!
+    let request = WebPreviewReloadRequestFactory.request(
+      currentURL: URL(string: "http://127.0.0.1:4173/resources/rocky-ring-hero.png")!,
+      fallbackURL: URL(string: "http://127.0.0.1:4173/")!,
+      token: token
+    )
+
+    // Reloading the PNG would never show the freshly built page; reload the root instead.
+    #expect(request.url?.absoluteString == "http://127.0.0.1:4173/?easelReload=00000000-0000-0000-0000-000000000005")
+  }
+
+  @Test("Falls back to root when the webview drifted to a directory listing")
+  func fallsBackWhenCurrentURLIsDirectory() throws {
+    let token = UUID(uuidString: "00000000-0000-0000-0000-000000000006")!
+    let request = WebPreviewReloadRequestFactory.request(
+      currentURL: URL(string: "http://127.0.0.1:4173/resources/")!,
+      fallbackURL: URL(string: "http://127.0.0.1:4173/")!,
+      token: token
+    )
+
+    #expect(request.url?.absoluteString == "http://127.0.0.1:4173/?easelReload=00000000-0000-0000-0000-000000000006")
+  }
+
+  @Test("Preserves an HTML document route")
+  func preservesHTMLDocumentRoute() throws {
+    let token = UUID(uuidString: "00000000-0000-0000-0000-000000000007")!
+    let request = WebPreviewReloadRequestFactory.request(
+      currentURL: URL(string: "http://127.0.0.1:4173/about.html")!,
+      fallbackURL: URL(string: "http://127.0.0.1:4173/")!,
+      token: token
+    )
+
+    #expect(request.url?.absoluteString == "http://127.0.0.1:4173/about.html?easelReload=00000000-0000-0000-0000-000000000007")
+  }
 }

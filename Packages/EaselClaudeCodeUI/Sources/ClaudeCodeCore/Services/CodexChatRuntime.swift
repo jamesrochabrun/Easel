@@ -9,6 +9,7 @@ import Foundation
 @MainActor
 final class CodexChatRuntime {
   var workingDirectory: String?
+  var developerInstructions: String?
 
   private let messageDisplay: ChatMessageDisplay
   private let sessionManager: SessionManager
@@ -20,11 +21,13 @@ final class CodexChatRuntime {
     messageDisplay: ChatMessageDisplay,
     sessionManager: SessionManager,
     workingDirectory: String?,
+    developerInstructions: String? = nil,
     onSessionChange: ((String) -> Void)?
   ) {
     self.messageDisplay = messageDisplay
     self.sessionManager = sessionManager
     self.workingDirectory = workingDirectory
+    self.developerInstructions = developerInstructions
     self.onSessionChange = onSessionChange
   }
 
@@ -49,7 +52,8 @@ final class CodexChatRuntime {
     let options = Self.makeOptions(
       isFirstTurn: isFirstTurn,
       currentSessionId: sessionManager.currentSessionId,
-      workingDirectory: workingDirectory
+      workingDirectory: workingDirectory,
+      developerInstructions: developerInstructions
     )
     let client = makeClient()
 
@@ -123,6 +127,7 @@ final class CodexChatRuntime {
     isFirstTurn: Bool,
     currentSessionId: String?,
     workingDirectory: String?,
+    developerInstructions: String? = nil,
     configOverrides: [String: String] = CodexUserConfigCompatibility.compatibleConfigOverrides()
   ) -> CodexExecOptions {
     var options = CodexExecOptions()
@@ -133,6 +138,10 @@ final class CodexChatRuntime {
 
     for (key, value) in configOverrides {
       options.configOverrides[key] = value
+    }
+
+    if let developerInstructions = tomlString(developerInstructions) {
+      options.configOverrides["developer_instructions"] = developerInstructions
     }
 
     if isFirstTurn {
@@ -149,6 +158,21 @@ final class CodexChatRuntime {
     }
 
     return options
+  }
+
+  private static func tomlString(_ value: String?) -> String? {
+    guard let value else { return nil }
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return nil }
+
+    let escaped = trimmed
+      .replacingOccurrences(of: "\\", with: "\\\\")
+      .replacingOccurrences(of: "\"", with: "\\\"")
+      .replacingOccurrences(of: "\n", with: "\\n")
+      .replacingOccurrences(of: "\r", with: "\\r")
+      .replacingOccurrences(of: "\t", with: "\\t")
+
+    return "\"\(escaped)\""
   }
 
   func process(_ event: CodexExecEvent, state: StreamState) {
