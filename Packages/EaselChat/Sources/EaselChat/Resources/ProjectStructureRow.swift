@@ -3,12 +3,15 @@
 //  EaselChat
 //
 
+import EaselKit
 import SwiftUI
 
 struct ProjectStructureRow: View {
   let item: ProjectStructureItem
   let isSelected: Bool
   let onSelect: () -> Void
+
+  @Environment(\.colorScheme) private var colorScheme
 
   var body: some View {
     Button(action: onSelect) {
@@ -48,7 +51,10 @@ struct ProjectStructureRow: View {
       .background(rowBackground, in: RoundedRectangle(cornerRadius: 8))
       .overlay {
         RoundedRectangle(cornerRadius: 8)
-          .stroke(isSelected ? Color.accentColor : .clear, lineWidth: 1)
+          .stroke(
+            isSelected ? EaselDesignSystem.Palette.selectionAccent(for: colorScheme) : .clear,
+            lineWidth: 1
+          )
       }
       .contentShape(RoundedRectangle(cornerRadius: 8))
     }
@@ -58,7 +64,9 @@ struct ProjectStructureRow: View {
   }
 
   private var rowBackground: some ShapeStyle {
-    isSelected ? Color.accentColor.opacity(0.14) : Color.clear
+    isSelected
+      ? EaselDesignSystem.Palette.selectedSurface(for: colorScheme)
+      : Color.clear
   }
 
   private var formattedByteCount: String {

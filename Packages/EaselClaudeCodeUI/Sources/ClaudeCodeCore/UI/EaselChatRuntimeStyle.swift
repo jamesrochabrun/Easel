@@ -111,7 +111,8 @@ enum EaselChatRuntimeStyle {
   }
 
   private static func readableForeground(for background: Color) -> Color {
-    let resolvedBackground = NSColor(background).usingColorSpace(.sRGB) ?? .controlAccentColor
+    let resolvedBackground = NSColor(background).usingColorSpace(.sRGB)
+      ?? NSColor(EaselDesignSystem.Palette.accent)
     let luminance = (
       (0.299 * resolvedBackground.redComponent) +
       (0.587 * resolvedBackground.greenComponent) +

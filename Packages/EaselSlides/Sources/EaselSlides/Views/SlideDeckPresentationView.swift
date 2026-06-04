@@ -3,6 +3,7 @@
 //  EaselSlides
 //
 
+import EaselKit
 import SwiftUI
 
 struct SlideDeckPresentationView: View {
@@ -102,45 +103,49 @@ struct SlideDeckPresentationView: View {
   }
 
   private var presentationControls: some View {
-    HStack(spacing: 8) {
-      Button("Previous Slide", systemImage: "chevron.left") {
+    HStack(spacing: 6) {
+      SlideDeckPresentationIconButton(
+        title: "Previous Slide",
+        systemImage: "chevron.left",
+        isEnabled: canSelectPreviousSlide
+      ) {
         selectPreviousSlide()
       }
-      .labelStyle(.iconOnly)
-      .disabled(!canSelectPreviousSlide)
-      .help("Previous slide")
 
       Text(slideCounterText)
         .font(.caption.weight(.medium))
         .monospacedDigit()
-        .foregroundStyle(.primary)
-        .frame(minWidth: 48)
+        .foregroundStyle(.white.opacity(0.88))
+        .frame(minWidth: SlideDeckPresentationControlMetrics.counterMinWidth)
 
-      Button("Next Slide", systemImage: "chevron.right") {
+      SlideDeckPresentationIconButton(
+        title: "Next Slide",
+        systemImage: "chevron.right",
+        isEnabled: canSelectNextSlide
+      ) {
         selectNextSlide()
       }
-      .labelStyle(.iconOnly)
-      .disabled(!canSelectNextSlide)
-      .help("Next slide")
 
       Divider()
-        .frame(height: 18)
+        .frame(height: SlideDeckPresentationControlMetrics.dividerHeight)
+        .overlay(Color.white.opacity(0.18))
 
-      Button("Exit Presentation", systemImage: "xmark") {
+      SlideDeckPresentationIconButton(
+        title: "Exit Presentation",
+        systemImage: "xmark",
+        isEnabled: true
+      ) {
         onDismiss()
       }
-      .labelStyle(.iconOnly)
-      .help("Exit presentation")
     }
-    .buttonStyle(.borderless)
-    .controlSize(.small)
-    .padding(.horizontal, 10)
-    .padding(.vertical, 7)
-    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+    .padding(.horizontal, 8)
+    .padding(.vertical, 6)
+    .background(Color.black.opacity(0.62), in: RoundedRectangle(cornerRadius: 8))
     .overlay {
       RoundedRectangle(cornerRadius: 8)
         .stroke(Color.white.opacity(0.16), lineWidth: 1)
     }
+    .shadow(color: .black.opacity(0.28), radius: 12, y: 6)
   }
 
   private func presentationErrorView(_ message: String) -> some View {
@@ -217,4 +222,57 @@ struct SlideDeckPresentationView: View {
       onSelectedIndexChange(nextIndex)
     }
   }
+}
+
+private struct SlideDeckPresentationIconButton: View {
+  let title: String
+  let systemImage: String
+  let isEnabled: Bool
+  let action: () -> Void
+
+  @State private var isHovering = false
+
+  var body: some View {
+    Button(action: action) {
+      Image(systemName: systemImage)
+        .font(.system(
+          size: SlideDeckPresentationControlMetrics.iconPointSize,
+          weight: .medium
+        ))
+        .foregroundStyle(iconColor)
+        .frame(
+          width: SlideDeckPresentationControlMetrics.iconButtonSize,
+          height: SlideDeckPresentationControlMetrics.iconButtonSize
+        )
+        .background(
+          buttonBackground,
+          in: RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.control)
+        )
+        .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .disabled(!isEnabled)
+    .help(title)
+    .accessibilityLabel(title)
+    .onHover { isHovering = $0 }
+  }
+
+  private var iconColor: Color {
+    isEnabled ? Color.white.opacity(0.86) : Color.white.opacity(0.28)
+  }
+
+  private var buttonBackground: Color {
+    guard isEnabled, isHovering else {
+      return .clear
+    }
+
+    return Color.white.opacity(0.10)
+  }
+}
+
+enum SlideDeckPresentationControlMetrics {
+  static let iconButtonSize: CGFloat = 32
+  static let iconPointSize: CGFloat = 14
+  static let counterMinWidth: CGFloat = 56
+  static let dividerHeight: CGFloat = 24
 }
