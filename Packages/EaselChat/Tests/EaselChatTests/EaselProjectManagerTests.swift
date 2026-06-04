@@ -71,6 +71,49 @@ struct EaselProjectManagerTests {
   }
 
   @Test
+  func createSlideDeckWritesSlideScaffold() async throws {
+    let rootDirectory = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: rootDirectory) }
+
+    let manager = LocalEaselProjectManager(rootDirectory: rootDirectory)
+    let project = try await manager.createProject(from: EaselProjectCreateRequest(
+      name: "Roadmap Deck",
+      kind: .slideDeck,
+      designSystem: .apple,
+      fidelity: .highFidelity
+    ))
+
+    let projectURL = URL(fileURLWithPath: project.workingDirectory)
+    let indexHTML = try String(contentsOf: projectURL.appendingPathComponent("index.html"), encoding: .utf8)
+    let stageJS = try String(contentsOf: projectURL.appendingPathComponent("deck-stage.js"), encoding: .utf8)
+
+    #expect(indexHTML.contains("data-easel-deck"))
+    #expect(indexHTML.contains("data-easel-slide"))
+    #expect(indexHTML.contains("data-title=\"Opening\""))
+    #expect(indexHTML.contains("<script src=\"./deck-stage.js\"></script>"))
+    #expect(stageJS.contains("[data-easel-slide]"))
+    #expect(stageJS.contains("ArrowRight"))
+  }
+
+  @Test
+  func createPrototypeDoesNotWriteSlideRuntime() async throws {
+    let rootDirectory = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: rootDirectory) }
+
+    let manager = LocalEaselProjectManager(rootDirectory: rootDirectory)
+    let project = try await manager.createProject(from: EaselProjectCreateRequest(
+      name: "Prototype",
+      kind: .prototype,
+      designSystem: .apple,
+      fidelity: .highFidelity
+    ))
+
+    let projectURL = URL(fileURLWithPath: project.workingDirectory)
+
+    #expect(FileManager.default.fileExists(atPath: projectURL.appendingPathComponent("deck-stage.js").path) == false)
+  }
+
+  @Test
   func deleteProjectRemovesProjectFolder() async throws {
     let rootDirectory = temporaryRoot()
     defer { try? FileManager.default.removeItem(at: rootDirectory) }

@@ -24,6 +24,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
   public private(set) var previewURL: URL?
   public private(set) var currentSessionId: String?
   public private(set) var currentWorkingDirectory: String?
+  public private(set) var currentProject: EaselDesignProject?
   public private(set) var sessionStorage: SessionStorageProtocol
   public var mcpToolsDiscoveryService: MCPToolsDiscoveryService { mcpToolsDiscovery }
 
@@ -32,20 +33,24 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
 
   private var isInitializing = false
   private let previewURLObserver = PreviewURLObserver()
+  private let projectManager: any EaselProjectManaging
   private let persistentPreferencesManager: PersistentPreferencesManager
   private let mcpToolsDiscovery: MCPToolsDiscoveryService
   private let logger: ClaudeCodeLogger
   private var previewURLSource: PreviewURLSource?
+  private var currentProjectLookupTask: Task<Void, Never>?
 
   // MARK: - Init
 
   public init(
     sessionStorage: SessionStorageProtocol = SimplifiedClaudeCodeSQLiteStorage(),
+    projectManager: any EaselProjectManaging = LocalEaselProjectManager(),
     persistentPreferencesManager: PersistentPreferencesManager? = nil,
     mcpToolsDiscovery: MCPToolsDiscoveryService = MCPToolsDiscoveryService(),
     logger: ClaudeCodeLogger = ClaudeCodeLogger()
   ) {
     self.sessionStorage = sessionStorage
+    self.projectManager = projectManager
     self.mcpToolsDiscovery = mcpToolsDiscovery
     self.logger = logger
     self.persistentPreferencesManager = persistentPreferencesManager ?? PersistentPreferencesManager(logger: logger)
@@ -236,6 +241,12 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
     previewURLObserver.stopObserving()
   }
 
+  public func setCurrentProject(_ project: EaselDesignProject?) {
+    currentProjectLookupTask?.cancel()
+    currentProject = project
+    currentWorkingDirectory = project?.workingDirectory
+  }
+
   // MARK: - Private
 
   private func startPreviewObservation() {
@@ -269,6 +280,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
     let combinedHiddenContext = EaselAgentInstructions.appendingHiddenContext(
       hiddenContext,
       projectPath: currentWorkingDirectory,
+      projectKind: currentProject?.kind,
       previewURL: previewURL
     )
     chatViewModel?.sendMessage(text, context: context, hiddenContext: combinedHiddenContext)
@@ -277,6 +289,29 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
   private func setCurrentWorkingDirectory(_ path: String?) {
     let normalized = path?.trimmingCharacters(in: .whitespacesAndNewlines)
     currentWorkingDirectory = normalized?.isEmpty == false ? normalized : nil
+    refreshCurrentProjectMetadata(for: currentWorkingDirectory)
+  }
+
+  private func refreshCurrentProjectMetadata(for workingDirectory: String?) {
+    currentProjectLookupTask?.cancel()
+
+    guard let workingDirectory else {
+      currentProject = nil
+      return
+    }
+
+    currentProject = nil
+    currentProjectLookupTask = Task { [projectManager] in
+      let projects = (try? await projectManager.loadProjects()) ?? []
+      let project = projects.first { $0.workingDirectory == workingDirectory }
+
+      guard !Task.isCancelled else { return }
+
+      await MainActor.run { [weak self] in
+        guard self?.currentWorkingDirectory == workingDirectory else { return }
+        self?.currentProject = project
+      }
+    }
   }
 }
 

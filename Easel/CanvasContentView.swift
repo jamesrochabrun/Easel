@@ -6,6 +6,7 @@
 import EaselChat
 import EaselKit
 import EaselServerManager
+import EaselSlides
 import EaselWebInspector
 import SwiftUI
 
@@ -124,6 +125,7 @@ struct CanvasContentView: View {
         Task {
           await chatService.initialize()
           await chatService.startNewSession(workingDirectory: launch.project.workingDirectory)
+          chatService.setCurrentProject(launch.project)
           await startDevServer(for: launch.project.workingDirectory)
           await vm.loadSessions()
         }
@@ -250,15 +252,24 @@ struct CanvasContentView: View {
         .frame(height: 1)
 
       ZStack {
-        WebInspectorPreviewView(
-          previewURLProvider: chatService,
-          inspectorBridge: chatService,
-          projectPath: chatService.currentWorkingDirectory,
-          projectFileProvider: projectFileService
-        )
-        .opacity(selectedCanvasSurface == .canvas ? 1 : 0)
-        .allowsHitTesting(selectedCanvasSurface == .canvas)
-        .accessibilityHidden(selectedCanvasSurface != .canvas)
+        Group {
+          if isSlideDeckProject {
+            SlideDeckPreviewView(
+              previewURLProvider: chatService,
+              projectPath: chatService.currentWorkingDirectory
+            )
+          } else {
+            WebInspectorPreviewView(
+              previewURLProvider: chatService,
+              inspectorBridge: chatService,
+              projectPath: chatService.currentWorkingDirectory,
+              projectFileProvider: projectFileService
+            )
+          }
+        }
+          .opacity(selectedCanvasSurface == .canvas ? 1 : 0)
+          .allowsHitTesting(selectedCanvasSurface == .canvas)
+          .accessibilityHidden(selectedCanvasSurface != .canvas)
 
         ProjectResourcesView(
           viewModel: resourcesViewModel,
@@ -277,7 +288,10 @@ struct CanvasContentView: View {
     HStack(spacing: 12) {
       Picker("Canvas surface", selection: $selectedCanvasSurface) {
         ForEach(CanvasSurface.allCases) { surface in
-          Label(surface.displayName, systemImage: surface.systemImage)
+          Label(
+            surface.displayName(isSlideDeckProject: isSlideDeckProject),
+            systemImage: surface.systemImage(isSlideDeckProject: isSlideDeckProject)
+          )
             .tag(surface)
         }
       }
@@ -329,6 +343,10 @@ struct CanvasContentView: View {
       ? "arrow.down.right.and.arrow.up.left"
       : "arrow.up.left.and.arrow.down.right"
   }
+
+  private var isSlideDeckProject: Bool {
+    chatService.currentProject?.kind == .slideDeck
+  }
 }
 
 private enum CanvasSurface: String, CaseIterable, Identifiable {
@@ -337,19 +355,19 @@ private enum CanvasSurface: String, CaseIterable, Identifiable {
 
   var id: String { rawValue }
 
-  var displayName: String {
+  func displayName(isSlideDeckProject: Bool) -> String {
     switch self {
     case .canvas:
-      return "Canvas"
+      return isSlideDeckProject ? "Slides" : "Canvas"
     case .resources:
       return "Design Files"
     }
   }
 
-  var systemImage: String {
+  func systemImage(isSlideDeckProject: Bool) -> String {
     switch self {
     case .canvas:
-      return "rectangle.inset.filled"
+      return isSlideDeckProject ? "rectangle.on.rectangle" : "rectangle.inset.filled"
     case .resources:
       return "photo.on.rectangle.angled"
     }

@@ -3,6 +3,7 @@
 //  EaselChat
 //
 
+import EaselSlides
 import Foundation
 
 public protocol EaselProjectManaging: Sendable {
@@ -172,6 +173,10 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
     try write(packageJSON(for: project), to: directoryURL.appendingPathComponent("package.json"))
     try write(readme(for: project), to: directoryURL.appendingPathComponent("README.md"))
     try write(indexHTML(for: project), to: directoryURL.appendingPathComponent("index.html"))
+
+    if project.kind == .slideDeck {
+      try write(SlideDeckScaffold.deckStageJavaScript, to: directoryURL.appendingPathComponent("deck-stage.js"))
+    }
   }
 
   private func write(_ contents: String, to url: URL) throws {
@@ -256,6 +261,18 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
   }
 
   private func indexHTML(for project: EaselDesignProject) -> String {
+    switch project.kind {
+    case .prototype:
+      return prototypeIndexHTML(for: project)
+    case .slideDeck:
+      return SlideDeckScaffold.indexHTML(
+        title: project.name,
+        designSystemDisplayName: project.designSystem.displayName
+      )
+    }
+  }
+
+  private func prototypeIndexHTML(for project: EaselDesignProject) -> String {
     let title = escapedHTML(project.name)
     let kind = escapedHTML(project.kind.displayName)
     let fidelity = escapedHTML(project.fidelity.displayName)

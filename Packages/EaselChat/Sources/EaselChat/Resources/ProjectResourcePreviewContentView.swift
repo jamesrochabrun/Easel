@@ -18,7 +18,7 @@ struct ProjectResourcePreviewContentView: View {
       } else if let preview {
         switch preview.content {
         case let .text(text):
-          ProjectResourceTextPreview(text: text)
+          ProjectResourceTextPreview(item: item, text: text)
         case .visual:
           ProjectResourceVisualPreview(item: item)
         case let .unavailable(message):
