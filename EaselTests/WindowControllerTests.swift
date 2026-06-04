@@ -68,6 +68,29 @@ struct WindowControllerTests {
   }
 
   @Test
+  func showCanvasOrdersOutCapsuleAndShowsCanvasWindow() {
+    let appState = AppState()
+    let controller = WindowController(
+      appState: appState,
+      chatService: ChatService(),
+      observesPhaseChanges: false
+    )
+    defer {
+      controller.canvasWindow.orderOut(nil)
+      controller.capsulePanel.orderOut(nil)
+    }
+    controller.showCapsule()
+    #expect(controller.capsulePanel.isVisible)
+
+    controller.showCanvas()
+
+    #expect(!controller.capsulePanel.isVisible)
+    #expect(controller.canvasWindow.isVisible)
+    #expect(controller.canvasWindow.contentView != nil)
+    #expect(controller.canvasWindow.alphaValue == 1)
+  }
+
+  @Test
   func canvasContentUsesSubmittedPromptSnapshot() {
     let appState = AppState()
     appState.promptText = "Build a dashboard"

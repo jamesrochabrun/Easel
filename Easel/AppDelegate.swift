@@ -16,9 +16,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   var serverManager: ProjectServerManager?
 
   func applicationDidFinishLaunching(_ notification: Notification) {
+    appState.openCanvas()
     let controller = WindowController(appState: appState, chatService: chatService)
     self.windowController = controller
-    controller.showCapsule()
+    controller.showCanvas()
     configureStatusItem()
   }
 
