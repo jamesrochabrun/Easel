@@ -47,6 +47,19 @@ final class WindowController: NSObject, WindowControlling, NSWindowDelegate {
     capsulePanel.orderOut(nil)
   }
 
+  func showCanvas() {
+    let targetFrame = storedCanvasFrame ?? canvasFrame()
+
+    _ = nextTransitionGeneration()
+    configureCanvasContent()
+    canvasWindow.setFrame(targetFrame, display: true)
+    canvasWindow.alphaValue = 1
+    capsulePanel.orderOut(nil)
+    capsulePanel.alphaValue = 1
+    canvasWindow.makeKeyAndOrderFront(nil)
+    NSApp.activate(ignoringOtherApps: true)
+  }
+
   func animateToCanvas() {
     let generation = nextTransitionGeneration()
     let targetFrame = storedCanvasFrame ?? canvasFrame()
