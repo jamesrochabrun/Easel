@@ -13,10 +13,8 @@ struct ProjectResourcesContentView: View {
   let isPreviewLoading: Bool
   let isSavingPreview: Bool
   let onSelect: (ProjectResourcePanelItem) -> Void
-  let onOpen: (ProjectResourcePanelItem) -> Void
-  let onReveal: (ProjectResourcePanelItem) -> Void
   let onSaveText: (ProjectResourcePanelItem, String) -> Void
-  let onClose: () -> Void
+  let onBack: () -> Void
 
   var body: some View {
     ZStack {
@@ -26,10 +24,8 @@ struct ProjectResourcesContentView: View {
           preview: selectedPreview,
           isLoading: isPreviewLoading,
           isSaving: isSavingPreview,
-          onOpen: onOpen,
-          onReveal: onReveal,
           onSaveText: onSaveText,
-          onClose: onClose
+          onBack: onBack
         )
         .transition(detailTransition)
       } else {

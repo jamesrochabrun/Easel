@@ -75,6 +75,30 @@ struct ProjectResourcesViewModelTests {
   }
 
   @Test
+  func clearSelectionReturnsToResourceLibrary() async {
+    let project = makeProject(name: "Project", path: "/tmp/project")
+    let resource = makeResource(projectPath: project.workingDirectory, fileName: "notes.txt")
+    let item = ProjectResourcePanelItem.resource(resource)
+    let preview = ProjectResourcePreview(itemID: item.id, content: .text("Preview body"))
+    let viewModel = ProjectResourcesViewModel(
+      projectManager: StubProjectManager(projects: [project]),
+      resourceManager: StubProjectResourceManager(
+        resourcesByProject: [project.workingDirectory: [resource]],
+        previewsByItemID: [item.id: preview]
+      )
+    )
+
+    await viewModel.refresh(currentProjectPath: project.workingDirectory)
+    await viewModel.select(item)
+    viewModel.clearSelection()
+
+    #expect(viewModel.selectedItem == nil)
+    #expect(viewModel.selectedPreview == nil)
+    #expect(viewModel.isPreviewLoading == false)
+    #expect(viewModel.isSavingPreview == false)
+  }
+
+  @Test
   func saveTextPreviewUpdatesSelectedPreview() async {
     let project = makeProject(name: "Project", path: "/tmp/project")
     let resource = makeResource(projectPath: project.workingDirectory, fileName: "notes.txt")

@@ -7,12 +7,19 @@ import SwiftUI
 
 struct ProjectResourceDetailHeader: View {
   let item: ProjectResourcePanelItem
-  let onOpen: () -> Void
-  let onReveal: () -> Void
-  let onClose: () -> Void
+  let onBack: () -> Void
 
   var body: some View {
     HStack(spacing: 12) {
+      Button(action: onBack) {
+        Label("Back", systemImage: "chevron.left")
+          .labelStyle(.iconOnly)
+          .frame(width: 36, height: 36)
+          .contentShape(Rectangle())
+      }
+        .buttonStyle(.plain)
+        .help("Back to files")
+
       ProjectFileThumbnailView(
         fileURL: item.fileURL,
         kind: item.kind,
@@ -39,20 +46,6 @@ struct ProjectResourceDetailHeader: View {
       }
 
       Spacer(minLength: 12)
-
-      Button("Reveal", systemImage: "folder", action: onReveal)
-        .labelStyle(.iconOnly)
-        .buttonStyle(.plain)
-        .help("Reveal in Finder")
-
-      Button("Open", systemImage: "arrow.up.right.square", action: onOpen)
-        .buttonStyle(.bordered)
-        .controlSize(.small)
-
-      Button("Close preview", systemImage: "xmark", action: onClose)
-        .labelStyle(.iconOnly)
-        .buttonStyle(.plain)
-        .help("Close preview")
     }
     .padding(.horizontal, 16)
     .padding(.vertical, 12)

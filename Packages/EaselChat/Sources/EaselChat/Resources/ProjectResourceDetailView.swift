@@ -10,10 +10,8 @@ struct ProjectResourceDetailView: View {
   let preview: ProjectResourcePreview?
   let isLoading: Bool
   let isSaving: Bool
-  let onOpen: (ProjectResourcePanelItem) -> Void
-  let onReveal: (ProjectResourcePanelItem) -> Void
   let onSaveText: (ProjectResourcePanelItem, String) -> Void
-  let onClose: () -> Void
+  let onBack: () -> Void
 
   var body: some View {
     Group {
@@ -21,13 +19,7 @@ struct ProjectResourceDetailView: View {
         VStack(spacing: 0) {
           ProjectResourceDetailHeader(
             item: item,
-            onOpen: {
-              onOpen(item)
-            },
-            onReveal: {
-              onReveal(item)
-            },
-            onClose: onClose
+            onBack: onBack
           )
 
           Rectangle()
