@@ -16,6 +16,8 @@ public struct SlideDeckPreviewView: View {
   @State private var thumbnailsByIndex: [Int: NSImage] = [:]
   @State private var reloadToken = UUID()
   @State private var isLoading = false
+  @State private var isPresentingInTab = false
+  @State private var presentationHandler: any SlideDeckPresentationHandling
   @State private var errorMessage: String?
   @Environment(\.colorScheme) private var colorScheme
 
@@ -23,11 +25,44 @@ public struct SlideDeckPreviewView: View {
     previewURLProvider: PreviewURLProviding,
     projectPath: String?
   ) {
+    self.init(
+      previewURLProvider: previewURLProvider,
+      projectPath: projectPath,
+      presentationHandler: DefaultSlideDeckPresentationHandler()
+    )
+  }
+
+  init(
+    previewURLProvider: PreviewURLProviding,
+    projectPath: String?,
+    presentationHandler: any SlideDeckPresentationHandling
+  ) {
     self.previewURLProvider = previewURLProvider
     self.projectPath = projectPath
+    _presentationHandler = State(initialValue: presentationHandler)
   }
 
   public var body: some View {
+    Group {
+      if isPresentingInTab, let url = previewURLProvider.previewURL {
+        SlideDeckPresentationView(
+          url: url,
+          initialSelectedIndex: selectedIndex,
+          reloadToken: reloadToken,
+          onSelectedIndexChange: { selectedIndex = $0 },
+          onDismiss: { isPresentingInTab = false }
+        )
+      } else {
+        previewContent
+      }
+    }
+    .background(Color.black)
+    .task(id: autoReloadTaskID) {
+      await observeProjectFileChangesForAutoReload()
+    }
+  }
+
+  private var previewContent: some View {
     VStack(spacing: 0) {
       header
 
@@ -38,10 +73,6 @@ public struct SlideDeckPreviewView: View {
       } else {
         placeholderView
       }
-    }
-    .background(Color.black)
-    .task(id: autoReloadTaskID) {
-      await observeProjectFileChangesForAutoReload()
     }
   }
 
@@ -59,22 +90,32 @@ public struct SlideDeckPreviewView: View {
 
       Spacer()
 
-      Button {
-        reloadPreview()
-      } label: {
-        Label("Reload", systemImage: "arrow.clockwise")
-          .font(.caption)
-      }
-      .buttonStyle(.bordered)
-      .tint(EaselDesignSystem.Palette.accent)
-      .controlSize(.small)
-      .disabled(previewURLProvider.previewURL == nil)
-      .help("Refresh slides")
+      presentMenu
+      reloadButton
     }
     .padding(.horizontal, 12)
     .padding(.vertical, 10)
     .frame(minHeight: 40)
     .background(EaselDesignSystem.Palette.surface(for: colorScheme))
+  }
+
+  private var reloadButton: some View {
+    SlideDeckReloadButton(
+      isEnabled: previewURLProvider.previewURL != nil,
+      action: reloadPreview
+    )
+    .frame(width: 92, height: 26)
+    .help("Refresh slides")
+  }
+
+  private var presentMenu: some View {
+    SlideDeckPresentMenuButton(
+      isEnabled: previewURLProvider.previewURL != nil
+    ) { option in
+      presentSlides(using: option)
+    }
+    .frame(width: 104, height: 26)
+    .help("Present slides")
   }
 
   private func slideDeckContent(url: URL) -> some View {
@@ -92,8 +133,10 @@ public struct SlideDeckPreviewView: View {
         SlideDeckThumbnailRenderer(
           url: url,
           cacheKey: thumbnailCacheKey(for: url),
-          onThumbnailsRendered: { cacheKey, thumbnails in
-            handleThumbnailsRendered(cacheKey, thumbnails: thumbnails)
+          metadata: metadata,
+          selectedIndex: selectedIndex,
+          onThumbnailRendered: { cacheKey, slideIndex, thumbnail in
+            handleThumbnailRendered(cacheKey, slideIndex: slideIndex, thumbnail: thumbnail)
           }
         )
         .frame(width: SlideDeckRenderMetrics.renderSize.width, height: SlideDeckRenderMetrics.renderSize.height)
@@ -261,16 +304,17 @@ public struct SlideDeckPreviewView: View {
   }
 
   @MainActor
-  private func handleThumbnailsRendered(
+  private func handleThumbnailRendered(
     _ cacheKey: SlideDeckThumbnailCacheKey,
-    thumbnails: [Int: NSImage]
+    slideIndex: Int,
+    thumbnail: NSImage
   ) {
     guard let url = previewURLProvider.previewURL,
           cacheKey == thumbnailCacheKey(for: url) else {
       return
     }
 
-    thumbnailsByIndex = thumbnails
+    thumbnailsByIndex[slideIndex] = thumbnail
   }
 
   @MainActor
@@ -278,6 +322,28 @@ public struct SlideDeckPreviewView: View {
     reloadToken = UUID()
     thumbnailsByIndex = [:]
     errorMessage = nil
+  }
+
+  @MainActor
+  private func presentSlides(using option: SlideDeckPresentationOption) {
+    guard let url = previewURLProvider.previewURL else { return }
+
+    switch option {
+    case .inThisTab:
+      errorMessage = nil
+      isPresentingInTab = true
+    case .fullscreen:
+      presentationHandler.presentFullscreen(
+        url: url,
+        selectedIndex: selectedIndex,
+        reloadToken: reloadToken
+      )
+    case .newTab:
+      presentationHandler.presentInNewTab(
+        url: url,
+        selectedIndex: selectedIndex
+      )
+    }
   }
 
   private func observeProjectFileChangesForAutoReload() async {
