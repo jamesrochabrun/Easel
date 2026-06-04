@@ -7,8 +7,6 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 public struct ProjectResourcesView: View {
-  @Environment(\.openURL) private var openURL
-
   @Bindable var viewModel: ProjectResourcesViewModel
   let currentProjectPath: String?
 
@@ -136,10 +134,8 @@ public struct ProjectResourcesView: View {
         isPreviewLoading: viewModel.isPreviewLoading,
         isSavingPreview: viewModel.isSavingPreview,
         onSelect: selectItem,
-        onOpen: openItem,
-        onReveal: revealItem,
         onSaveText: saveText,
-        onClose: viewModel.clearSelection
+        onBack: viewModel.clearSelection
       )
     }
   }
@@ -148,14 +144,6 @@ public struct ProjectResourcesView: View {
     Task {
       await viewModel.select(item)
     }
-  }
-
-  private func openItem(_ item: ProjectResourcePanelItem) {
-    openURL(item.fileURL)
-  }
-
-  private func revealItem(_ item: ProjectResourcePanelItem) {
-    openURL(item.fileURL.deletingLastPathComponent())
   }
 
   private func saveText(_ item: ProjectResourcePanelItem, _ text: String) {
