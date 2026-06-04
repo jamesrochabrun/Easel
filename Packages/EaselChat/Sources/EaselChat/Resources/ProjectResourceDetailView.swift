@@ -9,8 +9,10 @@ struct ProjectResourceDetailView: View {
   let item: ProjectResourcePanelItem?
   let preview: ProjectResourcePreview?
   let isLoading: Bool
+  let isSaving: Bool
   let onOpen: (ProjectResourcePanelItem) -> Void
   let onReveal: (ProjectResourcePanelItem) -> Void
+  let onSaveText: (ProjectResourcePanelItem, String) -> Void
   let onClose: () -> Void
 
   var body: some View {
@@ -35,7 +37,11 @@ struct ProjectResourceDetailView: View {
           ProjectResourcePreviewContentView(
             item: item,
             preview: preview,
-            isLoading: isLoading
+            isLoading: isLoading,
+            isSaving: isSaving,
+            onSaveText: { text in
+              onSaveText(item, text)
+            }
           )
         }
       } else {

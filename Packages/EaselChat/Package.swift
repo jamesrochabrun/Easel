@@ -23,6 +23,8 @@ let package = Package(
     .package(path: "../../../ClaudeCodeSDK"),
     .package(path: "../EaselClaudeCodeUI"),
     .package(url: "https://github.com/appstefan/highlightswift", from: "1.1.0"),
+    .package(url: "https://github.com/CodeEditApp/CodeEditSourceEditor", exact: "0.15.2"),
+    .package(url: "https://github.com/CodeEditApp/CodeEditLanguages", exact: "0.1.20"),
   ],
   targets: [
     .target(
@@ -40,6 +42,8 @@ let package = Package(
         .product(name: "ClaudeCodeSDK", package: "ClaudeCodeSDK"),
         .product(name: "ClaudeCodeCore", package: "EaselClaudeCodeUI"),
         .product(name: "HighlightSwift", package: "highlightswift"),
+        .product(name: "CodeEditSourceEditor", package: "CodeEditSourceEditor"),
+        .product(name: "CodeEditLanguages", package: "CodeEditLanguages"),
       ],
       swiftSettings: [
         .swiftLanguageMode(.v5)
@@ -63,6 +67,8 @@ let package = Package(
         "EaselSlides",
         .product(name: "ClaudeCodeCore", package: "EaselClaudeCodeUI"),
         .product(name: "HighlightSwift", package: "highlightswift"),
+        .product(name: "CodeEditSourceEditor", package: "CodeEditSourceEditor"),
+        .product(name: "CodeEditLanguages", package: "CodeEditLanguages"),
       ],
       swiftSettings: [
         .swiftLanguageMode(.v5)

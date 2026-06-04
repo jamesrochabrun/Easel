@@ -10,19 +10,26 @@ public protocol ProjectResourceManaging: Sendable {
   func loadResources(forProjectAt projectPath: String) async throws -> [ProjectResource]
   func loadProjectStructure(forProjectAt projectPath: String) async throws -> [ProjectStructureSection]
   func loadPreview(for item: ProjectResourcePanelItem) async throws -> ProjectResourcePreview
+  func saveText(_ text: String, for item: ProjectResourcePanelItem) async throws -> ProjectResourcePreview
   func importResources(from sourceURLs: [URL], intoProjectAt projectPath: String) async throws -> [ProjectResource]
 }
 
 public enum ProjectResourceError: LocalizedError, Equatable, Sendable {
   case missingProjectDirectory(String)
+  case missingFile
   case noImportableFiles
+  case unsupportedTextEditing
 
   public var errorDescription: String? {
     switch self {
     case .missingProjectDirectory:
       return "The selected project folder could not be found."
+    case .missingFile:
+      return "The selected file could not be found."
     case .noImportableFiles:
       return "No importable files were selected."
+    case .unsupportedTextEditing:
+      return "This file type cannot be edited inline."
     }
   }
 }
@@ -144,6 +151,22 @@ public actor LocalProjectResourceManager: ProjectResourceManaging {
       itemID: item.id,
       content: .unavailable("This file is not stored as readable text.")
     )
+  }
+
+  public func saveText(_ text: String, for item: ProjectResourcePanelItem) async throws -> ProjectResourcePreview {
+    guard fileManager.fileExists(atPath: item.fileURL.path) else {
+      throw ProjectResourceError.missingFile
+    }
+
+    guard isTextPreviewCandidate(item.fileURL) else {
+      throw ProjectResourceError.unsupportedTextEditing
+    }
+
+    let data = Data(text.utf8)
+    try data.write(to: item.fileURL, options: .atomic)
+    try touchProjectMetadata(in: URL(fileURLWithPath: item.projectPath))
+
+    return ProjectResourcePreview(itemID: item.id, content: .text(text))
   }
 
   public func importResources(from sourceURLs: [URL], intoProjectAt projectPath: String) async throws -> [ProjectResource] {

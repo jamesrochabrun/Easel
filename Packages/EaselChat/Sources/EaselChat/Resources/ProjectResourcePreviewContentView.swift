@@ -9,6 +9,8 @@ struct ProjectResourcePreviewContentView: View {
   let item: ProjectResourcePanelItem
   let preview: ProjectResourcePreview?
   let isLoading: Bool
+  let isSaving: Bool
+  let onSaveText: (String) -> Void
 
   var body: some View {
     Group {
@@ -18,7 +20,12 @@ struct ProjectResourcePreviewContentView: View {
       } else if let preview {
         switch preview.content {
         case let .text(text):
-          ProjectResourceTextPreview(item: item, text: text)
+          ProjectResourceTextPreview(
+            item: item,
+            text: text,
+            isSaving: isSaving,
+            onSave: onSaveText
+          )
         case .visual:
           ProjectResourceVisualPreview(item: item)
         case let .unavailable(message):

@@ -15,6 +15,7 @@ public final class ProjectResourcesViewModel {
   public private(set) var isLoading = false
   public private(set) var isImporting = false
   public private(set) var isPreviewLoading = false
+  public private(set) var isSavingPreview = false
   public private(set) var errorMessage: String?
   public var selectedProjectPath: String?
 
@@ -129,6 +130,26 @@ public final class ProjectResourcesViewModel {
     selectedItem = nil
     selectedPreview = nil
     isPreviewLoading = false
+    isSavingPreview = false
+  }
+
+  public func saveTextPreview(_ text: String, for item: ProjectResourcePanelItem) async {
+    guard selectedItem?.id == item.id else { return }
+
+    isSavingPreview = true
+    defer { isSavingPreview = false }
+
+    do {
+      let preview = try await resourceManager.saveText(text, for: item)
+      guard selectedItem?.id == item.id else { return }
+
+      selectedPreview = preview
+      errorMessage = nil
+    } catch {
+      guard selectedItem?.id == item.id else { return }
+
+      errorMessage = error.localizedDescription
+    }
   }
 
   private func loadResourcesForSelectedProject() async throws {
