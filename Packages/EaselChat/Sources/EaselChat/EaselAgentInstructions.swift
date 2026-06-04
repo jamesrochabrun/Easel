@@ -3,6 +3,7 @@
 //  EaselChat
 //
 
+import EaselSlides
 import Foundation
 
 enum EaselAgentInstructions {
@@ -15,7 +16,7 @@ enum EaselAgentInstructions {
     - Your sandbox cannot bind network sockets. Never run `npm run dev`, `python -m http.server`, or any command that starts a server or opens a port — it fails with "Operation not permitted". The app runs the dev server for you; just keep the project's `dev` script valid.
     - Do not open external browser apps or use shell commands such as `open`, `open -a`, `xdg-open`, or `start` to preview project UI.
     - Write or copy every generated project asset into the project's resources/ folder before referencing it from app UI.
-    - For slide deck projects, author slides as HTML sections marked with `data-easel-slide` inside a `data-easel-deck` stage. Keep each slide 16:9 and add `data-title` when the slide title is not obvious from a heading.
+    - For slide deck projects, \(SlideDeckContract.authoringSummary)
     """
 
   static let codexDeveloperInstructionsPrefix = """
@@ -239,7 +240,7 @@ enum EaselAgentInstructions {
       lines.append("Current project type: \(projectKind.displayName)")
 
       if projectKind == .slideDeck {
-        lines.append("Slide deck contract: keep slides as `section[data-easel-slide]` elements inside a `data-easel-deck` stage, preserve a 16:9 slide canvas, and set `data-title` for thumbnail labels when needed.")
+        lines.append("Slide deck contract: \(SlideDeckContract.authoringSummary)")
       }
     }
 

@@ -6,6 +6,7 @@
 import EaselChat
 import EaselKit
 import EaselServerManager
+import EaselSlides
 import EaselWebInspector
 import SwiftUI
 

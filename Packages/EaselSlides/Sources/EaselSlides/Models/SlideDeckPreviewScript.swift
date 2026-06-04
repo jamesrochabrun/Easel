@@ -1,6 +1,6 @@
 //
 //  SlideDeckPreviewScript.swift
-//  EaselWebInspector
+//  EaselSlides
 //
 
 import Foundation

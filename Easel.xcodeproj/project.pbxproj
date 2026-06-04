@@ -12,6 +12,7 @@
 		CC0000010000000300000003 /* EaselChat in Frameworks */ = {isa = PBXBuildFile; productRef = CC0000010000000400000004 /* EaselChat */; };
 		CC0000010000000500000005 /* EaselWebInspector in Frameworks */ = {isa = PBXBuildFile; productRef = CC0000010000000600000006 /* EaselWebInspector */; };
 		DD0000010000000100000001 /* EaselServerManager in Frameworks */ = {isa = PBXBuildFile; productRef = DD0000010000000200000002 /* EaselServerManager */; };
+		EE0000010000000100000001 /* EaselSlides in Frameworks */ = {isa = PBXBuildFile; productRef = EE0000010000000200000002 /* EaselSlides */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -62,6 +63,7 @@
 			files = (
 				CC0000010000000100000001 /* EaselKit in Frameworks */,
 				CC0000010000000300000003 /* EaselChat in Frameworks */,
+				EE0000010000000100000001 /* EaselSlides in Frameworks */,
 				CC0000010000000500000005 /* EaselWebInspector in Frameworks */,
 				DD0000010000000100000001 /* EaselServerManager in Frameworks */,
 				BB0000012FA0000700000007 /* ApprovalServerKit in Frameworks */,
@@ -128,6 +130,7 @@
 			packageProductDependencies = (
 				CC0000010000000200000002 /* EaselKit */,
 				CC0000010000000400000004 /* EaselChat */,
+				EE0000010000000200000002 /* EaselSlides */,
 				CC0000010000000600000006 /* EaselWebInspector */,
 				DD0000010000000200000002 /* EaselServerManager */,
 				BB0000012FA0000800000008 /* ApprovalServerKit */,
@@ -217,6 +220,7 @@
 			packageReferences = (
 				CC0000010000000700000007 /* XCLocalSwiftPackageReference "Packages/EaselKit" */,
 				CC0000010000000800000008 /* XCLocalSwiftPackageReference "Packages/EaselChat" */,
+				EE0000010000000300000003 /* XCLocalSwiftPackageReference "Packages/EaselSlides" */,
 				CC0000010000000900000009 /* XCLocalSwiftPackageReference "Packages/EaselWebInspector" */,
 					DD0000010000000300000003 /* XCLocalSwiftPackageReference "Packages/EaselServerManager" */,
 				BB0000012FA0000A0000000A /* XCRemoteSwiftPackageReference "ClaudeCodeApprovalServer" */,
@@ -628,6 +632,10 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/EaselServerManager;
 		};
+		EE0000010000000300000003 /* XCLocalSwiftPackageReference "Packages/EaselSlides" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/EaselSlides;
+		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
@@ -662,6 +670,10 @@
 		DD0000010000000200000002 /* EaselServerManager */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = EaselServerManager;
+		};
+		EE0000010000000200000002 /* EaselSlides */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = EaselSlides;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

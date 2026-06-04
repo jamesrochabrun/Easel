@@ -1,37 +1,46 @@
 //
 //  SlideDeckMetadata.swift
-//  EaselWebInspector
+//  EaselSlides
 //
 
 import CoreGraphics
 import Foundation
 
-enum SlideDeckRenderMetrics {
-  static let renderSize = CGSize(width: 1280, height: 720)
-  static let aspectRatio: CGFloat = renderSize.width / renderSize.height
+public enum SlideDeckRenderMetrics {
+  public static let renderSize = CGSize(width: 1280, height: 720)
+  public static let aspectRatio: CGFloat = renderSize.width / renderSize.height
 }
 
-struct SlideDeckMetadata: Equatable, Sendable {
-  static let empty = SlideDeckMetadata(slides: [])
+public struct SlideDeckMetadata: Equatable, Sendable {
+  public static let empty = SlideDeckMetadata(slides: [])
 
-  let slides: [SlideDeckSlide]
+  public let slides: [SlideDeckSlide]
 
-  var isEmpty: Bool {
+  public init(slides: [SlideDeckSlide]) {
+    self.slides = slides
+  }
+
+  public var isEmpty: Bool {
     slides.isEmpty
   }
 }
 
-struct SlideDeckSlide: Identifiable, Equatable, Sendable {
-  let index: Int
-  let title: String
+public struct SlideDeckSlide: Identifiable, Equatable, Sendable {
+  public let index: Int
+  public let title: String
 
-  var id: Int {
+  public init(index: Int, title: String) {
+    self.index = index
+    self.title = title
+  }
+
+  public var id: Int {
     index
   }
 }
 
-enum SlideDeckMetadataParser {
-  static func metadata(from javaScriptResult: Any?) -> SlideDeckMetadata {
+public enum SlideDeckMetadataParser {
+  public static func metadata(from javaScriptResult: Any?) -> SlideDeckMetadata {
     let records = records(from: javaScriptResult)
     let slides = records.compactMap(parseSlide)
     return SlideDeckMetadata(slides: slides)

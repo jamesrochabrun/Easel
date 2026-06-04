@@ -19,6 +19,7 @@ let package = Package(
   ],
   dependencies: [
     .package(path: "../EaselKit"),
+    .package(path: "../EaselSlides"),
     .package(path: "../../../ClaudeCodeSDK"),
     .package(path: "../EaselClaudeCodeUI"),
     .package(url: "https://github.com/appstefan/highlightswift", from: "1.1.0"),
@@ -35,6 +36,7 @@ let package = Package(
       dependencies: [
         "EaselDesignSystems",
         "EaselKit",
+        "EaselSlides",
         .product(name: "ClaudeCodeSDK", package: "ClaudeCodeSDK"),
         .product(name: "ClaudeCodeCore", package: "EaselClaudeCodeUI"),
         .product(name: "HighlightSwift", package: "highlightswift"),
@@ -58,6 +60,7 @@ let package = Package(
         "EaselChat",
         "EaselDesignSystems",
         "EaselKit",
+        "EaselSlides",
         .product(name: "ClaudeCodeCore", package: "EaselClaudeCodeUI"),
         .product(name: "HighlightSwift", package: "highlightswift"),
       ],

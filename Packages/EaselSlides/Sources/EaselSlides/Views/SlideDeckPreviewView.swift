@@ -1,6 +1,6 @@
 //
 //  SlideDeckPreviewView.swift
-//  EaselWebInspector
+//  EaselSlides
 //
 
 import AppKit
@@ -65,7 +65,8 @@ public struct SlideDeckPreviewView: View {
         Label("Reload", systemImage: "arrow.clockwise")
           .font(.caption)
       }
-      .webPreviewSecondaryButtonStyle()
+      .buttonStyle(.bordered)
+      .tint(EaselDesignSystem.Palette.accent)
       .controlSize(.small)
       .disabled(previewURLProvider.previewURL == nil)
       .help("Refresh slides")
@@ -285,7 +286,7 @@ public struct SlideDeckPreviewView: View {
       return
     }
 
-    let observer = WebPreviewProjectFileChangeObserver(projectPath: projectPath)
+    let observer = SlideDeckProjectFileChangeObserver(projectPath: projectPath)
     _ = await observer.hasChangedSinceLastSnapshot()
 
     while !Task.isCancelled {

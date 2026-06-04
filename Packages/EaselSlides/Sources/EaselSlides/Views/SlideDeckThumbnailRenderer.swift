@@ -1,6 +1,6 @@
 //
 //  SlideDeckThumbnailRenderer.swift
-//  EaselWebInspector
+//  EaselSlides
 //
 
 import AppKit
@@ -69,7 +69,7 @@ struct SlideDeckThumbnailRenderer: NSViewRepresentable {
       hasFinishedLoading = false
       lastLoadedURL = url
       lastCacheKey = nil
-      webView.load(URLRequest(url: WebPreviewReloadRequestFactory.cacheBypassedURL(
+      webView.load(URLRequest(url: SlideDeckReloadRequestFactory.cacheBypassedURL(
         for: url,
         token: parent.cacheKey.reloadToken
       )))

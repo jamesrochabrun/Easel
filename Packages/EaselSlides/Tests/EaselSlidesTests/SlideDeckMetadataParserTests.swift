@@ -1,11 +1,11 @@
 //
 //  SlideDeckMetadataParserTests.swift
-//  EaselWebInspectorTests
+//  EaselSlidesTests
 //
 
 import Foundation
 import Testing
-@testable import EaselWebInspector
+@testable import EaselSlides
 
 @Suite("SlideDeckMetadataParser")
 struct SlideDeckMetadataParserTests {

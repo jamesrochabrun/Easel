@@ -1,6 +1,6 @@
 //
 //  SlideDeckWebView.swift
-//  EaselWebInspector
+//  EaselSlides
 //
 
 import AppKit
@@ -80,7 +80,7 @@ struct SlideDeckWebView: NSViewRepresentable {
       parent.onLoadingChange(true)
 
       if bypassingCache {
-        let request = WebPreviewReloadRequestFactory.request(
+        let request = SlideDeckReloadRequestFactory.request(
           currentURL: webView.url,
           fallbackURL: url,
           token: parent.reloadToken
