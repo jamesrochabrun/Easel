@@ -10,7 +10,9 @@ import WebKit
 struct SlideDeckThumbnailRenderer: NSViewRepresentable {
   let url: URL
   let cacheKey: SlideDeckThumbnailCacheKey
-  let onThumbnailsRendered: @MainActor (SlideDeckThumbnailCacheKey, [Int: NSImage]) -> Void
+  let metadata: SlideDeckMetadata
+  let selectedIndex: Int
+  let onThumbnailRendered: @MainActor (SlideDeckThumbnailCacheKey, Int, NSImage) -> Void
 
   func makeNSView(context: Context) -> WKWebView {
     let configuration = WKWebViewConfiguration()
@@ -21,16 +23,22 @@ struct SlideDeckThumbnailRenderer: NSViewRepresentable {
     webView.setValue(false, forKey: "drawsBackground")
 
     context.coordinator.webView = webView
-    context.coordinator.load(url, in: webView)
+    context.coordinator.load(url, in: webView, bypassingCache: false)
     return webView
   }
 
   func updateNSView(_ webView: WKWebView, context: Context) {
     context.coordinator.parent = self
 
-    if context.coordinator.lastLoadedURL != url
-      || context.coordinator.lastCacheKey?.reloadToken != cacheKey.reloadToken {
-      context.coordinator.load(url, in: webView)
+    let urlChanged = context.coordinator.lastLoadedURL != url
+    let reloadTokenChanged = context.coordinator.lastLoadedReloadToken != cacheKey.reloadToken
+
+    if urlChanged || reloadTokenChanged {
+      context.coordinator.load(
+        url,
+        in: webView,
+        bypassingCache: reloadTokenChanged
+      )
       return
     }
 
@@ -55,6 +63,7 @@ struct SlideDeckThumbnailRenderer: NSViewRepresentable {
     var parent: SlideDeckThumbnailRenderer
     weak var webView: WKWebView?
     var lastLoadedURL: URL?
+    var lastLoadedReloadToken: UUID?
     var lastCacheKey: SlideDeckThumbnailCacheKey?
     var hasFinishedLoading = false
 
@@ -64,22 +73,29 @@ struct SlideDeckThumbnailRenderer: NSViewRepresentable {
       self.parent = parent
     }
 
-    func load(_ url: URL, in webView: WKWebView) {
+    func load(_ url: URL, in webView: WKWebView, bypassingCache: Bool) {
       cancel()
       hasFinishedLoading = false
       lastLoadedURL = url
+      lastLoadedReloadToken = parent.cacheKey.reloadToken
       lastCacheKey = nil
-      webView.load(URLRequest(url: SlideDeckReloadRequestFactory.cacheBypassedURL(
-        for: url,
-        token: parent.cacheKey.reloadToken
-      )))
+
+      if bypassingCache {
+        webView.load(URLRequest(url: SlideDeckReloadRequestFactory.cacheBypassedURL(
+          for: url,
+          token: parent.cacheKey.reloadToken
+        )))
+      } else {
+        webView.load(URLRequest(url: url))
+      }
     }
 
     func renderThumbnails() {
       guard let webView else { return }
 
       cancel()
-      let cacheKey = parent.cacheKey
+      let request = parent
+      let cacheKey = request.cacheKey
       lastCacheKey = cacheKey
 
       renderTask = Task { @MainActor [weak self, weak webView] in
@@ -87,32 +103,33 @@ struct SlideDeckThumbnailRenderer: NSViewRepresentable {
 
         do {
           let result = try await self.evaluateJavaScript(
-            SlideDeckPreviewScript.installAndSelectScript(selectedIndex: 0),
+            SlideDeckPreviewScript.installAndSelectScript(selectedIndex: request.selectedIndex),
             in: webView
           )
-          let metadata = SlideDeckMetadataParser.metadata(from: result)
-          var thumbnails: [Int: NSImage] = [:]
+          let discoveredMetadata = SlideDeckMetadataParser.metadata(from: result)
+          let slides = request.metadata.isEmpty ? discoveredMetadata.slides : request.metadata.slides
+          let orderedSlides = SlideDeckThumbnailRenderPlan.orderedSlides(
+            from: slides,
+            selectedIndex: request.selectedIndex
+          )
 
-          for slide in metadata.slides {
+          for slide in orderedSlides {
             try Task.checkCancellation()
             _ = try await self.evaluateJavaScript(
               SlideDeckPreviewScript.selectScript(index: slide.index),
               in: webView
             )
-            try await Task.sleep(for: .milliseconds(80))
+            try await self.waitForNextPaint(in: webView)
             try Task.checkCancellation()
 
             if let image = try? await self.snapshot(webView) {
-              thumbnails[slide.index] = image
+              self.parent.onThumbnailRendered(cacheKey, slide.index, image)
             }
           }
-
-          guard !Task.isCancelled else { return }
-          self.parent.onThumbnailsRendered(cacheKey, thumbnails)
         } catch is CancellationError {
           return
         } catch {
-          self.parent.onThumbnailsRendered(cacheKey, [:])
+          return
         }
       }
     }
@@ -128,11 +145,11 @@ struct SlideDeckThumbnailRenderer: NSViewRepresentable {
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-      parent.onThumbnailsRendered(parent.cacheKey, [:])
+      cancel()
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-      parent.onThumbnailsRendered(parent.cacheKey, [:])
+      cancel()
     }
 
     private func evaluateJavaScript(_ script: String, in webView: WKWebView) async throws -> Any? {
@@ -150,6 +167,9 @@ struct SlideDeckThumbnailRenderer: NSViewRepresentable {
     private func snapshot(_ webView: WKWebView) async throws -> NSImage {
       let configuration = WKSnapshotConfiguration()
       configuration.rect = webView.bounds
+      configuration.snapshotWidth = NSNumber(
+        value: Double(SlideDeckThumbnailRenderPlan.snapshotWidth)
+      )
 
       return try await withCheckedThrowingContinuation { continuation in
         webView.takeSnapshot(with: configuration) { image, error in
@@ -160,6 +180,25 @@ struct SlideDeckThumbnailRenderer: NSViewRepresentable {
           }
         }
       }
+    }
+
+    private func waitForNextPaint(in webView: WKWebView) async throws {
+      _ = try await webView.callAsyncJavaScript(
+        """
+        const timeout = new Promise((resolve) => {
+          setTimeout(resolve, \(SlideDeckThumbnailRenderPlan.fontReadinessTimeoutMilliseconds));
+        });
+        const fontsReady = document.fonts && document.fonts.ready
+          ? document.fonts.ready.catch(() => undefined)
+          : Promise.resolve();
+        await Promise.race([fontsReady, timeout]);
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        return true;
+        """,
+        arguments: [:],
+        in: nil,
+        contentWorld: .page
+      )
     }
   }
 }
