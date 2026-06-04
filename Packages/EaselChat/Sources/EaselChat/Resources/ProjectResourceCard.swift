@@ -3,12 +3,15 @@
 //  EaselChat
 //
 
+import EaselKit
 import SwiftUI
 
 struct ProjectResourceCard: View {
   let resource: ProjectResource
   let isSelected: Bool
   let onSelect: () -> Void
+
+  @Environment(\.colorScheme) private var colorScheme
 
   var body: some View {
     Button(action: onSelect) {
@@ -49,7 +52,10 @@ struct ProjectResourceCard: View {
       .overlay {
         if isSelected {
           RoundedRectangle(cornerRadius: 8)
-            .stroke(Color.accentColor, lineWidth: 2)
+            .stroke(
+              EaselDesignSystem.Palette.selectionAccent(for: colorScheme),
+              lineWidth: 2
+            )
         } else {
           RoundedRectangle(cornerRadius: 8)
             .stroke(.quaternary, lineWidth: 1)

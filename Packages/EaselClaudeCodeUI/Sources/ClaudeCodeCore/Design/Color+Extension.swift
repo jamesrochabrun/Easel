@@ -31,7 +31,7 @@ public enum AppTheme: String, CaseIterable, Identifiable {
   
   public var description: String {
     switch self {
-    case .codex: return "OpenAI-inspired neutrals with a focused green accent"
+    case .codex: return "OpenAI-inspired neutrals with a focused neutral accent"
     case .clear: return "Clean neutral grays"
     case .claude: return "Warm earth tones"
     case .bat: return "Purple with mustard accents"

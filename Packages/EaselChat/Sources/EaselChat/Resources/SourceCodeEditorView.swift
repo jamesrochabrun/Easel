@@ -6,6 +6,7 @@
 import AppKit
 import CodeEditLanguages
 import CodeEditSourceEditor
+import EaselKit
 import SwiftUI
 
 enum EditorDisplayMode: Equatable {
@@ -546,7 +547,7 @@ private enum EaselSourceEditorTheme {
   private static func lightTheme(resolvingIn appearanceName: NSAppearance.Name) -> EditorTheme {
     EditorTheme(
       text: .init(color: rgb(.labelColor, resolvingIn: appearanceName)),
-      insertionPoint: rgb(.controlAccentColor, resolvingIn: appearanceName),
+      insertionPoint: designSystemAccent(for: .light, resolvingIn: appearanceName),
       invisibles: .init(color: rgb(.tertiaryLabelColor, resolvingIn: appearanceName)),
       background: rgb(.textBackgroundColor, resolvingIn: appearanceName),
       lineHighlight: rgb(NSColor.black.withAlphaComponent(0.05), resolvingIn: appearanceName),
@@ -567,7 +568,7 @@ private enum EaselSourceEditorTheme {
   private static func darkTheme(resolvingIn appearanceName: NSAppearance.Name) -> EditorTheme {
     EditorTheme(
       text: .init(color: rgb(.labelColor, resolvingIn: appearanceName)),
-      insertionPoint: rgb(.controlAccentColor, resolvingIn: appearanceName),
+      insertionPoint: designSystemAccent(for: .dark, resolvingIn: appearanceName),
       invisibles: .init(color: rgb(.tertiaryLabelColor, resolvingIn: appearanceName)),
       background: rgb(.windowBackgroundColor, resolvingIn: appearanceName),
       lineHighlight: rgb(NSColor.white.withAlphaComponent(0.08), resolvingIn: appearanceName),
@@ -595,5 +596,15 @@ private enum EaselSourceEditorTheme {
       resolvedColor = color.usingColorSpace(.sRGB) ?? color
     }
     return resolvedColor
+  }
+
+  private static func designSystemAccent(
+    for colorScheme: ColorScheme,
+    resolvingIn appearanceName: NSAppearance.Name
+  ) -> NSColor {
+    rgb(
+      NSColor(EaselDesignSystem.Palette.selectionAccent(for: colorScheme)),
+      resolvingIn: appearanceName
+    )
   }
 }
