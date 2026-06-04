@@ -74,6 +74,30 @@ struct ProjectResourcesViewModelTests {
     #expect(viewModel.isPreviewLoading == false)
   }
 
+  @Test
+  func saveTextPreviewUpdatesSelectedPreview() async {
+    let project = makeProject(name: "Project", path: "/tmp/project")
+    let resource = makeResource(projectPath: project.workingDirectory, fileName: "notes.txt")
+    let item = ProjectResourcePanelItem.resource(resource)
+    let viewModel = ProjectResourcesViewModel(
+      projectManager: StubProjectManager(projects: [project]),
+      resourceManager: StubProjectResourceManager(
+        resourcesByProject: [project.workingDirectory: [resource]],
+        previewsByItemID: [
+          item.id: ProjectResourcePreview(itemID: item.id, content: .text("Initial"))
+        ]
+      )
+    )
+
+    await viewModel.refresh(currentProjectPath: project.workingDirectory)
+    await viewModel.select(item)
+    await viewModel.saveTextPreview("Updated", for: item)
+
+    #expect(viewModel.selectedPreview == ProjectResourcePreview(itemID: item.id, content: .text("Updated")))
+    #expect(viewModel.isSavingPreview == false)
+    #expect(viewModel.errorMessage == nil)
+  }
+
   private func makeProject(name: String, path: String) -> EaselDesignProject {
     EaselDesignProject(
       id: UUID(),
@@ -159,6 +183,10 @@ private actor StubProjectResourceManager: ProjectResourceManaging {
 
   func loadPreview(for item: ProjectResourcePanelItem) async throws -> ProjectResourcePreview {
     previewsByItemID[item.id] ?? ProjectResourcePreview(itemID: item.id, content: .visual)
+  }
+
+  func saveText(_ text: String, for item: ProjectResourcePanelItem) async throws -> ProjectResourcePreview {
+    ProjectResourcePreview(itemID: item.id, content: .text(text))
   }
 
   func importResources(from sourceURLs: [URL], intoProjectAt projectPath: String) async throws -> [ProjectResource] {

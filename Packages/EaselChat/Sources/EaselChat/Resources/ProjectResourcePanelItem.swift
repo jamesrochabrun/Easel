@@ -45,6 +45,15 @@ public enum ProjectResourcePanelItem: Identifiable, Equatable, Sendable {
     }
   }
 
+  var projectPath: String {
+    switch self {
+    case let .resource(resource):
+      return resource.projectPath
+    case let .projectFile(item):
+      return item.projectPath
+    }
+  }
+
   var kind: ProjectResource.Kind {
     switch self {
     case let .resource(resource):
