@@ -16,6 +16,7 @@ public final class SidebarViewModel {
   public var selectedSessionId: String?
   public var isSidebarVisible: Bool = true
   public private(set) var customDesignSystems: [EaselDesignSystemProfile] = []
+  private(set) var projectHeaderScrollRequest: ProjectHeaderScrollRequest?
   var selectedProjectKind: EaselProjectKind = .prototype
   var projectName: String = ""
   var selectedDesignSystem: EaselDesignSystemChoice = .preset(.none)
@@ -99,6 +100,18 @@ public final class SidebarViewModel {
 
   public func toggleSidebar() {
     isSidebarVisible.toggle()
+  }
+
+  public func requestScrollToProjectHeader(workingDirectory: String) {
+    let projectGroupID = workingDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !projectGroupID.isEmpty else { return }
+
+    projectHeaderScrollRequest = ProjectHeaderScrollRequest(projectGroupID: projectGroupID)
+  }
+
+  func clearProjectHeaderScrollRequest(_ request: ProjectHeaderScrollRequest) {
+    guard projectHeaderScrollRequest == request else { return }
+    projectHeaderScrollRequest = nil
   }
 
   public func selectDesignSystem(_ choice: EaselDesignSystemChoice) {
@@ -220,4 +233,9 @@ public final class SidebarViewModel {
 
     return String(collapsed.prefix(limit)).trimmingCharacters(in: .whitespacesAndNewlines)
   }
+}
+
+struct ProjectHeaderScrollRequest: Equatable, Sendable {
+  let id = UUID()
+  let projectGroupID: String
 }

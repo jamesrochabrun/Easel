@@ -17,6 +17,7 @@ public struct SidebarView: View {
   @State private var sessionToDelete: StoredSession?
   @State private var projectToDelete: ProjectGroup?
   @Environment(\.colorScheme) private var colorScheme
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   private let projectKindChangeAnimation = Animation.easeInOut(duration: 0.22)
 
   public init(sidebarViewModel: SidebarViewModel, reservesWindowControls: Bool = false) {
@@ -32,12 +33,23 @@ public struct SidebarView: View {
         .fill(EaselDesignSystem.Palette.border(for: colorScheme))
         .frame(height: 1)
 
-      ScrollView {
-        VStack(alignment: .leading, spacing: 18) {
-          newProjectCard
-          projectList
+      ScrollViewReader { scrollProxy in
+        ScrollView {
+          VStack(alignment: .leading, spacing: 18) {
+            newProjectCard
+            projectList
+          }
+          .padding(12)
         }
-        .padding(12)
+        .onAppear {
+          fulfillProjectHeaderScrollRequest(with: scrollProxy)
+        }
+        .onChange(of: sidebarViewModel.projectHeaderScrollRequest) { _, _ in
+          fulfillProjectHeaderScrollRequest(with: scrollProxy)
+        }
+        .onChange(of: projectGroupIDs) { _, _ in
+          fulfillProjectHeaderScrollRequest(with: scrollProxy)
+        }
       }
     }
     .background(EaselDesignSystem.Palette.canvas(for: colorScheme))
@@ -510,6 +522,7 @@ public struct SidebarView: View {
                 .transition(sessionListTransition)
               }
             }
+            .id(projectHeaderScrollID(for: project.id))
             .transition(projectTransition)
           }
         }
@@ -590,6 +603,42 @@ public struct SidebarView: View {
     }
   }
 
+  private var projectGroupIDs: [String] {
+    sidebarViewModel.projectGroups.map(\.id)
+  }
+
+  private func fulfillProjectHeaderScrollRequest(with scrollProxy: ScrollViewProxy) {
+    guard let request = sidebarViewModel.projectHeaderScrollRequest,
+          projectGroupIDs.contains(request.projectGroupID) else {
+      return
+    }
+
+    Task { @MainActor in
+      await Task.yield()
+
+      let scrollAction = {
+        scrollProxy.scrollTo(
+          projectHeaderScrollID(for: request.projectGroupID),
+          anchor: .top
+        )
+      }
+
+      if reduceMotion {
+        scrollAction()
+      } else {
+        withAnimation(projectListAnimation) {
+          scrollAction()
+        }
+      }
+
+      sidebarViewModel.clearProjectHeaderScrollRequest(request)
+    }
+  }
+
+  private func projectHeaderScrollID(for projectID: String) -> ProjectHeaderScrollID {
+    ProjectHeaderScrollID(projectID: projectID)
+  }
+
   private var projectDeleteConfirmationMessage: String {
     guard let projectToDelete else {
       return "This project and its sessions will be deleted. This action cannot be undone."
@@ -601,4 +650,8 @@ public struct SidebarView: View {
       "This will remove the project folder and \(sessionLabel). " +
       "This action cannot be undone."
   }
+}
+
+private struct ProjectHeaderScrollID: Hashable {
+  let projectID: String
 }
