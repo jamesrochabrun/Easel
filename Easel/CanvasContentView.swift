@@ -356,6 +356,8 @@ struct CanvasContentView: View {
     _ project: EaselDesignProject,
     selection: DesignLibrarySelection
   ) {
+    sidebarViewModel?.requestScrollToProjectHeader(workingDirectory: project.workingDirectory)
+
     Task {
       await chatService.initialize()
 
@@ -370,6 +372,7 @@ struct CanvasContentView: View {
       chatService.setCurrentProject(project)
       await startDevServer(for: project.workingDirectory)
       await sidebarViewModel?.loadSessions()
+      sidebarViewModel?.requestScrollToProjectHeader(workingDirectory: project.workingDirectory)
       await designLibraryViewModel?.refresh()
     }
   }

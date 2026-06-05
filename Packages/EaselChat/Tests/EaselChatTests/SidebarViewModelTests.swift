@@ -114,6 +114,45 @@ struct SidebarViewModelTests {
   }
 
   @Test
+  func requestingProjectHeaderScrollCreatesFreshRequestEachTime() throws {
+    let viewModel = SidebarViewModel(
+      sessionStorage: NoOpSessionStorage(),
+      projectManager: SidebarProjectManagerStub(projects: []),
+      designSystemManager: SidebarDesignSystemManagerStub()
+    )
+
+    viewModel.requestScrollToProjectHeader(workingDirectory: "  /tmp/checkout  ")
+    let firstRequest = try #require(viewModel.projectHeaderScrollRequest)
+
+    viewModel.requestScrollToProjectHeader(workingDirectory: "/tmp/checkout")
+    let secondRequest = try #require(viewModel.projectHeaderScrollRequest)
+
+    #expect(firstRequest.projectGroupID == "/tmp/checkout")
+    #expect(secondRequest.projectGroupID == "/tmp/checkout")
+    #expect(firstRequest.id != secondRequest.id)
+  }
+
+  @Test
+  func clearingProjectHeaderScrollRequestIgnoresStaleRequest() throws {
+    let viewModel = SidebarViewModel(
+      sessionStorage: NoOpSessionStorage(),
+      projectManager: SidebarProjectManagerStub(projects: []),
+      designSystemManager: SidebarDesignSystemManagerStub()
+    )
+
+    viewModel.requestScrollToProjectHeader(workingDirectory: "/tmp/checkout")
+    let staleRequest = try #require(viewModel.projectHeaderScrollRequest)
+    viewModel.requestScrollToProjectHeader(workingDirectory: "/tmp/roadmap")
+    let currentRequest = try #require(viewModel.projectHeaderScrollRequest)
+
+    viewModel.clearProjectHeaderScrollRequest(staleRequest)
+    #expect(viewModel.projectHeaderScrollRequest == currentRequest)
+
+    viewModel.clearProjectHeaderScrollRequest(currentRequest)
+    #expect(viewModel.projectHeaderScrollRequest == nil)
+  }
+
+  @Test
   func deletingProjectDeletesStoredSessionsAndReloadsProjects() async throws {
     let project = EaselDesignProject(
       id: UUID(),
