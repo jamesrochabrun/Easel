@@ -279,6 +279,10 @@ extension ChatInputView {
 
       Spacer(minLength: 12)
 
+      if viewModel.activeProvider == .codex {
+        CodexModelBadge(modelIdentifier: globalPreferences.codexModel)
+      }
+
       PermissionModeButton(mode: $viewModel.permissionMode)
     }
     .font(.system(size: 10))

@@ -15,6 +15,7 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
   private let persistentManager: PersistentPreferencesManager
   private let logger: ClaudeCodeLogger
   private let reconciler = PreferencesReconciler()
+  private let codexModelCatalog = CodexModelCacheCatalog()
   
   /// Cached persistent preferences
   private var persistentPreferences: PersistentPreferences?
@@ -77,6 +78,12 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
   }
 
   public var chatProvider: ChatProvider {
+    didSet {
+      saveToPersistentStorage()
+    }
+  }
+
+  public var codexModel: String {
     didSet {
       saveToPersistentStorage()
     }
@@ -161,6 +168,8 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
       self.claudeCommand = general.claudeCommand
       self.claudePath = general.claudePath
       self.chatProvider = general.chatProvider
+      let loadedCodexModel = general.codexModel.trimmingCharacters(in: .whitespacesAndNewlines)
+      self.codexModel = loadedCodexModel.isEmpty ? CodexModelCacheCatalog().defaultModelIdentifier() : loadedCodexModel
       self.defaultWorkingDirectory = general.defaultWorkingDirectory
       self.autoApproveLowRisk = general.autoApproveLowRisk
       self.showDetailedPermissionInfo = general.showDetailedPermissionInfo
@@ -242,6 +251,7 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
       self.claudeCommand = "claude"
       self.claudePath = ""
       self.chatProvider = .claude
+      self.codexModel = codexModelCatalog.defaultModelIdentifier()
       self.isClaudeCommandFromConfig = false
 
       // Default permission settings
@@ -317,6 +327,8 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
       self.claudeCommand = general.claudeCommand
       self.claudePath = general.claudePath
       self.chatProvider = general.chatProvider
+      let loadedCodexModel = general.codexModel.trimmingCharacters(in: .whitespacesAndNewlines)
+      self.codexModel = loadedCodexModel.isEmpty ? CodexModelCacheCatalog().defaultModelIdentifier() : loadedCodexModel
       self.defaultWorkingDirectory = general.defaultWorkingDirectory
       self.autoApproveLowRisk = general.autoApproveLowRisk
       self.showDetailedPermissionInfo = general.showDetailedPermissionInfo
@@ -359,6 +371,7 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
     claudeCommand = "claude"
     claudePath = ""
     chatProvider = .claude
+    codexModel = codexModelCatalog.defaultModelIdentifier()
     isClaudeCommandFromConfig = false
 
     // Reset permission settings
@@ -437,6 +450,7 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
         claudeCommand: claudeCommand,
         claudePath: claudePath,
         chatProvider: chatProvider,
+        codexModel: codexModel,
         defaultWorkingDirectory: defaultWorkingDirectory,
         appendSystemPrompt: appendSystemPrompt,
         systemPrompt: systemPrompt,
@@ -535,6 +549,7 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
         claudeCommand: claudeCommand,
         claudePath: claudePath,
         chatProvider: chatProvider,
+        codexModel: codexModel,
         defaultWorkingDirectory: defaultWorkingDirectory,
         appendSystemPrompt: appendSystemPrompt,
         systemPrompt: systemPrompt,
