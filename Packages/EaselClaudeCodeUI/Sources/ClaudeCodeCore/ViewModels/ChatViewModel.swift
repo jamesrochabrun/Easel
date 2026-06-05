@@ -1227,6 +1227,7 @@ EOF
     let runtime = getCodexRuntime()
     runtime.workingDirectory = claudeClient.configuration.workingDirectory
     runtime.developerInstructions = combinedCodexDeveloperInstructions()
+    runtime.modelIdentifier = globalPreferences.codexModel
     try await runtime.send(
       prompt: prompt,
       messageId: messageId,
@@ -1252,6 +1253,7 @@ EOF
       sessionManager: sessionManager,
       workingDirectory: claudeClient.configuration.workingDirectory,
       developerInstructions: combinedCodexDeveloperInstructions(),
+      modelIdentifier: globalPreferences.codexModel,
       onSessionChange: onSessionChange
     )
     codexRuntime = runtime

@@ -38,6 +38,79 @@ final class CodexChatRuntimeOptionsTests: XCTestCase {
   }
 
   @MainActor
+  func testSelectedModelIsPassedToFirstTurnOptions() {
+    let options = CodexChatRuntime.makeOptions(
+      isFirstTurn: true,
+      currentSessionId: nil,
+      workingDirectory: "/tmp/easel",
+      modelIdentifier: "gpt-5.4",
+      configOverrides: [:]
+    )
+
+    XCTAssertEqual(options.model, "gpt-5.4")
+  }
+
+  @MainActor
+  func testDebugCommandDescriptionIncludesModelFlagForFirstTurn() {
+    let options = CodexChatRuntime.makeOptions(
+      isFirstTurn: true,
+      currentSessionId: nil,
+      workingDirectory: "/tmp/easel path",
+      modelIdentifier: "gpt-5.4",
+      configOverrides: [:]
+    )
+
+    let command = CodexChatRuntime.debugCommandDescription(options: options)
+
+    XCTAssertTrue(command.contains("--model 'gpt-5.4'"))
+    XCTAssertTrue(command.contains("--cd '/tmp/easel path'"))
+    XCTAssertTrue(command.hasSuffix(" -"))
+  }
+
+  @MainActor
+  func testSelectedModelIsPassedToResumeOptions() {
+    let options = CodexChatRuntime.makeOptions(
+      isFirstTurn: false,
+      currentSessionId: "thread-id",
+      workingDirectory: "/tmp/easel",
+      modelIdentifier: "gpt-5.4-mini",
+      configOverrides: [:]
+    )
+
+    XCTAssertEqual(options.model, "gpt-5.4-mini")
+    XCTAssertEqual(options.resumeSessionId, "thread-id")
+  }
+
+  @MainActor
+  func testDebugCommandDescriptionIncludesModelFlagForResume() {
+    let options = CodexChatRuntime.makeOptions(
+      isFirstTurn: false,
+      currentSessionId: "thread-id",
+      workingDirectory: "/tmp/easel",
+      modelIdentifier: "gpt-5.4-mini",
+      configOverrides: [:]
+    )
+
+    let command = CodexChatRuntime.debugCommandDescription(options: options)
+
+    XCTAssertTrue(command.contains("codex exec resume 'thread-id'"))
+    XCTAssertTrue(command.contains("--model 'gpt-5.4-mini'"))
+  }
+
+  @MainActor
+  func testBlankSelectedModelIsIgnored() {
+    let options = CodexChatRuntime.makeOptions(
+      isFirstTurn: true,
+      currentSessionId: nil,
+      workingDirectory: "/tmp/easel",
+      modelIdentifier: "   ",
+      configOverrides: [:]
+    )
+
+    XCTAssertNil(options.model)
+  }
+
+  @MainActor
   func testDeveloperInstructionsAreEscapedAsTomlString() {
     let options = CodexChatRuntime.makeOptions(
       isFirstTurn: true,

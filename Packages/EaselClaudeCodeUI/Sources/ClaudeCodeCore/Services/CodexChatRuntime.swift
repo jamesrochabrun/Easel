@@ -10,6 +10,7 @@ import Foundation
 final class CodexChatRuntime {
   var workingDirectory: String?
   var developerInstructions: String?
+  var modelIdentifier: String?
 
   private let messageDisplay: ChatMessageDisplay
   private let sessionManager: SessionManager
@@ -22,12 +23,14 @@ final class CodexChatRuntime {
     sessionManager: SessionManager,
     workingDirectory: String?,
     developerInstructions: String? = nil,
+    modelIdentifier: String? = nil,
     onSessionChange: ((String) -> Void)?
   ) {
     self.messageDisplay = messageDisplay
     self.sessionManager = sessionManager
     self.workingDirectory = workingDirectory
     self.developerInstructions = developerInstructions
+    self.modelIdentifier = modelIdentifier
     self.onSessionChange = onSessionChange
   }
 
@@ -53,8 +56,10 @@ final class CodexChatRuntime {
       isFirstTurn: isFirstTurn,
       currentSessionId: sessionManager.currentSessionId,
       workingDirectory: workingDirectory,
-      developerInstructions: developerInstructions
+      developerInstructions: developerInstructions,
+      modelIdentifier: modelIdentifier
     )
+    print(Self.debugCommandDescription(options: options))
     let client = makeClient()
 
     let eventStream = AsyncStream<CodexExecEvent>.makeStream()
@@ -128,6 +133,7 @@ final class CodexChatRuntime {
     currentSessionId: String?,
     workingDirectory: String?,
     developerInstructions: String? = nil,
+    modelIdentifier: String? = nil,
     configOverrides: [String: String] = CodexUserConfigCompatibility.compatibleConfigOverrides()
   ) -> CodexExecOptions {
     var options = CodexExecOptions()
@@ -144,6 +150,10 @@ final class CodexChatRuntime {
       options.configOverrides["developer_instructions"] = developerInstructions
     }
 
+    if let model = normalizedModelIdentifier(modelIdentifier) {
+      options.model = model
+    }
+
     if isFirstTurn {
       options.sandbox = .workspaceWrite
       options.approval = .never
@@ -158,6 +168,72 @@ final class CodexChatRuntime {
     }
 
     return options
+  }
+
+  static func debugCommandDescription(options: CodexExecOptions) -> String {
+    var parts = ["codex", "exec"]
+
+    if let sessionId = options.resumeSessionId {
+      parts.append("resume")
+      parts.append(shellQuoted(sessionId))
+    } else if options.resumeLastSession {
+      parts.append("resume")
+      parts.append("--last")
+    }
+
+    if let model = options.model {
+      parts.append("--model")
+      parts.append(shellQuoted(model))
+    }
+
+    if let approval = options.approval {
+      parts.append("-c")
+      parts.append(shellQuoted("approval=\(approval.rawValue)"))
+    }
+
+    if let sandbox = options.sandbox {
+      parts.append("--sandbox")
+      parts.append(sandbox.rawValue)
+    }
+
+    if options.fullAuto {
+      parts.append("--full-auto")
+    }
+
+    if let changeDirectory = options.changeDirectory {
+      parts.append("--cd")
+      parts.append(shellQuoted(changeDirectory))
+    }
+
+    if options.skipGitRepoCheck {
+      parts.append("--skip-git-repo-check")
+    }
+
+    if options.jsonEvents {
+      parts.append("--json")
+    }
+
+    for key in options.configOverrides.keys.sorted() {
+      guard let value = options.configOverrides[key] else { continue }
+      parts.append("-c")
+      parts.append(shellQuoted("\(key)=\(value)"))
+    }
+
+    if options.promptViaStdin {
+      parts.append("-")
+    }
+
+    return "[CodexChatRuntime] Executing: \(parts.joined(separator: " "))"
+  }
+
+  private static func normalizedModelIdentifier(_ value: String?) -> String? {
+    let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed?.isEmpty == false ? trimmed : nil
+  }
+
+  private static func shellQuoted(_ value: String) -> String {
+    let escaped = value.replacingOccurrences(of: "'", with: "'\\''")
+    return "'\(escaped)'"
   }
 
   private static func tomlString(_ value: String?) -> String? {

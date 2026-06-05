@@ -12,21 +12,24 @@ struct GlobalSettingsView: View {
   let uiConfiguration: UIConfiguration
   let chatViewModel: ChatViewModel?
   let mcpToolsDiscovery: MCPToolsDiscoveryService
+  let codexModelCatalog: any CodexModelCatalogProviding
 
   init(
     uiConfiguration: UIConfiguration = .default,
     chatViewModel: ChatViewModel? = nil,
-    mcpToolsDiscovery: MCPToolsDiscoveryService = MCPToolsDiscoveryService()
+    mcpToolsDiscovery: MCPToolsDiscoveryService = MCPToolsDiscoveryService(),
+    codexModelCatalog: any CodexModelCatalogProviding = CodexModelCacheCatalog()
   ) {
     self.uiConfiguration = uiConfiguration
     self.chatViewModel = chatViewModel
     self.mcpToolsDiscovery = mcpToolsDiscovery
+    self.codexModelCatalog = codexModelCatalog
   }
   
   // MARK: - Constants
   private enum Layout {
     static let windowWidth: CGFloat = 700
-    static let windowHeight: CGFloat = 550
+    static let windowHeight: CGFloat = 620
     static let textEditorHeight: CGFloat = 100
   }
 
@@ -46,6 +49,7 @@ struct GlobalSettingsView: View {
   @State private var commandCopied: Bool = false
   @State private var reportCopied: Bool = false
   @State private var claudePathValidation: PathValidationState = .notSet
+  @State private var codexModels: [CodexModelDescriptor] = []
 
   // MARK: - Body
   var body: some View {
@@ -74,6 +78,7 @@ struct GlobalSettingsView: View {
       let claudeTools = ClaudeCodeTool.allCases.map { $0.rawValue }
       selectedTools = Set(globalPreferences.allowedTools.filter { claudeTools.contains($0) })
       selectedMCPTools = globalPreferences.selectedMCPTools
+      refreshCodexModels()
     }
   }
 
@@ -230,6 +235,14 @@ struct GlobalSettingsView: View {
   @ViewBuilder
   private var codexConfigurationRow: some View {
     VStack(alignment: .leading, spacing: 8) {
+      CodexModelPickerRow(
+        preferences: globalPreferences,
+        models: codexModels,
+        onRefresh: refreshCodexModels
+      )
+
+      Divider()
+
       Text("Codex CLI")
       Text("Command: codex")
         .font(.system(.body, design: .monospaced))
@@ -633,6 +646,19 @@ struct GlobalSettingsView: View {
 
     if openPanel.runModal() == .OK, let url = openPanel.url {
       globalPreferences.defaultWorkingDirectory = url.path
+    }
+  }
+
+  private func refreshCodexModels() {
+    Task {
+      let homeDirectory = NSHomeDirectory()
+      let models = await codexModelCatalog.availableModels(homeDirectory: homeDirectory)
+      codexModels = models
+
+      let selected = globalPreferences.codexModel.trimmingCharacters(in: .whitespacesAndNewlines)
+      if selected.isEmpty {
+        globalPreferences.codexModel = codexModelCatalog.defaultModelIdentifier(homeDirectory: homeDirectory)
+      }
     }
   }
 

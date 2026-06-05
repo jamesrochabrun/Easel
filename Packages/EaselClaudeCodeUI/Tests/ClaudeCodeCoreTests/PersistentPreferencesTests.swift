@@ -50,6 +50,7 @@ final class PersistentPreferencesTests: XCTestCase {
       autoApproveLowRisk: true,
       claudeCommand: "claude-test",
       chatProvider: .codex,
+      codexModel: "gpt-5.4",
       defaultWorkingDirectory: "/test/path",
       appendSystemPrompt: "Test prompt"
     )
@@ -72,6 +73,7 @@ final class PersistentPreferencesTests: XCTestCase {
     XCTAssertEqual(loaded?.generalPreferences.appendSystemPrompt, "Test prompt")
     XCTAssertEqual(loaded?.generalPreferences.autoApproveLowRisk, true)
     XCTAssertEqual(loaded?.generalPreferences.chatProvider, .codex)
+    XCTAssertEqual(loaded?.generalPreferences.codexModel, "gpt-5.4")
 
     // Verify tool preferences
     XCTAssertEqual(loaded?.toolPreferences.claudeCode["Bash"]?.isAllowed, true)
@@ -123,6 +125,7 @@ final class PersistentPreferencesTests: XCTestCase {
     let preferences = try JSONDecoder().decode(GeneralPreferences.self, from: data)
 
     XCTAssertEqual(preferences.chatProvider, .claude)
+    XCTAssertFalse(preferences.codexModel.isEmpty)
   }
 
   func testToolReconciliation() async throws {
