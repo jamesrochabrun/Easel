@@ -40,7 +40,9 @@ struct MCPConfigurationView: View {
       VStack(spacing: 0) {
         Form {
           serversSection
-          quickAddSection
+          if !MCPServerConfig.predefinedServers.isEmpty {
+            quickAddSection
+          }
           configurationSection
           
           // Custom permission section (only show if globalPreferences is available)

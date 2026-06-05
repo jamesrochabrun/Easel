@@ -51,9 +51,6 @@ public struct UIConfiguration {
   /// Whether the composer should use a material background instead of the default control background
   public let useMaterialInputBackground: Bool
 
-  /// Whether to show the dismissable command shortcut tip below the composer
-  public let showCommandTip: Bool
-
   /// Whether to show the welcome row at the top of the messages list
   public let showWelcomeRow: Bool
 
@@ -73,7 +70,6 @@ public struct UIConfiguration {
       messageFontSize: 13.0,
       inputCornerRadius: 12.0,
       useMaterialInputBackground: false,
-      showCommandTip: true,
       showWelcomeRow: true
     )
   }
@@ -94,7 +90,6 @@ public struct UIConfiguration {
       messageFontSize: 13.0,
       inputCornerRadius: 12.0,
       useMaterialInputBackground: false,
-      showCommandTip: true,
       showWelcomeRow: true
     )
   }
@@ -114,7 +109,6 @@ public struct UIConfiguration {
     messageFontSize: Double = 13.0,
     inputCornerRadius: Double = 12.0,
     useMaterialInputBackground: Bool = false,
-    showCommandTip: Bool = true,
     showWelcomeRow: Bool = true
   ) {
     self.appName = appName
@@ -130,7 +124,6 @@ public struct UIConfiguration {
     self.messageFontSize = messageFontSize
     self.inputCornerRadius = inputCornerRadius
     self.useMaterialInputBackground = useMaterialInputBackground
-    self.showCommandTip = showCommandTip
     self.showWelcomeRow = showWelcomeRow
   }
 }

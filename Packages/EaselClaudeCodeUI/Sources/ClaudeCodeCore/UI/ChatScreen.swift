@@ -8,9 +8,7 @@
 import ClaudeCodeSDK
 import Foundation
 import SwiftUI
-import CCPermissionsServiceInterface
 import CCTerminalServiceInterface
-import KeyboardShortcuts
 import CCCustomPermissionServiceInterface
 import CCCustomPermissionService
 
@@ -21,7 +19,7 @@ import CCCustomPermissionService
 /// and provides a complete chat experience including:
 /// - Message history with support for different message types (user, assistant, tool use)
 /// - Real-time streaming of responses with token counting
-/// - Context management from Xcode and other sources
+/// - Context management from file references and other sources
 /// - Permission approval workflows for sensitive operations
 /// - Settings management (both session and global)
 /// - Artifact viewing for generated content
@@ -42,8 +40,6 @@ public struct ChatScreen: View {
   /// - Parameters:
   ///   - viewModel: The chat view model managing conversation state
   ///   - contextManager: Manages context information from various sources
-  ///   - xcodeObservationViewModel: View model for Xcode observation data
-  ///   - permissionsService: Service managing app permissions
   ///   - terminalService: Service for terminal operations
   ///   - customPermissionService: Service for custom permission management
   ///   - columnVisibility: Binding to control navigation split view visibility
@@ -51,8 +47,6 @@ public struct ChatScreen: View {
   public init(
     viewModel: ChatViewModel,
     contextManager: ContextManager,
-    xcodeObservationViewModel: XcodeObservationViewModel,
-    permissionsService: PermissionsService,
     terminalService: TerminalService,
     customPermissionService: CustomPermissionService,
     columnVisibility: Binding<NavigationSplitViewVisibility>,
@@ -62,33 +56,21 @@ public struct ChatScreen: View {
   ) {
     self.viewModel = viewModel
     self.contextManager = contextManager
-    self.xcodeObservationViewModel = xcodeObservationViewModel
-    self.permissionsService = permissionsService
     self.terminalService = terminalService
     _customPermissionService = State(initialValue: customPermissionService)
     _columnVisibility = columnVisibility
     self.uiConfiguration = uiConfiguration
     self.attachmentImportService = attachmentImportService
     self.attachmentProcessingService = attachmentProcessingService
-    // Note: KeyboardShortcutManager will be initialized in onAppear
-    // after GlobalPreferencesStorage is available from @Environment
   }
   
   /// The view model managing the chat conversation state, messages, and streaming
   /// Handles all chat-related business logic including API interactions
   @State var viewModel: ChatViewModel
   
-  /// Manages context information from various sources (Xcode, clipboard, etc.)
+  /// Manages context information from file references and selected snippets.
   /// Responsible for capturing and providing contextual data to enhance chat interactions
   @State var contextManager: ContextManager
-  
-  /// View model that observes and tracks Xcode state and active projects
-  /// Provides integration with Xcode IDE for context-aware assistance
-  let xcodeObservationViewModel: XcodeObservationViewModel
-  
-  /// Service managing system-level permissions (file system, network, etc.)
-  /// Ensures safe execution of operations requiring elevated privileges
-  let permissionsService: PermissionsService
   
   /// Service for executing terminal commands and managing shell operations
   /// Provides interface for running shell scripts and terminal commands
@@ -119,13 +101,6 @@ public struct ChatScreen: View {
   /// Determines which type of settings to display (session or global)
   @State var settingsTypeToShow: SettingsType = .session
   
-  /// Manages keyboard shortcuts and captures text from external sources
-  /// Initialized in onAppear after GlobalPreferencesStorage is available
-  @State private var keyboardManager: KeyboardShortcutManager?
-  
-  /// Triggers focus on the text editor when keyboard shortcuts are activated
-  @State private var triggerTextEditorFocus = false
-  
   /// Currently selected artifact for viewing in a sheet
   /// Set when user clicks on an artifact in a message
   @State var artifact: Artifact? = nil
@@ -155,11 +130,8 @@ public struct ChatScreen: View {
         text: $messageText,
         chatViewModel: $viewModel,
         contextManager: contextManager,
-        xcodeObservationViewModel: xcodeObservationViewModel,
-        permissionsService: permissionsService,
         uiConfiguration: uiConfiguration,
         placeholder: "Message \(uiConfiguration.appName)...",
-        triggerFocus: $triggerTextEditorFocus,
         attachmentImportService: attachmentImportService,
         attachmentProcessingService: attachmentProcessingService)
     }
@@ -216,21 +188,6 @@ public struct ChatScreen: View {
       // No buttons - will auto-dismiss
     } message: {
       Text("You can now continue your conversation")
-    }
-    .onChange(of: keyboardManager?.capturedText ?? "", keyboardTextChanged)
-    .onChange(of: keyboardManager?.shouldFocusTextEditor ?? false, focusTextEditorChanged)
-    .onChange(of: keyboardManager?.shouldRefreshObservation ?? false, refreshObservationChanged)
-    .onAppear(perform: initializeKeyboardManager)
-  }
-
-  private func initializeKeyboardManager() {
-    // Initialize KeyboardShortcutManager with environment dependencies
-    if keyboardManager == nil {
-      keyboardManager = KeyboardShortcutManager(
-        xcodeObserver: xcodeObservationViewModel.observer,
-        xcodeObservationViewModel: xcodeObservationViewModel,
-        globalPreferences: globalPreferences
-      )
     }
   }
   
@@ -338,8 +295,6 @@ public struct ChatScreen: View {
     case .global:
       GlobalSettingsView(
         uiConfiguration: uiConfiguration,
-        xcodeObservationViewModel: xcodeObservationViewModel,
-        permissionsService: permissionsService,
         chatViewModel: viewModel,
         mcpToolsDiscovery: viewModel.mcpToolsDiscovery
       )
@@ -347,35 +302,6 @@ public struct ChatScreen: View {
   }
   
   // MARK: - Actions
-  
-  private func keyboardTextChanged(oldValue: String, newValue: String) {
-    if !newValue.isEmpty && newValue != oldValue {
-      // First try to capture from Xcode if available
-      if contextManager.captureCurrentSelection() != nil {
-        // Successfully captured from Xcode, ignore clipboard text
-      } else {
-        // No Xcode selection, use clipboard text
-        contextManager.addCapturedText(newValue)
-      }
-    }
-  }
-  
-  private func focusTextEditorChanged(_: Bool, shouldFocus: Bool) {
-    if shouldFocus {
-      triggerTextEditorFocus = true
-      // Reset the flag after using it
-      keyboardManager?.shouldFocusTextEditor = false
-    }
-  }
-
-  private func refreshObservationChanged(_: Bool, shouldRefresh: Bool) {
-    if shouldRefresh {
-      // Restart observation (clears dismissed files and refreshes)
-      xcodeObservationViewModel.restartObservation()
-      // Reset the flag after using it
-      keyboardManager?.shouldRefreshObservation = false
-    }
-  }
   
   private func clearChat() {
     Task {

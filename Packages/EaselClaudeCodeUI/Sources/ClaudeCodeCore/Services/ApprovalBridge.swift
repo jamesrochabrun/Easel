@@ -77,7 +77,7 @@ public final class ApprovalBridge: ObservableObject {
       // IMPORTANT: Activate the app to ensure toast visibility when triggered via notifications.
       // When ICP requests come via DistributedNotificationCenter from background processes,
       // the app may not be active/focused, so the toast alerts won't be visible to the user.
-      // This activation strategy mirrors the cmd+i shortcut behavior in KeyboardShortcutManager.
+      // This activation strategy keeps approval prompts visible when background processes request them.
       NSRunningApplication.current.activate()
       
       // Ensure window comes to front after a brief delay

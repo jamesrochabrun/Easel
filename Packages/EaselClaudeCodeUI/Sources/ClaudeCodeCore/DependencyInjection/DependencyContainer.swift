@@ -7,15 +7,8 @@
 
 import Foundation
 import SwiftUI
-import CCXcodeObserverService
-import CCXcodeObserverServiceInterface
-import CCPermissionsService
-import CCPermissionsServiceInterface
-import CCAccessibilityService
-import CCAccessibilityServiceInterface
 import CCTerminalService
 import CCTerminalServiceInterface
-import ApplicationServices
 import CCCustomPermissionService
 import CCCustomPermissionServiceInterface
 import ClaudeCodeSDK
@@ -31,24 +24,10 @@ public final class DependencyContainer {
   public let mcpToolsDiscovery: MCPToolsDiscoveryService
   public let logger: ClaudeCodeLogger
   public let terminalService: TerminalService
-  public let permissionsService: PermissionsService
-  /// Service that provides macOS accessibility API functionality.
-  /// Used to interact with UI elements, monitor system events, and control accessibility features.
-  public let accessibilityService: AccessibilityService
-  
-  /// Observer that monitors Xcode's state and activities.
-  /// Tracks active windows, current file context, and editor state changes to provide
-  /// real-time information about the user's development environment.
-  public let xcodeObserver: XcodeObserver
-  
-  /// View model that manages the presentation logic for Xcode observation data.
-  /// Acts as a bridge between the XcodeObserver service and the UI layer,
-  /// providing formatted and reactive data for display.
-  public let xcodeObservationViewModel: XcodeObservationViewModel
   
   /// Manages and coordinates context information from various sources.
-  /// Combines data from Xcode observations to provide a unified view of the current
-  /// development context, including active files, projects, and code selections.
+  /// Provides a unified view of the current development context, including
+  /// referenced files, projects, and code selections.
   public let contextManager: ContextManager
   
   // Custom permission service
@@ -85,30 +64,12 @@ public final class DependencyContainer {
     // Initialize core services
     self.terminalService = DefaultTerminalService()
     
-    // Initialize permissions service
-    self.permissionsService = DefaultPermissionsService(
-      terminalService: terminalService,
-      userDefaults: .standard,
-      bundle: .main,
-      isAccessibilityPermissionGrantedClosure: { AXIsProcessTrusted() }
-    )
-    
-    // Initialize accessibility service
-    self.accessibilityService = DefaultAccessibilityService()
-    
     // Initialize custom permission service
     self.customPermissionService = DefaultCustomPermissionService()
     
     // Initialize approval bridge for MCP IPC
     self.approvalBridge = ApprovalBridge(permissionService: customPermissionService)
-    
-    // Initialize XcodeObserver with dependencies
-    self.xcodeObserver = DefaultXcodeObserver(
-      accessibilityService: accessibilityService,
-      permissionsService: permissionsService
-    )
-    self.xcodeObservationViewModel = XcodeObservationViewModel(xcodeObserver: xcodeObserver)
-    self.contextManager = ContextManager(xcodeObservationViewModel: xcodeObservationViewModel)
+    self.contextManager = ContextManager()
   }
   
   public func setCurrentSession(_ sessionId: String) {

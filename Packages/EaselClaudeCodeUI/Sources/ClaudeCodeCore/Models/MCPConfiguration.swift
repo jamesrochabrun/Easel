@@ -82,11 +82,5 @@ struct MCPServerConfig: Identifiable {
 // MARK: - Predefined MCP Servers
 
 extension MCPServerConfig {
-  static let predefinedServers = [
-    MCPServerConfig(
-      name: "XcodeBuildMCP",
-      command: "npx",
-      args: ["-y", "xcodebuildmcp@latest"]
-    )
-  ]
+  static let predefinedServers: [MCPServerConfig] = []
 }
