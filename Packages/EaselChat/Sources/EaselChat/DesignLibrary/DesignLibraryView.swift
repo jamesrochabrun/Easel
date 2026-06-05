@@ -10,6 +10,7 @@ public struct DesignLibraryView: View {
   @Bindable var viewModel: DesignLibraryViewModel
   let onOpenSelection: (DesignLibrarySelection) -> Void
   private let showsHeader: Bool
+  private let onCreateDesign: (() -> Void)?
 
   @State private var thumbnailCache = DesignLibraryThumbnailCache()
   @Environment(\.colorScheme) private var colorScheme
@@ -17,10 +18,12 @@ public struct DesignLibraryView: View {
   public init(
     viewModel: DesignLibraryViewModel,
     showsHeader: Bool = true,
+    onCreateDesign: (() -> Void)? = nil,
     onOpenSelection: @escaping (DesignLibrarySelection) -> Void
   ) {
     self.viewModel = viewModel
     self.showsHeader = showsHeader
+    self.onCreateDesign = onCreateDesign
     self.onOpenSelection = onOpenSelection
   }
 
@@ -74,14 +77,29 @@ public struct DesignLibraryView: View {
     }
   }
 
+  @ViewBuilder
   private var emptyState: some View {
-    ContentUnavailableView(
-      "No designs",
-      systemImage: "square.grid.2x2",
-      description: Text("Create a prototype, slide deck, or design system to see it here.")
-    )
-    .frame(maxWidth: .infinity, minHeight: 360)
-    .padding(24)
+    if let onCreateDesign {
+      ContentUnavailableView {
+        Label("No designs", systemImage: "square.grid.2x2")
+      } description: {
+        Text("Create a prototype, slide deck, or design system to see it here.")
+      } actions: {
+        Button("Show Create Controls", systemImage: "sidebar.left", action: onCreateDesign)
+          .buttonStyle(.borderedProminent)
+          .controlSize(.large)
+      }
+      .frame(maxWidth: .infinity, minHeight: 360)
+      .padding(24)
+    } else {
+      ContentUnavailableView(
+        "No designs",
+        systemImage: "square.grid.2x2",
+        description: Text("Create a prototype, slide deck, or design system to see it here.")
+      )
+      .frame(maxWidth: .infinity, minHeight: 360)
+      .padding(24)
+    }
   }
 
   private func refresh() async {

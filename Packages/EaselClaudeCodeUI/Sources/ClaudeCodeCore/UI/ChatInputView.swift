@@ -33,8 +33,7 @@ struct ChatInputView: View {
   let placeholder: String
   @State private var shouldSubmit = false
   @Binding var triggerFocus: Bool
-  @State private var showingProjectPathAlert = false
-  @State private var showingSettings = false
+  @State private var showingDesignSelectionAlert = false
   @State private var attachments: [FileAttachment] = []
   @State private var isDragging = false
   @State private var showingFilePicker = false
@@ -220,13 +219,10 @@ struct ChatInputView: View {
         fileSearchViewModel?.updateProjectPath(viewModel.projectPath)
       }
     }
-    .alert("No Working Directory Selected", isPresented: $showingProjectPathAlert) {
-      workingDirectoryAlertButtons
+    .alert("No Design Selected", isPresented: $showingDesignSelectionAlert) {
+      designSelectionAlertButtons
     } message: {
-      Text("Please select a working directory before starting a conversation. This helps Claude understand the context of your project.")
-    }
-    .sheet(isPresented: $showingSettings) {
-      settingsSheet
+      Text("Select an existing design or create a new one before sending a message")
     }
     .fileImporter(
       isPresented: $showingFilePicker,
@@ -346,20 +342,9 @@ extension ChatInputView {
       .animation(.easeInOut(duration: 0.2), value: isDragging)
   }
   
-  /// Working directory alert buttons
-  private var workingDirectoryAlertButtons: some View {
-    Group {
-      Button("Open Settings") {
-        showingSettings = true
-      }
-      Button("Cancel", role: .cancel) {}
-    }
-  }
-  
-  /// Settings sheet
-  private var settingsSheet: some View {
-    SettingsView(chatViewModel: viewModel)
-      .frame(width: 700, height: 550)
+  /// Design selection alert buttons
+  private var designSelectionAlertButtons: some View {
+    Button("Cancel", role: .cancel) {}
   }
   
   /// Placeholder view
@@ -627,7 +612,7 @@ extension ChatInputView {
     guard !trimmedText.isEmpty else { return }
     
     if viewModel.projectPath.isEmpty {
-      showingProjectPathAlert = true
+      showingDesignSelectionAlert = true
       return
     }
     
