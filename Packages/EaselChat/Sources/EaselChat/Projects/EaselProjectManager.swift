@@ -80,12 +80,13 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
     try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
 
     let now = Date()
+    let fidelity = effectiveFidelity(for: request)
     let project = EaselDesignProject(
       id: UUID(),
       name: projectName,
       kind: request.kind,
       designSystem: request.designSystem,
-      fidelity: request.fidelity,
+      fidelity: fidelity,
       workingDirectory: directoryURL.path,
       createdAt: now,
       updatedAt: now
@@ -183,6 +184,10 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
     try contents.data(using: .utf8)?.write(to: url, options: .atomic)
   }
 
+  private func effectiveFidelity(for request: EaselProjectCreateRequest) -> EaselProjectFidelity {
+    request.kind == .prototype ? request.fidelity : .highFidelity
+  }
+
   private func normalizedProjectName(_ rawName: String, kind: EaselProjectKind) -> String {
     let trimmed = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else {
@@ -245,14 +250,22 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
   }
 
   private func readme(for project: EaselDesignProject) -> String {
-    """
+    var metadataLines = [
+      "- Type: \(project.kind.displayName)",
+    ]
+
+    if project.kind == .prototype {
+      metadataLines.append("- Fidelity: \(project.fidelity.displayName)")
+    }
+
+    metadataLines.append("- Design system: \(project.designSystem.displayName)")
+
+    return """
     # \(project.name)
 
     Created by Codex Design.
 
-    - Type: \(project.kind.displayName)
-    - Fidelity: \(project.fidelity.displayName)
-    - Design system: \(project.designSystem.displayName)
+    \(metadataLines.joined(separator: "\n"))
 
     Add project assets to `resources/` so Codex can inspect and use them while designing.
 

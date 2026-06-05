@@ -32,6 +32,9 @@ struct EaselProjectManagerTests {
     #expect(FileManager.default.fileExists(atPath: projectURL.appendingPathComponent("README.md").path))
     #expect(FileManager.default.fileExists(atPath: projectURL.appendingPathComponent("resources", isDirectory: true).path))
 
+    let readme = try String(contentsOf: projectURL.appendingPathComponent("README.md"), encoding: .utf8)
+    #expect(readme.contains("- Fidelity: High fidelity"))
+
     let metadataURL = projectURL
       .appendingPathComponent(".easel", isDirectory: true)
       .appendingPathComponent("project.json")
@@ -68,6 +71,27 @@ struct EaselProjectManagerTests {
 
     #expect(first.workingDirectory.hasSuffix("/roadmap-deck"))
     #expect(second.workingDirectory.hasSuffix("/roadmap-deck-2"))
+  }
+
+  @Test
+  func createSlideDeckNormalizesFidelityAndOmitsFidelityFromReadme() async throws {
+    let rootDirectory = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: rootDirectory) }
+
+    let manager = LocalEaselProjectManager(rootDirectory: rootDirectory)
+    let project = try await manager.createProject(from: EaselProjectCreateRequest(
+      name: "Roadmap Deck",
+      kind: .slideDeck,
+      designSystem: .apple,
+      fidelity: .wireframe
+    ))
+
+    let projectURL = URL(fileURLWithPath: project.workingDirectory)
+    let readme = try String(contentsOf: projectURL.appendingPathComponent("README.md"), encoding: .utf8)
+
+    #expect(project.fidelity == .highFidelity)
+    #expect(readme.contains("- Type: Slide deck"))
+    #expect(readme.contains("- Fidelity:") == false)
   }
 
   @Test

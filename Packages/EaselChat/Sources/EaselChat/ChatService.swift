@@ -281,9 +281,15 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
       hiddenContext,
       projectPath: currentWorkingDirectory,
       projectKind: currentProject?.kind,
+      projectFidelity: currentPrototypeFidelity,
       previewURL: previewURL
     )
     chatViewModel?.sendMessage(text, context: context, hiddenContext: combinedHiddenContext)
+  }
+
+  private var currentPrototypeFidelity: EaselProjectFidelity? {
+    guard currentProject?.kind == .prototype else { return nil }
+    return currentProject?.fidelity
   }
 
   private func setCurrentWorkingDirectory(_ path: String?) {

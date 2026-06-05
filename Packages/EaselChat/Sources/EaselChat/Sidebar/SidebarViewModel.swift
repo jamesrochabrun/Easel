@@ -64,6 +64,14 @@ public final class SidebarViewModel {
     customDesignSystems.isEmpty && selectedDesignSystem == .preset(.none)
   }
 
+  var shouldShowFidelityPicker: Bool {
+    selectedProjectKind == .prototype
+  }
+
+  private var projectCreationFidelity: EaselProjectFidelity {
+    shouldShowFidelityPicker ? selectedFidelity : .highFidelity
+  }
+
   // MARK: - Public Methods
 
   public func loadSessions() async {
@@ -164,7 +172,7 @@ public final class SidebarViewModel {
       name: name,
       kind: selectedProjectKind,
       designSystem: selectedDesignSystem,
-      fidelity: selectedFidelity
+      fidelity: projectCreationFidelity
     )
 
     do {

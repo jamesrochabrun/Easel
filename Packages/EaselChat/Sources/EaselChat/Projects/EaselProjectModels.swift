@@ -64,6 +64,24 @@ public enum EaselProjectFidelity: String, CaseIterable, Codable, Identifiable, S
     }
   }
 
+  var pickerDescription: String {
+    switch self {
+    case .wireframe:
+      return "Structure and flow before visual polish."
+    case .highFidelity:
+      return "Polished visuals with assets and states."
+    }
+  }
+
+  var agentGuidance: String {
+    switch self {
+    case .wireframe:
+      return "Prioritize structure, screen flow, hierarchy, navigation, grayscale placeholders, and minimal styling. Avoid final polish, heavy imagery, and decorative motion unless requested."
+    case .highFidelity:
+      return "Prioritize polished UI, design-system usage, refined spacing, typography, color, realistic local assets, responsive states, and restrained motion."
+    }
+  }
+
 }
 
 public struct EaselProjectCreateRequest: Sendable, Equatable {
