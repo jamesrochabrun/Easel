@@ -22,7 +22,10 @@ struct ProjectGroup: Identifiable {
     var parts: [String] = []
     if let project {
       parts.append(project.kind.displayName)
-      parts.append(project.fidelity.displayName)
+
+      if project.kind == .prototype {
+        parts.append(project.fidelity.displayName)
+      }
     }
 
     let sessionLabel = sessions.count == 1 ? "1 session" : "\(sessions.count) sessions"

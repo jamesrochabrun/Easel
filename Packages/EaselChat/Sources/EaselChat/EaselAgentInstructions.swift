@@ -221,6 +221,7 @@ enum EaselAgentInstructions {
   static func hiddenContext(
     projectPath: String?,
     projectKind: EaselProjectKind? = nil,
+    projectFidelity: EaselProjectFidelity? = nil,
     previewURL: URL?
   ) -> String {
     var lines = [
@@ -242,6 +243,11 @@ enum EaselAgentInstructions {
       if projectKind == .slideDeck {
         lines.append("Slide deck contract: \(SlideDeckContract.authoringSummary)")
       }
+
+      if projectKind == .prototype, let projectFidelity {
+        lines.append("Current prototype fidelity: \(projectFidelity.displayName)")
+        lines.append("Prototype fidelity guidance: \(projectFidelity.agentGuidance)")
+      }
     }
 
     if let previewURL {
@@ -255,11 +261,13 @@ enum EaselAgentInstructions {
     _ hiddenContext: String?,
     projectPath: String?,
     projectKind: EaselProjectKind? = nil,
+    projectFidelity: EaselProjectFidelity? = nil,
     previewURL: URL?
   ) -> String {
     [hiddenContext, self.hiddenContext(
       projectPath: projectPath,
       projectKind: projectKind,
+      projectFidelity: projectFidelity,
       previewURL: previewURL
     )]
       .compactMap { value in

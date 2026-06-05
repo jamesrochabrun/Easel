@@ -17,6 +17,7 @@ public struct SidebarView: View {
   @State private var sessionToDelete: StoredSession?
   @State private var projectToDelete: ProjectGroup?
   @Environment(\.colorScheme) private var colorScheme
+  private let projectKindChangeAnimation = Animation.easeInOut(duration: 0.22)
 
   public init(sidebarViewModel: SidebarViewModel, reservesWindowControls: Bool = false) {
     self.sidebarViewModel = sidebarViewModel
@@ -98,13 +99,16 @@ public struct SidebarView: View {
 
   private var newProjectCard: some View {
     VStack(alignment: .leading, spacing: 16) {
-      Picker("Project type", selection: $sidebarViewModel.selectedProjectKind) {
+      Picker("Project type", selection: projectKindSelection) {
         ForEach(EaselProjectKind.allCases) { kind in
           Text(kind.displayName).tag(kind)
         }
       }
       .pickerStyle(.segmented)
       .labelsHidden()
+      .transaction { transaction in
+        transaction.animation = nil
+      }
 
       Text(sidebarViewModel.selectedProjectKind.creationTitle)
         .font(EaselDesignSystem.Typography.interface(size: 16, weight: .semibold))
@@ -197,7 +201,10 @@ public struct SidebarView: View {
         }
       }
 
-      fidelityPicker
+      if sidebarViewModel.shouldShowFidelityPicker {
+        fidelityPicker
+          .transition(projectKindContentTransition)
+      }
 
       if let creationError = sidebarViewModel.creationError {
         Text(creationError)
@@ -249,6 +256,20 @@ public struct SidebarView: View {
     }
   }
 
+  private var projectKindSelection: Binding<EaselProjectKind> {
+    Binding {
+      sidebarViewModel.selectedProjectKind
+    } set: { newKind in
+      withAnimation(projectKindChangeAnimation) {
+        sidebarViewModel.selectedProjectKind = newKind
+      }
+    }
+  }
+
+  private var projectKindContentTransition: AnyTransition {
+    .opacity
+  }
+
   private var createDesignSystemButton: some View {
     Button(action: sidebarViewModel.requestCreateDesignSystem) {
       HStack(spacing: 8) {
@@ -294,6 +315,12 @@ public struct SidebarView: View {
                 .font(.callout.weight(.medium))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
+
+              Text(fidelity.pickerDescription)
+                .font(.caption)
+                .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
             }
             .padding(8)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -313,6 +340,8 @@ public struct SidebarView: View {
           }
           .buttonStyle(.plain)
           .accessibilityLabel(fidelity.displayName)
+          .accessibilityHint(fidelity.pickerDescription)
+          .help("\(fidelity.displayName): \(fidelity.pickerDescription)")
         }
       }
     }

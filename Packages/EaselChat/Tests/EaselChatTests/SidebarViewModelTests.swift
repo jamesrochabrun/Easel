@@ -42,6 +42,36 @@ struct SidebarViewModelTests {
   }
 
   @Test
+  func creatingSlideDeckUsesHighFidelityWhenFidelityPickerIsHidden() async {
+    let project = EaselDesignProject(
+      id: UUID(),
+      name: "Roadmap",
+      kind: .slideDeck,
+      designSystem: .none,
+      fidelity: .highFidelity,
+      workingDirectory: "/tmp/roadmap",
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+    let projectManager = SidebarProjectManagerStub(project: project)
+    let viewModel = SidebarViewModel(
+      sessionStorage: NoOpSessionStorage(),
+      projectManager: projectManager,
+      designSystemManager: SidebarDesignSystemManagerStub()
+    )
+    viewModel.selectedProjectKind = .slideDeck
+    viewModel.selectedFidelity = .wireframe
+    viewModel.projectName = "Roadmap"
+
+    await viewModel.createProjectAndStartSession()
+
+    let requests = await projectManager.createdRequests()
+    #expect(viewModel.shouldShowFidelityPicker == false)
+    #expect(requests.first?.kind == .slideDeck)
+    #expect(requests.first?.fidelity == .highFidelity)
+  }
+
+  @Test
   func designSystemChoicesExcludeUnbackedBuiltInPresets() async {
     let customSystem = EaselDesignSystemProfile(
       id: UUID(),
@@ -160,6 +190,7 @@ private actor SidebarDesignSystemManagerStub: EaselDesignSystemManaging {
 private actor SidebarProjectManagerStub: EaselProjectManaging {
   private var projects: [EaselDesignProject]
   private var deletedIDs: [UUID] = []
+  private var createRequests: [EaselProjectCreateRequest] = []
 
   init(project: EaselDesignProject) {
     self.projects = [project]
@@ -174,6 +205,7 @@ private actor SidebarProjectManagerStub: EaselProjectManaging {
   }
 
   func createProject(from request: EaselProjectCreateRequest) async throws -> EaselDesignProject {
+    createRequests.append(request)
     projects[0]
   }
 
@@ -184,6 +216,10 @@ private actor SidebarProjectManagerStub: EaselProjectManaging {
 
   func deletedProjectIDs() -> [UUID] {
     deletedIDs
+  }
+
+  func createdRequests() -> [EaselProjectCreateRequest] {
+    createRequests
   }
 }
 

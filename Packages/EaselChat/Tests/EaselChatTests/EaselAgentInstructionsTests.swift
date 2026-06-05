@@ -40,6 +40,21 @@ struct EaselAgentInstructionsTests {
   }
 
   @Test
+  func hiddenContextIncludesPrototypeFidelityGuidance() {
+    let context = EaselAgentInstructions.hiddenContext(
+      projectPath: "/tmp/prototype",
+      projectKind: .prototype,
+      projectFidelity: .wireframe,
+      previewURL: nil
+    )
+
+    #expect(context.contains("Current project type: Prototype"))
+    #expect(context.contains("Current prototype fidelity: Wireframe"))
+    #expect(context.contains("Prioritize structure"))
+    #expect(context.contains("grayscale placeholders"))
+  }
+
+  @Test
   func hiddenContextIncludesSlideDeckContractWhenProjectIsSlideDeck() {
     let context = EaselAgentInstructions.hiddenContext(
       projectPath: "/tmp/deck",
@@ -51,6 +66,8 @@ struct EaselAgentInstructionsTests {
     #expect(context.contains("section[data-easel-slide]"))
     #expect(context.contains("data-easel-deck"))
     #expect(context.contains("16:9"))
+    #expect(context.contains("Current prototype fidelity") == false)
+    #expect(context.contains("Prototype fidelity guidance") == false)
   }
 
   @Test
