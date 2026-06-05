@@ -435,7 +435,7 @@ public struct SidebarView: View {
   private var projectList: some View {
     VStack(alignment: .leading, spacing: 8) {
       HStack {
-        Text("Projects")
+        Text("Designs")
           .font(EaselDesignSystem.Typography.interface(size: 14, weight: .semibold))
           .foregroundStyle(.primary)
 
@@ -451,7 +451,7 @@ public struct SidebarView: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
-        .help("Refresh projects")
+        .help("Refresh designs")
       }
 
       if sidebarViewModel.projectGroups.isEmpty {

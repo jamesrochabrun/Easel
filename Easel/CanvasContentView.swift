@@ -18,9 +18,11 @@ struct CanvasContentView: View {
   @State private var serverManager = ProjectServerManager()
   @State private var projectFileService = DefaultProjectFileService()
   @State private var sidebarViewModel: SidebarViewModel?
+  @State private var designLibraryViewModel: DesignLibraryViewModel?
   @State private var resourcesViewModel = ProjectResourcesViewModel()
   @State private var designSystemSetupViewModel = DesignSystemSetupViewModel()
   @State private var designSystemBrowserViewModel = DesignSystemBrowserViewModel()
+  @State private var contentMode: CanvasContentMode = .designs
   @State private var selectedCanvasSurface: CanvasSurface = .canvas
   @State private var panelLayoutState: CanvasPanelLayoutState = .allPanels
   @State private var isDesignSystemSetupPresented = false
@@ -34,7 +36,7 @@ struct CanvasContentView: View {
 
   var body: some View {
     HStack(spacing: 0) {
-      if let sidebarVM = sidebarViewModel, panelLayoutState.showsSidebar {
+      if let sidebarVM = sidebarViewModel, shouldShowSidebar {
         SidebarView(sidebarViewModel: sidebarVM, reservesWindowControls: true)
           .frame(width: sidebarWidth)
           .frame(maxHeight: .infinity)
@@ -45,53 +47,56 @@ struct CanvasContentView: View {
           .frame(width: 1)
       }
 
-      if panelLayoutState.showsChatPanel {
-        VStack(spacing: 0) {
-          HStack {
-            Button(action: toggleSidebarPanel) {
-              Label("Toggle sidebar", systemImage: "sidebar.left")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
-                .labelStyle(.iconOnly)
-                .frame(width: 28, height: 28)
-            }
-            .buttonStyle(.plain)
-            .help("Toggle Sidebar")
+      if contentMode == .designs {
+        designLibraryPanel
+      } else {
+        if panelLayoutState.showsChatPanel {
+          VStack(spacing: 0) {
+            HStack {
+              leadingToolbarButtons
 
-            Spacer()
+              Spacer()
+            }
+            .padding(.leading, chatToolbarLeadingPadding)
+            .padding(.trailing, EaselDesignSystem.Spacing.large)
+            .frame(height: EaselDesignSystem.Spacing.toolbarHeight)
+            .background(EaselDesignSystem.Palette.surface(for: colorScheme))
+
+            Rectangle()
+              .fill(EaselDesignSystem.Palette.border(for: colorScheme))
+              .frame(height: 1)
+
+            ChatPanelView(chatService: chatService)
+              .frame(maxHeight: .infinity)
           }
-          .padding(.leading, chatToolbarLeadingPadding)
-          .padding(.trailing, EaselDesignSystem.Spacing.large)
-          .frame(height: EaselDesignSystem.Spacing.toolbarHeight)
-          .background(EaselDesignSystem.Palette.surface(for: colorScheme))
+          .frame(width: chatPanelWidth)
+          .frame(maxHeight: .infinity)
+          .transition(.move(edge: .leading).combined(with: .opacity))
 
           Rectangle()
             .fill(EaselDesignSystem.Palette.border(for: colorScheme))
-            .frame(height: 1)
-
-          ChatPanelView(chatService: chatService)
-            .frame(maxHeight: .infinity)
+            .frame(width: 1)
         }
-        .frame(width: chatPanelWidth)
-        .frame(maxHeight: .infinity)
-        .transition(.move(edge: .leading).combined(with: .opacity))
 
-        Rectangle()
-          .fill(EaselDesignSystem.Palette.border(for: colorScheme))
-          .frame(width: 1)
+        canvasSurfacePanel
       }
-
-      canvasSurfacePanel
     }
     .background(alignment: .topLeading) {
-      Button("Cycle panel layout", action: cyclePanelLayout)
-        .keyboardShortcut("b", modifiers: .command)
-        .buttonStyle(.plain)
-        .frame(width: 1, height: 1)
-        .opacity(0.001)
-        .accessibilityHidden(true)
+      // Hidden buttons host window-level keyboard shortcuts.
+      ZStack {
+        Button("Cycle panel layout", action: cyclePanelLayout)
+          .keyboardShortcut("b", modifiers: .command)
+
+        Button("Toggle designs grid", action: toggleDesignLibrary)
+          .keyboardShortcut("1", modifiers: .command)
+      }
+      .buttonStyle(.plain)
+      .frame(width: 1, height: 1)
+      .opacity(0.001)
+      .accessibilityHidden(true)
     }
     .animation(.easeInOut(duration: 0.25), value: panelLayoutState)
+    .animation(.easeInOut(duration: 0.22), value: contentMode)
     .background(EaselDesignSystem.Palette.canvas(for: colorScheme))
     .ignoresSafeArea(.container, edges: .top)
     .tint(EaselDesignSystem.Palette.accent)
@@ -100,7 +105,10 @@ struct CanvasContentView: View {
         appDelegate.serverManager = serverManager
       }
       let vm = SidebarViewModel(sessionStorage: chatService.sessionStorage)
+      let libraryVM = DesignLibraryViewModel(sessionStorage: chatService.sessionStorage)
+      designLibraryViewModel = libraryVM
       vm.onSessionSelected = { session in
+        enterWorkspace()
         Task {
           await chatService.initialize()
           await chatService.switchToSession(session)
@@ -109,9 +117,11 @@ struct CanvasContentView: View {
             await startDevServer(for: dir)
           }
           await vm.loadSessions()
+          await libraryVM.refresh()
         }
       }
       vm.onNewChatRequested = { workingDirectory in
+        enterWorkspace()
         Task {
           await chatService.initialize()
           await chatService.startNewSession(workingDirectory: workingDirectory)
@@ -119,15 +129,18 @@ struct CanvasContentView: View {
             await startDevServer(for: dir)
           }
           await vm.loadSessions()
+          await libraryVM.refresh()
         }
       }
       vm.onProjectLaunchRequested = { launch in
+        enterWorkspace()
         Task {
           await chatService.initialize()
           await chatService.startNewSession(workingDirectory: launch.project.workingDirectory)
           chatService.setCurrentProject(launch.project)
           await startDevServer(for: launch.project.workingDirectory)
           await vm.loadSessions()
+          await libraryVM.refresh()
         }
       }
       vm.onCreateDesignSystemRequested = {
@@ -140,20 +153,29 @@ struct CanvasContentView: View {
         Task {
           await chatService.deleteSession(session)
           await vm.loadSessions()
+          await libraryVM.refresh()
+        }
+      }
+      vm.onProjectDeleted = {
+        Task {
+          await libraryVM.refresh()
         }
       }
       chatService.onSessionChanged = {
         Task {
           await vm.loadSessions()
+          await libraryVM.refresh()
         }
       }
-      vm.isSidebarVisible = panelLayoutState.showsSidebar
+      vm.isSidebarVisible = shouldShowSidebar
       sidebarViewModel = vm
+      await libraryVM.refresh()
 
       if !didHandleInitialPrompt {
         didHandleInitialPrompt = true
         let trimmedPrompt = initialPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedPrompt.isEmpty {
+          enterWorkspace()
           await vm.createPrototypeProject(fromPrompt: trimmedPrompt)
         }
       }
@@ -191,6 +213,190 @@ struct CanvasContentView: View {
     }
   }
 
+  private var shouldShowSidebar: Bool {
+    panelLayoutState.showsSidebar
+  }
+
+  private var designLibraryPanel: some View {
+    VStack(spacing: 0) {
+      designLibraryToolbar
+
+      Rectangle()
+        .fill(EaselDesignSystem.Palette.border(for: colorScheme))
+        .frame(height: 1)
+
+      Group {
+        if let designLibraryViewModel {
+          DesignLibraryView(
+            viewModel: designLibraryViewModel,
+            showsHeader: false,
+            onOpenSelection: handleDesignLibrarySelection
+          )
+        } else {
+          ProgressView("Loading designs...")
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+  }
+
+  private var designLibraryToolbar: some View {
+    HStack(spacing: 6) {
+      leadingToolbarButtons
+
+      Text("Designs")
+        .font(EaselDesignSystem.Typography.interface(size: 14, weight: .semibold))
+        .foregroundStyle(.primary)
+        .padding(.leading, 8)
+
+      if let itemCount = designLibraryViewModel?.items.count, itemCount > 0 {
+        Text("\(itemCount)")
+          .font(EaselDesignSystem.Typography.interface(size: 12, weight: .semibold))
+          .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
+          .padding(.horizontal, 8)
+          .frame(height: 22)
+          .background(
+            EaselDesignSystem.Palette.subtleSurface(for: colorScheme),
+            in: RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.control)
+          )
+      }
+
+      Spacer()
+
+      Button(action: refreshDesignLibrary) {
+        Label("Refresh designs", systemImage: "arrow.clockwise")
+          .labelStyle(.iconOnly)
+          .font(.system(size: 13, weight: .medium))
+          .frame(width: 28, height: 28)
+      }
+      .buttonStyle(.plain)
+      .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
+      .disabled(designLibraryViewModel?.isLoading == true)
+      .help("Refresh designs")
+    }
+    .padding(.leading, designLibraryToolbarLeadingPadding)
+    .padding(.trailing, 16)
+    .frame(height: EaselDesignSystem.Spacing.toolbarHeight)
+    .background(EaselDesignSystem.Palette.surface(for: colorScheme))
+  }
+
+  private var leadingToolbarButtons: some View {
+    HStack(spacing: 4) {
+      Button(action: toggleSidebarPanel) {
+        Label("Toggle sidebar", systemImage: "sidebar.left")
+          .labelStyle(.iconOnly)
+          .font(.system(size: 14, weight: .medium))
+          .frame(width: 28, height: 28)
+      }
+      .buttonStyle(.plain)
+      .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
+      .help("Toggle Sidebar")
+
+      Button(action: toggleDesignLibrary) {
+        Label(designLibraryButtonTitle, systemImage: designLibraryButtonSystemImage)
+          .labelStyle(.iconOnly)
+          .font(.system(size: 13, weight: .medium))
+          .frame(width: 28, height: 28)
+          .background(
+            contentMode == .designs ? EaselDesignSystem.Palette.selectedSurface(for: colorScheme) : Color.clear,
+            in: RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.control)
+          )
+      }
+      .buttonStyle(.plain)
+      .foregroundStyle(designLibraryButtonForeground)
+      .help("\(designLibraryButtonTitle) (⌘1)")
+    }
+  }
+
+  private func enterWorkspace() {
+    contentMode = .workspace
+    sidebarViewModel?.isSidebarVisible = shouldShowSidebar
+  }
+
+  private func showDesignLibrary() {
+    contentMode = .designs
+    selectedCanvasSurface = .canvas
+    sidebarViewModel?.selectedSessionId = nil
+    sidebarViewModel?.isSidebarVisible = shouldShowSidebar
+
+    Task {
+      await designLibraryViewModel?.refresh()
+      await sidebarViewModel?.loadSessions()
+    }
+  }
+
+  private func toggleDesignLibrary() {
+    if contentMode == .designs {
+      enterWorkspace()
+    } else {
+      showDesignLibrary()
+    }
+  }
+
+  private func refreshDesignLibrary() {
+    Task {
+      await designLibraryViewModel?.refresh()
+    }
+  }
+
+  private func handleDesignLibrarySelection(_ selection: DesignLibrarySelection) {
+    enterWorkspace()
+
+    switch selection {
+    case .project(let project, _):
+      openProjectFromLibrary(project, selection: selection)
+    case .designSystem(let profile, _):
+      openDesignSystemFromLibrary(profile, selection: selection)
+    }
+  }
+
+  private func openProjectFromLibrary(
+    _ project: EaselDesignProject,
+    selection: DesignLibrarySelection
+  ) {
+    Task {
+      await chatService.initialize()
+
+      if let latestSession = selection.latestSession {
+        sidebarViewModel?.selectedSessionId = selection.latestSessionID
+        await chatService.switchToSession(latestSession)
+      } else {
+        sidebarViewModel?.selectedSessionId = nil
+        await chatService.startNewSession(workingDirectory: project.workingDirectory)
+      }
+
+      chatService.setCurrentProject(project)
+      await startDevServer(for: project.workingDirectory)
+      await sidebarViewModel?.loadSessions()
+      await designLibraryViewModel?.refresh()
+    }
+  }
+
+  private func openDesignSystemFromLibrary(
+    _ profile: EaselDesignSystemProfile,
+    selection: DesignLibrarySelection
+  ) {
+    sidebarViewModel?.selectDesignSystem(.custom(profile))
+
+    Task {
+      await chatService.initialize()
+
+      if let latestSession = selection.latestSession {
+        sidebarViewModel?.selectedSessionId = selection.latestSessionID
+        await chatService.switchToSession(latestSession)
+      } else {
+        sidebarViewModel?.selectedSessionId = nil
+        await chatService.startNewSession(workingDirectory: profile.workingDirectory)
+      }
+
+      await startDevServer(for: profile.workingDirectory)
+      await sidebarViewModel?.loadSessions()
+      await designLibraryViewModel?.refresh()
+    }
+  }
+
   private func startDevServer(for workingDirectory: String) async {
     // If server already running, use its URL instantly
     if let existingURL = serverManager.serverURL(for: workingDirectory) {
@@ -209,6 +415,7 @@ struct CanvasContentView: View {
 
   private func handleDesignSystemCreated(_ launch: EaselDesignSystemLaunch) {
     isDesignSystemSetupPresented = false
+    enterWorkspace()
     selectedCanvasSurface = .canvas
     sidebarViewModel?.selectDesignSystem(.custom(launch.profile))
 
@@ -217,6 +424,7 @@ struct CanvasContentView: View {
       await chatService.startNewSession(workingDirectory: launch.profile.workingDirectory)
       await startDevServer(for: launch.profile.workingDirectory)
       await sidebarViewModel?.loadSessions()
+      await designLibraryViewModel?.refresh()
     }
   }
 
@@ -240,7 +448,7 @@ struct CanvasContentView: View {
 
   private func setPanelLayoutState(_ state: CanvasPanelLayoutState) {
     panelLayoutState = state
-    sidebarViewModel?.isSidebarVisible = state.showsSidebar
+    sidebarViewModel?.isSidebarVisible = shouldShowSidebar
   }
 
   private var canvasSurfacePanel: some View {
@@ -330,8 +538,26 @@ struct CanvasContentView: View {
     panelLayoutState.showsSidebar ? EaselDesignSystem.Spacing.large : windowControlLeadingReserve
   }
 
+  private var designLibraryToolbarLeadingPadding: CGFloat {
+    shouldShowSidebar ? 16 : windowControlLeadingReserve
+  }
+
   private var canvasToolbarLeadingPadding: CGFloat {
     panelLayoutState.showsChatPanel ? 16 : windowControlLeadingReserve
+  }
+
+  private var designLibraryButtonTitle: String {
+    contentMode == .designs ? "Return to Workspace" : "Show Designs Grid"
+  }
+
+  private var designLibraryButtonSystemImage: String {
+    contentMode == .designs ? "light.panel.fill" : "square.grid.2x2"
+  }
+
+  private var designLibraryButtonForeground: Color {
+    contentMode == .designs
+      ? EaselDesignSystem.Palette.accentForeground(for: colorScheme)
+      : EaselDesignSystem.Palette.secondaryText(for: colorScheme)
   }
 
   private var canvasWidthButtonTitle: String {
@@ -372,4 +598,9 @@ private enum CanvasSurface: String, CaseIterable, Identifiable {
       return "photo.on.rectangle.angled"
     }
   }
+}
+
+private enum CanvasContentMode: Equatable {
+  case designs
+  case workspace
 }
