@@ -5,6 +5,12 @@
 
 import Foundation
 
+public enum SlideDeckFirstSlidePreparationScript {
+  public static var script: String {
+    SlideDeckPreviewScript.installAndSelectScript(selectedIndex: 0)
+  }
+}
+
 enum SlideDeckPreviewScript {
   static func installAndSelectScript(selectedIndex: Int) -> String {
     """

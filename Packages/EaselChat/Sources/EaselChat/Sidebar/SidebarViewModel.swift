@@ -33,6 +33,7 @@ public final class SidebarViewModel {
   public var onCreateDesignSystemRequested: (() -> Void)?
   public var onBrowseDesignSystemsRequested: (() -> Void)?
   public var onDeleteSession: ((StoredSession) -> Void)?
+  public var onProjectDeleted: (() -> Void)?
 
   // MARK: - Private
 
@@ -154,6 +155,7 @@ public final class SidebarViewModel {
       }
 
       await loadSessions()
+      onProjectDeleted?()
     } catch {
       projectDeletionError = error.localizedDescription
     }

@@ -1,0 +1,90 @@
+//
+//  DesignLibraryView.swift
+//  EaselChat
+//
+
+import EaselKit
+import SwiftUI
+
+public struct DesignLibraryView: View {
+  @Bindable var viewModel: DesignLibraryViewModel
+  let onOpenSelection: (DesignLibrarySelection) -> Void
+  private let showsHeader: Bool
+
+  @State private var thumbnailCache = DesignLibraryThumbnailCache()
+  @Environment(\.colorScheme) private var colorScheme
+
+  public init(
+    viewModel: DesignLibraryViewModel,
+    showsHeader: Bool = true,
+    onOpenSelection: @escaping (DesignLibrarySelection) -> Void
+  ) {
+    self.viewModel = viewModel
+    self.showsHeader = showsHeader
+    self.onOpenSelection = onOpenSelection
+  }
+
+  public var body: some View {
+    VStack(spacing: 0) {
+      if showsHeader {
+        DesignLibraryHeaderView(
+          itemCount: viewModel.items.count,
+          isLoading: viewModel.isLoading,
+          onRefresh: refresh
+        )
+
+        Rectangle()
+          .fill(EaselDesignSystem.Palette.border(for: colorScheme))
+          .frame(height: 1)
+      }
+
+      ScrollView {
+        VStack(spacing: 0) {
+          if let errorMessage = viewModel.errorMessage {
+            DesignLibraryErrorBanner(message: errorMessage)
+              .padding(.horizontal, 24)
+              .padding(.top, 18)
+          }
+
+          if viewModel.items.isEmpty {
+            emptyState
+          } else {
+            DesignLibraryGridView(
+              items: viewModel.items,
+              thumbnailCache: thumbnailCache,
+              onOpenSelection: onOpenSelection
+            )
+          }
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+      }
+      .scrollContentBackground(.visible)
+      .overlay {
+        if viewModel.isLoading && viewModel.items.isEmpty {
+          ProgressView("Loading designs...")
+            .controlSize(.small)
+            .padding(14)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.card))
+        }
+      }
+    }
+    .background(EaselDesignSystem.Palette.canvas(for: colorScheme))
+    .task {
+      await refresh()
+    }
+  }
+
+  private var emptyState: some View {
+    ContentUnavailableView(
+      "No designs",
+      systemImage: "square.grid.2x2",
+      description: Text("Create a prototype, slide deck, or design system to see it here.")
+    )
+    .frame(maxWidth: .infinity, minHeight: 360)
+    .padding(24)
+  }
+
+  private func refresh() async {
+    await viewModel.refresh()
+  }
+}
