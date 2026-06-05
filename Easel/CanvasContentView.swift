@@ -230,6 +230,7 @@ struct CanvasContentView: View {
           DesignLibraryView(
             viewModel: designLibraryViewModel,
             showsHeader: false,
+            onCreateDesign: showCreateControls,
             onOpenSelection: handleDesignLibrarySelection
           )
         } else {
@@ -339,6 +340,10 @@ struct CanvasContentView: View {
     Task {
       await designLibraryViewModel?.refresh()
     }
+  }
+
+  private func showCreateControls() {
+    setPanelLayoutState(.allPanels)
   }
 
   private func handleDesignLibrarySelection(_ selection: DesignLibrarySelection) {
@@ -462,37 +467,64 @@ struct CanvasContentView: View {
         .fill(.quaternary)
         .frame(height: 1)
 
-      ZStack {
-        Group {
-          if isSlideDeckProject {
-            SlideDeckPreviewView(
-              previewURLProvider: chatService,
-              projectPath: chatService.currentWorkingDirectory
+      Group {
+        if let workspaceEmptyStateContent {
+          CanvasWorkspaceEmptyState(
+            content: workspaceEmptyStateContent,
+            action: {
+              handleWorkspaceEmptyStateAction(workspaceEmptyStateContent)
+            }
+          )
+        } else {
+          ZStack {
+            Group {
+              if isSlideDeckProject {
+                SlideDeckPreviewView(
+                  previewURLProvider: chatService,
+                  projectPath: chatService.currentWorkingDirectory
+                )
+              } else {
+                WebInspectorPreviewView(
+                  previewURLProvider: chatService,
+                  inspectorBridge: chatService,
+                  projectPath: chatService.currentWorkingDirectory,
+                  projectFileProvider: projectFileService
+                )
+              }
+            }
+            .opacity(selectedCanvasSurface == .canvas ? 1 : 0)
+            .allowsHitTesting(selectedCanvasSurface == .canvas)
+            .accessibilityHidden(selectedCanvasSurface != .canvas)
+
+            ProjectResourcesView(
+              viewModel: resourcesViewModel,
+              currentProjectPath: chatService.currentWorkingDirectory
             )
-          } else {
-            WebInspectorPreviewView(
-              previewURLProvider: chatService,
-              inspectorBridge: chatService,
-              projectPath: chatService.currentWorkingDirectory,
-              projectFileProvider: projectFileService
-            )
+            .opacity(selectedCanvasSurface == .resources ? 1 : 0)
+            .allowsHitTesting(selectedCanvasSurface == .resources)
+            .accessibilityHidden(selectedCanvasSurface != .resources)
           }
         }
-          .opacity(selectedCanvasSurface == .canvas ? 1 : 0)
-          .allowsHitTesting(selectedCanvasSurface == .canvas)
-          .accessibilityHidden(selectedCanvasSurface != .canvas)
-
-        ProjectResourcesView(
-          viewModel: resourcesViewModel,
-          currentProjectPath: chatService.currentWorkingDirectory
-        )
-        .opacity(selectedCanvasSurface == .resources ? 1 : 0)
-        .allowsHitTesting(selectedCanvasSurface == .resources)
-        .accessibilityHidden(selectedCanvasSurface != .resources)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
+  }
+
+  private var workspaceEmptyStateContent: CanvasWorkspaceEmptyStateContent? {
+    CanvasWorkspaceEmptyStateContent.resolve(
+      currentWorkingDirectory: chatService.currentWorkingDirectory,
+      designCount: designLibraryViewModel?.items.count
+    )
+  }
+
+  private func handleWorkspaceEmptyStateAction(_ content: CanvasWorkspaceEmptyStateContent) {
+    switch content {
+    case .noDesigns:
+      showCreateControls()
+    case .noSelection:
+      showDesignLibrary()
+    }
   }
 
   private var canvasSurfaceTopBar: some View {
