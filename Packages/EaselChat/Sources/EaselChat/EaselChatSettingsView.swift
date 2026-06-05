@@ -24,11 +24,8 @@ public struct EaselChatSettingsView: View {
         messageFontSize: 13.0,
         inputCornerRadius: 8.0,
         useMaterialInputBackground: false,
-        showCommandTip: false,
         showWelcomeRow: false
       ),
-      xcodeObservationViewModel: chatService?.deps?.xcodeObservationViewModel,
-      permissionsService: chatService?.deps?.permissionsService,
       chatViewModel: chatService?.chatViewModel,
       globalPreferences: chatService?.globalPreferences,
       mcpToolsDiscovery: chatService?.mcpToolsDiscoveryService

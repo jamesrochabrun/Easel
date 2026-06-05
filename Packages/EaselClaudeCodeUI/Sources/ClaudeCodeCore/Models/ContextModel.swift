@@ -9,7 +9,7 @@ import Foundation
 
 /// Manages the context that will be included in chat messages
 struct ContextModel: Equatable {
-  /// Code selections from Xcode
+  /// Code selections included as chat context
   var codeSelections: [TextSelection]
   
   /// Files actively being worked on
@@ -142,21 +142,6 @@ struct ContextModel: Equatable {
   /// Removes a specific file
   mutating func removeFile(id: UUID) {
     activeFiles.removeAll { $0.id == id }
-  }
-  
-  /// Updates from XcodeWorkspaceModel
-  mutating func updateFromWorkspace(_ workspace: XcodeWorkspaceModel) {
-    self.workspace = workspace.workspaceName
-    
-    // Add new selections
-    for selection in workspace.selectedText {
-      addSelection(selection)
-    }
-    
-    // Update active file if present
-    if let activeFile = workspace.activeFile {
-      addFile(activeFile)
-    }
   }
   
   /// Summary description for UI display

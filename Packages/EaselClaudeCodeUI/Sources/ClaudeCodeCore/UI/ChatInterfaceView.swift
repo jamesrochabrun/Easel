@@ -16,8 +16,6 @@ struct ChatInterfaceView: View {
     ChatScreen(
       viewModel: chatViewModel,
       contextManager: claudeCodeDeps.contextManager,
-      xcodeObservationViewModel: claudeCodeDeps.xcodeObservationViewModel,
-      permissionsService: claudeCodeDeps.permissionsService,
       terminalService: claudeCodeDeps.terminalService,
       customPermissionService: claudeCodeDeps.customPermissionService,
       columnVisibility: .constant(.detailOnly),

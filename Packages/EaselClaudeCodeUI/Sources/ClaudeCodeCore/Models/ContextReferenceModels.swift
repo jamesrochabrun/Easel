@@ -1,62 +1,28 @@
 //
-//  XcodeWorkspaceModel.swift
+//  ContextReferenceModels.swift
 //  ClaudeCodeUI
-//
-//  Created on 12/27/24.
 //
 
 import Foundation
 
-/// Represents the current state of the Xcode workspace
-public struct XcodeWorkspaceModel: Equatable {
-  /// The name of the current workspace or project
-  public let workspaceName: String?
-  
-  /// Information about the currently active file in the editor
-  public let activeFile: FileInfo?
-  
-  /// All files currently open in Xcode
-  public let openFiles: [FileInfo]
-  
-  /// Current text selections across all files
-  public let selectedText: [TextSelection]
-  
-  /// Timestamp of when this state was captured
-  public let timestamp: Date
-  
-  public init(
-    workspaceName: String? = nil,
-    activeFile: FileInfo? = nil,
-    openFiles: [FileInfo] = [],
-    selectedText: [TextSelection] = [],
-    timestamp: Date = Date()
-  ) {
-    self.workspaceName = workspaceName
-    self.activeFile = activeFile
-    self.openFiles = openFiles
-    self.selectedText = selectedText
-    self.timestamp = timestamp
-  }
-}
-
-/// Represents information about a file in Xcode
+/// Represents information about a file included as chat context.
 public struct FileInfo: Equatable, Identifiable, Codable {
   public let id: UUID
-  
+
   /// Full path to the file
   public let path: String
-  
+
   /// File name without path
   public let name: String
-  
-  /// File content (optional, loaded on demand)
+
+  /// File content, loaded on demand when needed
   public let content: String?
-  
+
   /// File extension
   public var fileExtension: String? {
     URL(fileURLWithPath: path).pathExtension.isEmpty ? nil : URL(fileURLWithPath: path).pathExtension
   }
-  
+
   /// Programming language based on file extension
   public var language: String? {
     guard let ext = fileExtension else { return nil }
@@ -82,7 +48,7 @@ public struct FileInfo: Equatable, Identifiable, Codable {
     default: return nil
     }
   }
-  
+
   public init(id: UUID = UUID(), path: String, name: String? = nil, content: String? = nil) {
     self.id = id
     self.path = path
@@ -91,37 +57,37 @@ public struct FileInfo: Equatable, Identifiable, Codable {
   }
 }
 
-/// Represents a text selection in a file
+/// Represents a text selection in a file.
 public struct TextSelection: Equatable, Identifiable, Codable, Sendable {
   public let id: UUID
-  
+
   /// Path to the file containing the selection
   public let filePath: String
-  
+
   /// The selected text
   public let selectedText: String
-  
-  /// Line range of the selection (1-based)
+
+  /// Line range of the selection, 1-based
   public let lineRange: ClosedRange<Int>
-  
-  /// Column range on the start line - stored as optional lower/upper bounds for Codable
+
+  /// Column range on the start line, stored as optional lower/upper bounds for Codable
   public let columnRangeLower: Int?
   public let columnRangeUpper: Int?
-  
+
   /// Timestamp when the selection was captured
   public let timestamp: Date
-  
+
   /// Column range computed property for compatibility
   public var columnRange: Range<Int>? {
     guard let lower = columnRangeLower, let upper = columnRangeUpper else { return nil }
     return lower..<upper
   }
-  
+
   /// File name for display
   public var fileName: String {
     URL(fileURLWithPath: filePath).lastPathComponent
   }
-  
+
   /// Formatted line range for display
   public var lineRangeDescription: String {
     if lineRange.lowerBound == lineRange.upperBound {
@@ -130,7 +96,7 @@ public struct TextSelection: Equatable, Identifiable, Codable, Sendable {
       return "Lines \(lineRange.lowerBound)-\(lineRange.upperBound)"
     }
   }
-  
+
   public init(
     id: UUID = UUID(),
     filePath: String,

@@ -7,25 +7,18 @@
 
 import SwiftUI
 import AppKit
-import CCPermissionsServiceInterface
 
 struct GlobalSettingsView: View {
   let uiConfiguration: UIConfiguration
-  let xcodeObservationViewModel: XcodeObservationViewModel?
-  let permissionsService: PermissionsService?
   let chatViewModel: ChatViewModel?
   let mcpToolsDiscovery: MCPToolsDiscoveryService
 
   init(
     uiConfiguration: UIConfiguration = .default,
-    xcodeObservationViewModel: XcodeObservationViewModel? = nil,
-    permissionsService: PermissionsService? = nil,
     chatViewModel: ChatViewModel? = nil,
     mcpToolsDiscovery: MCPToolsDiscoveryService = MCPToolsDiscoveryService()
   ) {
     self.uiConfiguration = uiConfiguration
-    self.xcodeObservationViewModel = xcodeObservationViewModel
-    self.permissionsService = permissionsService
     self.chatViewModel = chatViewModel
     self.mcpToolsDiscovery = mcpToolsDiscovery
   }
@@ -34,22 +27,7 @@ struct GlobalSettingsView: View {
   private enum Layout {
     static let windowWidth: CGFloat = 700
     static let windowHeight: CGFloat = 550
-    static let tabPaddingHorizontal: CGFloat = 20
-    static let tabPaddingVertical: CGFloat = 10
-    static let segmentedPickerWidth: CGFloat = 200
     static let textEditorHeight: CGFloat = 100
-  }
-  
-  private enum Tab: Int, CaseIterable {
-    case appearance = 0
-    case preferences = 1
-
-    var title: String {
-      switch self {
-      case .appearance: return "Appearance"
-      case .preferences: return "Preferences"
-      }
-    }
   }
 
   private enum PathValidationState {
@@ -61,24 +39,17 @@ struct GlobalSettingsView: View {
   // MARK: - Properties
   @Environment(\.dismiss) private var dismiss
   @Environment(GlobalPreferencesStorage.self) private var globalPreferences
-  @Environment(AppearanceSettings.self) private var appearanceSettings
-  @State private var selectedTab = Tab.preferences.rawValue
   @State private var showingToolsEditor = false
   @State private var showingMCPConfig = false
   @State private var selectedTools: Set<String> = []
   @State private var selectedMCPTools: [String: Set<String>] = [:]
-  @State private var isRequestingPermission: Bool = false
   @State private var commandCopied: Bool = false
   @State private var reportCopied: Bool = false
   @State private var claudePathValidation: PathValidationState = .notSet
 
   // MARK: - Body
   var body: some View {
-    VStack(spacing: 0) {
-      tabSelector
-      Divider()
-      contentView
-    }
+    preferencesView
     .frame(width: Layout.windowWidth, height: Layout.windowHeight)
     .background(Color(NSColor.windowBackgroundColor))
     .toolbar {
@@ -105,37 +76,7 @@ struct GlobalSettingsView: View {
       selectedMCPTools = globalPreferences.selectedMCPTools
     }
   }
-  
-  // MARK: - Tab Selector
-  private var tabSelector: some View {
-    HStack {
-      Picker("", selection: $selectedTab) {
-        ForEach(Tab.allCases, id: \.rawValue) { tab in
-          Text(tab.title).tag(tab.rawValue)
-        }
-      }
-      .pickerStyle(.segmented)
-      .frame(width: Layout.segmentedPickerWidth)
-      
-      Spacer()
-    }
-    .padding(.horizontal, Layout.tabPaddingHorizontal)
-    .padding(.vertical, Layout.tabPaddingVertical)
-    .background(Color(NSColor.windowBackgroundColor))
-  }
-  
-  // MARK: - Content View
-  private var contentView: some View {
-    Group {
-      if selectedTab == Tab.appearance.rawValue {
-        AppearanceView(appearanceSettings: appearanceSettings)
-      } else {
-        preferencesView
-      }
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-  }
-  
+
   // MARK: - Sheets
   private var toolsSelectionSheet: some View {
     ToolsSelectionView(
@@ -218,9 +159,6 @@ struct GlobalSettingsView: View {
     @Bindable var preferences = globalPreferences
     return VStack(spacing: 0) {
       Form {
-        if xcodeObservationViewModel != nil && permissionsService != nil {
-          xcodeIntegrationSection
-        }
         providerConfigurationSection
         debugSection
         resetSection
@@ -298,67 +236,6 @@ struct GlobalSettingsView: View {
       Text("Detected from ~/.codex/local/codex, nvm, Homebrew, or PATH.")
         .font(.caption)
         .foregroundColor(.secondary)
-    }
-  }
-
-  private var xcodeIntegrationSection: some View {
-    @Bindable var preferences = globalPreferences
-    return Section("Xcode Integration") {
-      VStack(alignment: .leading, spacing: 12) {
-        Text("Accessibility Permission")
-          .font(.headline)
-
-        HStack {
-          VStack(alignment: .leading, spacing: 4) {
-            Text(xcodeObservationViewModel?.hasAccessibilityPermission ?? false ? "Permission Granted" : "Permission Required")
-              .foregroundColor(xcodeObservationViewModel?.hasAccessibilityPermission ?? false ? .primary : .secondary)
-
-            Text("Grant accessibility permission to observe Xcode and capture code selections")
-              .font(.caption)
-              .foregroundColor(.secondary)
-          }
-          .frame(maxWidth: .infinity, alignment: .leading)
-
-          if !(xcodeObservationViewModel?.hasAccessibilityPermission ?? false) {
-            Button("Grant Permission") {
-              requestAccessibilityPermission()
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(isRequestingPermission || permissionsService == nil)
-          } else {
-            Image(systemName: "checkmark.circle.fill")
-              .foregroundColor(.green)
-          }
-        }
-
-        Divider()
-
-        // Keyboard Shortcut Toggle
-        VStack(alignment: .leading, spacing: 8) {
-          Toggle("Enable ⌘I Keyboard Shortcut", isOn: $preferences.enableXcodeShortcut)
-            .toggleStyle(.switch)
-            .disabled(!(xcodeObservationViewModel?.hasAccessibilityPermission ?? false))
-
-          if !(xcodeObservationViewModel?.hasAccessibilityPermission ?? false) {
-            HStack(spacing: 8) {
-              Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundColor(.orange)
-                .imageScale(.small)
-              Text("Accessibility permission required to use keyboard shortcut")
-                .font(.caption)
-                .foregroundColor(.orange)
-            }
-            .padding(8)
-            .background(Color.orange.opacity(0.1))
-            .cornerRadius(6)
-          } else {
-            Text("Press ⌘I in Xcode to capture code selections")
-              .font(.caption)
-              .foregroundColor(.secondary)
-          }
-        }
-      }
-      .padding(.vertical, 8)
     }
   }
   
@@ -776,7 +653,7 @@ struct GlobalSettingsView: View {
       // Failed - show error alert
       let alert = NSAlert()
       alert.messageText = "Repair Failed"
-      alert.informativeText = "Could not configure the approval server. The ApprovalMCPServer binary may be missing from the app bundle. Please rebuild the app with Xcode."
+      alert.informativeText = "Could not configure the approval server. The ApprovalMCPServer binary may be missing from the app bundle. Please rebuild the app."
       alert.alertStyle = .warning
       alert.addButton(withTitle: "OK")
       alert.runModal()
@@ -819,23 +696,6 @@ struct GlobalSettingsView: View {
         RoundedRectangle(cornerRadius: 4)
           .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
       )
-  }
-
-  private func requestAccessibilityPermission() {
-    guard let permissionsService = permissionsService else { return }
-
-    isRequestingPermission = true
-
-    Task {
-      permissionsService.requestAccessibilityPermission()
-
-      // Wait a moment for the system to update
-      try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
-
-      await MainActor.run {
-        isRequestingPermission = false
-      }
-    }
   }
 
   private func copyTerminalCommandToClipboard() {

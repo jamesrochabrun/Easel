@@ -15,7 +15,6 @@ import SwiftUI
 final class FileSearchViewModel {
   // MARK: - Properties
   
-  private let xcodeObservationViewModel: XcodeObservationViewModel
   private let fileSearchManager: InlineFileSearchProtocol
   private var projectPath: String?
   
@@ -44,18 +43,11 @@ final class FileSearchViewModel {
   
   // MARK: - Initialization
   
-  init(xcodeObservationViewModel: XcodeObservationViewModel, projectPath: String? = nil) {
-    self.xcodeObservationViewModel = xcodeObservationViewModel
-    
+  init(projectPath: String? = nil) {
     // Try to get a valid search path
     var searchPath = projectPath
-    
-    // If no project path provided, try to get from XcodeObservationViewModel
-    if searchPath == nil || searchPath?.isEmpty == true {
-      searchPath = xcodeObservationViewModel.getProjectRootPath()
-    }
-    
-    // If still no path, use current working directory as fallback
+
+    // If no project path is set, use current working directory as fallback
     if searchPath == nil || searchPath?.isEmpty == true {
       searchPath = FileManager.default.currentDirectoryPath
       print("[FileSearchViewModel] No project path provided, using current directory: '\(searchPath ?? "")'")

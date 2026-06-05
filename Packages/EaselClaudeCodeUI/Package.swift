@@ -22,17 +22,12 @@ let package = Package(
         .package(url: "https://github.com/jamesrochabrun/CodexSDK.git", exact: "1.0.5"),
         .package(path: "../EaselKit"),
         .package(url: "https://github.com/jamesrochabrun/SwiftAnthropic", exact: "2.2.0"),
-        .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", from: "2.3.0"),
         .package(url: "https://github.com/appstefan/highlightswift", from: "1.1.0"),
         .package(url: "https://github.com/gonzalezreal/swift-markdown-ui", from: "2.0.0"),
         .package(url: "https://github.com/modelcontextprotocol/swift-sdk", from: "0.9.0"),
         .package(url: "https://github.com/stephencelis/SQLite.swift", from: "0.15.3"),
     ],
     targets: [
-        .target(
-            name: "CCAccessibilityServiceInterface",
-            path: "Sources/AccessibilityServiceInterface"
-        ),
         .target(
             name: "CCCustomPermissionServiceInterface",
             dependencies: [
@@ -41,20 +36,11 @@ let package = Package(
             path: "Sources/CustomPermissionServiceInterface"
         ),
         .target(
-            name: "CCPermissionsServiceInterface",
-            path: "Sources/PermissionsServiceInterface"
-        ),
-        .target(
             name: "CCTerminalServiceInterface",
             path: "Sources/TerminalServiceInterface"
         ),
         
         // Modules with single dependencies
-        .target(
-            name: "CCXcodeObserverServiceInterface",
-            dependencies: ["CCAccessibilityServiceInterface"],
-            path: "Sources/XcodeObserverServiceInterface"
-        ),
         .target(
             name: "CCTerminalService",
             dependencies: ["CCTerminalServiceInterface"],
@@ -71,35 +57,6 @@ let package = Package(
             path: "Sources/CustomPermissionService"
         ),
         
-        // Modules with multiple dependencies
-        .target(
-            name: "CCAccessibilityService",
-            dependencies: [
-                "CCAccessibilityServiceInterface"
-            ],
-            path: "Sources/AccessibilityService"
-        ),
-        .target(
-            name: "CCPermissionsService",
-            dependencies: [
-                "CCPermissionsServiceInterface",
-                "CCTerminalServiceInterface"
-            ],
-            path: "Sources/PermissionsService"
-        ),
-        .target(
-            name: "CCXcodeObserverService",
-            dependencies: [
-                "CCAccessibilityServiceInterface",
-                "CCPermissionsServiceInterface",
-                "CCXcodeObserverServiceInterface"
-            ],
-            path: "Sources/XcodeObserverService",
-            swiftSettings: [
-                .swiftLanguageMode(.v5)
-            ]
-        ),
-        
         // Core library containing all reusable components
         .target(
             name: "ClaudeCodeCore",
@@ -108,7 +65,6 @@ let package = Package(
                 .product(name: "CodexSDK", package: "CodexSDK"),
                 .product(name: "EaselKit", package: "EaselKit"),
                 .product(name: "SwiftAnthropic", package: "SwiftAnthropic"),
-                .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
                 .product(name: "HighlightSwift", package: "highlightswift"),
                 .product(name: "MarkdownUI", package: "swift-markdown-ui"),
                 .product(name: "MCP", package: "swift-sdk"),
@@ -116,16 +72,10 @@ let package = Package(
                 .product(name: "PierreDiffsSwift", package: "PierreDiffsSwift"),
 
                 // Internal module dependencies
-                "CCAccessibilityService",
-                "CCAccessibilityServiceInterface",
                 "CCCustomPermissionService",
                 "CCCustomPermissionServiceInterface",
-                "CCPermissionsService",
-                "CCPermissionsServiceInterface",
                 "CCTerminalService",
                 "CCTerminalServiceInterface",
-                "CCXcodeObserverService",
-                "CCXcodeObserverServiceInterface",
             ],
             path: "Sources/ClaudeCodeCore",
             exclude: [

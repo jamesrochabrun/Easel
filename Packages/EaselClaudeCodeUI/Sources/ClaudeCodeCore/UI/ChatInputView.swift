@@ -7,9 +7,6 @@
 
 import SwiftUI
 import ClaudeCodeSDK
-import CCPermissionsServiceInterface
-import CCXcodeObserverServiceInterface
-import Combine
 import UniformTypeIdentifiers
 
 struct ChatInputView: View {
@@ -19,8 +16,6 @@ struct ChatInputView: View {
   @Binding var text: String
   @Binding var viewModel: ChatViewModel
   let contextManager: ContextManager
-  let xcodeObservationViewModel: XcodeObservationViewModel
-  let permissionsService: PermissionsService
   let uiConfiguration: UIConfiguration
   private let attachmentImportService: any ChatAttachmentImportService
   private let attachmentProcessingService: any AttachmentProcessingService
@@ -51,9 +46,6 @@ struct ChatInputView: View {
   @State private var commandSearchViewModel: CommandSearchViewModel? = nil
   @State private var isUpdatingCommandSearch = false
   
-  // Tip preferences
-  @StateObject private var tipManager = TipPreferencesManager()
-  
   // MARK: - Constants
   
   private let textAreaEdgeInsets = EdgeInsets(top: 10, leading: 0, bottom: 10, trailing: 15)
@@ -65,8 +57,6 @@ struct ChatInputView: View {
     text: Binding<String>,
     chatViewModel: Binding<ChatViewModel>,
     contextManager: ContextManager,
-    xcodeObservationViewModel: XcodeObservationViewModel,
-    permissionsService: PermissionsService,
     uiConfiguration: UIConfiguration = .default,
     placeholder: String = "Message...",
     triggerFocus: Binding<Bool> = .constant(false),
@@ -76,8 +66,6 @@ struct ChatInputView: View {
     _text = text
     _viewModel = chatViewModel
     self.contextManager = contextManager
-    self.xcodeObservationViewModel = xcodeObservationViewModel
-    self.permissionsService = permissionsService
     self.uiConfiguration = uiConfiguration
     self.placeholder = placeholder
     _triggerFocus = triggerFocus
@@ -175,21 +163,6 @@ struct ChatInputView: View {
         }
         
         composerFooter
-        
-        // Dismissable tip about cmd+i functionality
-        if uiConfiguration.showCommandTip && !tipManager.isDismissed(.cmdITipV1) {
-          TipBannerView(
-            message: TipPreferencesManager.TipID.cmdITipV1.displayMessage,
-            icon: TipPreferencesManager.TipID.cmdITipV1.iconName,
-            onDismiss: {
-              withAnimation(.easeInOut(duration: 0.2)) {
-                tipManager.dismiss(.cmdITipV1)
-              }
-            }
-          )
-          .padding(.top, 4)
-          .transition(.move(edge: .top).combined(with: .opacity))
-        }
       }
       .frame(maxWidth: EaselChatRuntimeStyle.maxContentWidth)
       .padding(.horizontal, 16)
@@ -199,20 +172,18 @@ struct ChatInputView: View {
       .background(EaselChatRuntimeStyle.appBackground(for: colorScheme, themeColors: appearanceSettings.themeColors))
     }
     .animation(.easeInOut(duration: 0.2), value: showingFileSearch)
-    .animation(.easeInOut(duration: 0.2), value: xcodeObservationViewModel.workspaceModel.activeFile?.name)
     .animation(.easeInOut(duration: 0.2), value: contextManager.context.codeSelections.count)
+    .animation(.easeInOut(duration: 0.2), value: contextManager.context.activeFiles.count)
     .animation(.easeInOut(duration: 0.15), value: viewModel.permissionMode)
-    .animation(.easeInOut(duration: 0.2), value: tipManager.isDismissed(.cmdITipV1))
     .onChange(of: viewModel.projectPath) { oldValue, newValue in
       if !newValue.isEmpty && newValue != oldValue {
         fileSearchViewModel?.updateProjectPath(newValue)
       }
     }
     .onAppear {
-      xcodeObservationViewModel.refresh()
       // Only initialize file search if we don't have one already
       if fileSearchViewModel == nil {
-        fileSearchViewModel = FileSearchViewModel(xcodeObservationViewModel: xcodeObservationViewModel, projectPath: viewModel.projectPath)
+        fileSearchViewModel = FileSearchViewModel(projectPath: viewModel.projectPath)
       }
       // Update project path if it changed
       if !viewModel.projectPath.isEmpty {
@@ -484,7 +455,7 @@ extension ChatInputView {
   private var contextBar: some View {
     ScrollView(.horizontal, showsIndicators: false) {
       HStack(spacing: 8) {
-        activeFileChip
+        fileChips
         contextDivider
         codeSelectionChips
       }
@@ -498,43 +469,18 @@ extension ChatInputView {
     ))
   }
   
-  /// Active file chip
-  @ViewBuilder
-  private var activeFileChip: some View {
-    // If there's a pinned file, show it instead of the active file
-    if contextManager.isPinnedActiveFile, let pinnedFile = contextManager.pinnedActiveFile {
+  /// File chips added from local file search.
+  private var fileChips: some View {
+    ForEach(contextManager.context.activeFiles) { file in
       ActiveFileView(
         model: FileDisplayModel(
-          fileName: pinnedFile.name,
-          filePath: pinnedFile.path,
+          fileName: file.name,
+          filePath: file.path,
           lineRange: nil,
           isRemovable: true
         ),
         onRemove: {
-          // Unpin and clear the pinned file
-          contextManager.unpinActiveFile()
-        },
-        isPinned: true,
-        onTogglePin: {
-          contextManager.togglePinActiveFile()
-        }
-      )
-    } else if let activeFile = xcodeObservationViewModel.workspaceModel.activeFile {
-      // Show the current active file with option to pin it
-      ActiveFileView(
-        model: FileDisplayModel(
-          fileName: activeFile.name,
-          filePath: activeFile.path,
-          lineRange: nil,
-          isRemovable: true
-        ),
-        onRemove: {
-          // Dismiss the active file and prevent re-observation
-          xcodeObservationViewModel.dismissActiveFile()
-        },
-        isPinned: false,
-        onTogglePin: {
-          contextManager.togglePinActiveFile()
+          contextManager.removeFile(id: file.id)
         }
       )
     }
@@ -543,7 +489,7 @@ extension ChatInputView {
   /// Divider between active file and selections
   @ViewBuilder
   private var contextDivider: some View {
-    if xcodeObservationViewModel.workspaceModel.activeFile != nil && !contextManager.context.codeSelections.isEmpty {
+    if !contextManager.context.activeFiles.isEmpty && !contextManager.context.codeSelections.isEmpty {
       Divider()
         .frame(height: 16)
     }
@@ -573,7 +519,7 @@ extension ChatInputView {
   
   /// Check if context bar should be shown
   private var shouldShowContextBar: Bool {
-    xcodeObservationViewModel.workspaceModel.activeFile != nil || !contextManager.context.codeSelections.isEmpty
+    !contextManager.context.activeFiles.isEmpty || !contextManager.context.codeSelections.isEmpty
   }
   
   /// Allowed file types for import
@@ -596,11 +542,6 @@ extension ChatInputView {
     contextManager.hasContext ? contextManager.getFormattedContext() : nil
   }
   
-  /// Hidden context with active file info
-  private var hiddenContext: String? {
-    guard let activeFile = xcodeObservationViewModel.workspaceModel.activeFile else { return nil }
-    return "Currently viewing: \(activeFile.path)"
-  }
 }
 
 // MARK: - Actions
@@ -616,27 +557,12 @@ extension ChatInputView {
       return
     }
     
-    // Get current code selections from context manager
-    var allSelections = contextManager.context.codeSelections
-    
-    // Add active file as a selection if present
-    if let activeFile = xcodeObservationViewModel.workspaceModel.activeFile {
-      // Create a TextSelection for the active file to display as a pill
-      let activeFileSelection = TextSelection(
-        filePath: activeFile.path,
-        selectedText: "", // Empty since we're just showing the file, not a selection
-        lineRange: 0...0,  // No specific line range
-        columnRange: nil
-      )
-      allSelections.append(activeFileSelection)
-    }
-    
-    let codeSelections = allSelections.isEmpty ? nil : allSelections
+    let codeSelections = contextManager.context.codeSelections.isEmpty ? nil : contextManager.context.codeSelections
     
     // Include attachments if any
     let messageAttachments = attachments.isEmpty ? nil : attachments
     
-    viewModel.sendMessage(trimmedText, context: formattedContext, hiddenContext: hiddenContext, codeSelections: codeSelections, attachments: messageAttachments)
+    viewModel.sendMessage(trimmedText, context: formattedContext, codeSelections: codeSelections, attachments: messageAttachments)
     text = ""
     contextManager.clearAll()
     attachments.removeAll()

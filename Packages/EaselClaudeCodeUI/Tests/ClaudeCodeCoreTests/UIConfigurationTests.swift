@@ -9,7 +9,6 @@ final class UIConfigurationTests: XCTestCase {
     XCTAssertEqual(configuration.messageFontSize, 13.0)
     XCTAssertEqual(configuration.inputCornerRadius, 12.0)
     XCTAssertFalse(configuration.useMaterialInputBackground)
-    XCTAssertTrue(configuration.showCommandTip)
   }
 
   func testLibraryStylingConfiguration() {
@@ -18,7 +17,6 @@ final class UIConfigurationTests: XCTestCase {
     XCTAssertEqual(configuration.messageFontSize, 13.0)
     XCTAssertEqual(configuration.inputCornerRadius, 12.0)
     XCTAssertFalse(configuration.useMaterialInputBackground)
-    XCTAssertTrue(configuration.showCommandTip)
   }
 
   func testCustomStylingConfiguration() {
@@ -26,13 +24,11 @@ final class UIConfigurationTests: XCTestCase {
       appName: "Easel",
       messageFontSize: 14.0,
       inputCornerRadius: 8.0,
-      useMaterialInputBackground: true,
-      showCommandTip: false
+      useMaterialInputBackground: true
     )
 
     XCTAssertEqual(configuration.messageFontSize, 14.0)
     XCTAssertEqual(configuration.inputCornerRadius, 8.0)
     XCTAssertTrue(configuration.useMaterialInputBackground)
-    XCTAssertFalse(configuration.showCommandTip)
   }
 }

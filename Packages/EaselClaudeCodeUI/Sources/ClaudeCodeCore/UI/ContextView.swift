@@ -6,8 +6,6 @@
 //
 
 import SwiftUI
-import CCXcodeObserverServiceInterface
-import Combine
 
 struct ContextView: View {
   @State var contextManager: ContextManager
@@ -87,10 +85,6 @@ struct ContextView: View {
                       ),
                       onRemove: {
                         contextManager.removeFile(id: file.id)
-                      },
-                      isPinned: contextManager.isPinnedActiveFile && contextManager.context.activeFiles.first?.id == file.id,
-                      onTogglePin: {
-                        contextManager.togglePinActiveFile()
                       }
                     )
                   }

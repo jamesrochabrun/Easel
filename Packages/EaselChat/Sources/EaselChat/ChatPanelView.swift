@@ -28,8 +28,6 @@ public struct ChatPanelView: View {
         ChatScreen(
           viewModel: vm,
           contextManager: deps.contextManager,
-          xcodeObservationViewModel: deps.xcodeObservationViewModel,
-          permissionsService: deps.permissionsService,
           terminalService: deps.terminalService,
           customPermissionService: deps.customPermissionService,
           columnVisibility: $columnVisibility,
@@ -41,7 +39,6 @@ public struct ChatPanelView: View {
             messageFontSize: 13.0,
             inputCornerRadius: 8.0,
             useMaterialInputBackground: false,
-            showCommandTip: false,
             showWelcomeRow: false
           )
         )

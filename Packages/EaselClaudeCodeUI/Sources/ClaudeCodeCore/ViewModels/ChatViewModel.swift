@@ -532,8 +532,7 @@ EOF
       return attachment
     }
 
-    // Note: We lose context and hiddenContext on retry since they weren't stored
-    // This is acceptable as the context was likely from clipboard/Xcode at the time
+    // Note: We lose context and hiddenContext on retry since they weren't stored.
     sendMessage(text, context: nil, hiddenContext: nil, codeSelections: codeSelections, attachments: attachments)
   }
 
@@ -1368,7 +1367,7 @@ EOF
               error: binaryError,
               severity: .error,
               context: "MCP Approval Tool",
-              recoverySuggestion: "The approval server binary is missing. Rebuild the app with Xcode to bundle it.",
+              recoverySuggestion: "The approval server binary is missing. Rebuild the app to bundle it.",
               operation: .configuration
             ))
           }
