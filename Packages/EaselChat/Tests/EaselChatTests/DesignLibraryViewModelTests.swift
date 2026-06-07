@@ -142,6 +142,96 @@ struct DesignLibraryViewModelTests {
     #expect(notifiedID == drop.id)
   }
 
+  @Test
+  func selectedKindsDefaultToAllAndDriveVisibleItems() async throws {
+    let rootURL = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+
+    let viewModel = try await makeMixedLibrary(in: rootURL)
+
+    // Every kind is shown by default.
+    #expect(viewModel.selectedKinds == Set(DesignLibraryItemKind.allCases))
+    #expect(viewModel.visibleItems.count == viewModel.items.count)
+    #expect(viewModel.items.count == 3)
+
+    #expect(viewModel.itemCount(for: .prototype) == 1)
+    #expect(viewModel.itemCount(for: .slideDeck) == 1)
+    #expect(viewModel.itemCount(for: .designSystem) == 1)
+  }
+
+  @Test
+  func togglingKindHidesAndRestoresThatKind() async throws {
+    let rootURL = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+
+    let viewModel = try await makeMixedLibrary(in: rootURL)
+
+    viewModel.toggleKind(.slideDeck)
+    #expect(viewModel.selectedKinds.contains(.slideDeck) == false)
+    #expect(viewModel.visibleItems.contains { $0.kind == .slideDeck } == false)
+    let remainingKinds: Set<DesignLibraryItemKind> = Set(viewModel.visibleItems.map(\.kind))
+    #expect(remainingKinds == [.prototype, .designSystem])
+
+    viewModel.toggleKind(.slideDeck)
+    #expect(viewModel.selectedKinds.contains(.slideDeck))
+    #expect(viewModel.visibleItems.count == 3)
+  }
+
+  @Test
+  func deselectingEveryKindYieldsNoVisibleItemsAndSelectAllRestores() async throws {
+    let rootURL = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+
+    let viewModel = try await makeMixedLibrary(in: rootURL)
+
+    for kind in DesignLibraryItemKind.allCases {
+      viewModel.toggleKind(kind)
+    }
+    #expect(viewModel.selectedKinds.isEmpty)
+    #expect(viewModel.visibleItems.isEmpty)
+    // The underlying items are untouched; only the filter changed.
+    #expect(viewModel.items.count == 3)
+
+    viewModel.selectAllKinds()
+    #expect(viewModel.selectedKinds == Set(DesignLibraryItemKind.allCases))
+    #expect(viewModel.visibleItems.count == 3)
+  }
+
+  /// Builds a library containing one prototype, one slide deck, and one design
+  /// system so kind-filtering behavior can be exercised.
+  private func makeMixedLibrary(in rootURL: URL) async throws -> DesignLibraryViewModel {
+    let prototypeURL = try makeDirectory(named: "prototype", in: rootURL)
+    let slideDeckURL = try makeDirectory(named: "slide-deck", in: rootURL)
+    let designSystemURL = try makeDirectory(named: "design-system", in: rootURL)
+
+    let prototype = makeProject(
+      name: "Prototype",
+      kind: .prototype,
+      path: prototypeURL.path,
+      updatedAt: Date(timeIntervalSince1970: 300)
+    )
+    let slideDeck = makeProject(
+      name: "Slide Deck",
+      kind: .slideDeck,
+      path: slideDeckURL.path,
+      updatedAt: Date(timeIntervalSince1970: 200)
+    )
+    let designSystem = makeDesignSystem(
+      name: "Design System",
+      path: designSystemURL.path,
+      updatedAt: Date(timeIntervalSince1970: 100)
+    )
+
+    let viewModel = DesignLibraryViewModel(
+      sessionStorage: DesignLibrarySessionStorageStub(sessions: []),
+      projectManager: DesignLibraryProjectManagerStub(projects: [prototype, slideDeck]),
+      designSystemManager: DesignLibraryDesignSystemManagerStub(profiles: [designSystem])
+    )
+
+    await viewModel.refresh()
+    return viewModel
+  }
+
   private func temporaryRoot() -> URL {
     FileManager.default.temporaryDirectory
       .appendingPathComponent("DesignLibraryViewModelTests-\(UUID().uuidString)", isDirectory: true)

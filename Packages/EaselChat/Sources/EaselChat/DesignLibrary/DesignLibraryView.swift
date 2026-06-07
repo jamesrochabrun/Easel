@@ -33,8 +33,12 @@ public struct DesignLibraryView: View {
     VStack(spacing: 0) {
       if showsHeader {
         DesignLibraryHeaderView(
-          itemCount: viewModel.items.count,
+          itemCount: viewModel.visibleItems.count,
           isLoading: viewModel.isLoading,
+          showsFilters: !viewModel.items.isEmpty,
+          selectedKinds: viewModel.selectedKinds,
+          kindCounts: kindCounts,
+          onToggleKind: { viewModel.toggleKind($0) },
           onRefresh: refresh
         )
 
@@ -53,9 +57,11 @@ public struct DesignLibraryView: View {
 
           if viewModel.items.isEmpty {
             emptyState
+          } else if viewModel.visibleItems.isEmpty {
+            filteredEmptyState
           } else {
             DesignLibraryGridView(
-              items: viewModel.items,
+              items: viewModel.visibleItems,
               thumbnailCache: thumbnailCache,
               onOpenSelection: onOpenSelection,
               onRequestDeleteDesignSystem: { designSystemPendingDeletion = $0 }
@@ -88,6 +94,31 @@ public struct DesignLibraryView: View {
         }
       )
     }
+  }
+
+  private var kindCounts: [DesignLibraryItemKind: Int] {
+    Dictionary(
+      uniqueKeysWithValues: DesignLibraryItemKind.allCases.map { kind in
+        (kind, viewModel.itemCount(for: kind))
+      }
+    )
+  }
+
+  @ViewBuilder
+  private var filteredEmptyState: some View {
+    ContentUnavailableView {
+      Label("No matching designs", systemImage: "line.3.horizontal.decrease.circle")
+    } description: {
+      Text("No designs match the selected filters.")
+    } actions: {
+      Button("Show All Designs") {
+        viewModel.selectAllKinds()
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.large)
+    }
+    .frame(maxWidth: .infinity, minHeight: 360)
+    .padding(24)
   }
 
   @ViewBuilder

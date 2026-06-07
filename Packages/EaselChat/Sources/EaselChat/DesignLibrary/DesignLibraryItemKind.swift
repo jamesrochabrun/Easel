@@ -25,6 +25,18 @@ public enum DesignLibraryItemKind: String, Codable, CaseIterable, Identifiable, 
     }
   }
 
+  /// Title-cased plural used by the library filter chips.
+  public var pluralDisplayName: String {
+    switch self {
+    case .prototype:
+      return "Prototypes"
+    case .slideDeck:
+      return "Slide Decks"
+    case .designSystem:
+      return "Design Systems"
+    }
+  }
+
   var systemImage: String {
     switch self {
     case .prototype:
