@@ -222,7 +222,7 @@
 				CC0000010000000800000008 /* XCLocalSwiftPackageReference "Packages/EaselChat" */,
 				EE0000010000000300000003 /* XCLocalSwiftPackageReference "Packages/EaselSlides" */,
 				CC0000010000000900000009 /* XCLocalSwiftPackageReference "Packages/EaselWebInspector" */,
-					DD0000010000000300000003 /* XCLocalSwiftPackageReference "Packages/EaselServerManager" */,
+				DD0000010000000300000003 /* XCLocalSwiftPackageReference "Packages/EaselServerManager" */,
 				BB0000012FA0000A0000000A /* XCRemoteSwiftPackageReference "ClaudeCodeApprovalServer" */,
 			);
 			preferredProjectObjectVersion = 77;

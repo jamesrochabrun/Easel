@@ -165,9 +165,15 @@ public struct SidebarView: View {
           Menu {
             ForEach(sidebarViewModel.availableDesignSystemChoices) { system in
               Button {
-                sidebarViewModel.selectDesignSystem(system)
+                if system.isNone {
+                  sidebarViewModel.selectDesignSystem(system)
+                } else if sidebarViewModel.selectedDesignSystems.contains(where: { $0.id == system.id }) {
+                  sidebarViewModel.makeHighestPrecedenceDesignSystem(system)
+                } else {
+                  sidebarViewModel.addDesignSystem(system)
+                }
               } label: {
-                if sidebarViewModel.selectedDesignSystem == system {
+                if sidebarViewModel.selectedDesignSystems.contains(where: { $0.id == system.id }) {
                   Label(system.displayName, systemImage: "checkmark")
                 } else {
                   Text(system.displayName)
@@ -180,7 +186,7 @@ public struct SidebarView: View {
             Button("Create Design System", systemImage: "plus", action: sidebarViewModel.requestCreateDesignSystem)
           } label: {
             HStack(spacing: 8) {
-              Text(sidebarViewModel.selectedDesignSystem.displayName)
+              Text(sidebarViewModel.selectedDesignSystemSummary)
                 .lineLimit(1)
 
               Spacer()
@@ -487,10 +493,10 @@ public struct SidebarView: View {
                 onNewChat: {
                   sidebarViewModel.requestNewChat(workingDirectory: project.workingDirectory)
                 },
-                onDelete: {
+                onDelete: project.canDelete ? {
                   projectToDelete = project
                   showDeleteProjectConfirmation = true
-                }
+                } : nil
               )
 
               if project.isExpanded {

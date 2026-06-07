@@ -72,7 +72,7 @@ struct SidebarViewModelTests {
   }
 
   @Test
-  func designSystemChoicesExcludeUnbackedBuiltInPresets() async {
+  func designSystemChoicesIncludeBuiltInPresetsAndCustomSystems() async {
     let customSystem = EaselDesignSystemProfile(
       id: UUID(),
       name: "AgentHub Design System",
@@ -95,8 +95,72 @@ struct SidebarViewModelTests {
     #expect(viewModel.shouldShowCreateOnlyDesignSystemControl == false)
     #expect(viewModel.availableDesignSystemChoices.map(\.displayName) == [
       "No design system",
+      "Airbnb Design System",
+      "Apple HIG",
+      "Material Design",
       "AgentHub Design System",
     ])
+  }
+
+  @Test
+  func creatingProjectUsesSelectedDesignSystemPrecedence() async {
+    let customSystem = EaselDesignSystemProfile(
+      id: UUID(),
+      name: "AgentHub Design System",
+      blurb: "AgentHub product UI",
+      notes: "Dense macOS shell",
+      sourceLinks: [],
+      workingDirectory: "/tmp/agenthub-design-system",
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+    let project = EaselDesignProject(
+      id: UUID(),
+      name: "AgentHub",
+      kind: .prototype,
+      designSystems: [
+        .custom(customSystem),
+        .preset(.airbnb),
+      ],
+      fidelity: .highFidelity,
+      workingDirectory: "/tmp/agenthub",
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+    let projectManager = SidebarProjectManagerStub(project: project)
+    let viewModel = SidebarViewModel(
+      sessionStorage: NoOpSessionStorage(),
+      projectManager: projectManager,
+      designSystemManager: SidebarDesignSystemManagerStub(profiles: [customSystem])
+    )
+    await viewModel.loadSessions()
+    viewModel.addDesignSystem(.preset(.airbnb))
+    viewModel.addDesignSystem(.custom(customSystem))
+    viewModel.makeHighestPrecedenceDesignSystem(.custom(customSystem))
+    viewModel.projectName = "AgentHub"
+
+    await viewModel.createProjectAndStartSession()
+
+    let request = await projectManager.createdRequests().first
+    #expect(request?.designSystems.map(\.displayName) == [
+      "AgentHub Design System",
+      "Airbnb Design System",
+    ])
+  }
+
+  @Test
+  func selectingNoDesignSystemClearsPrecedenceList() async {
+    let viewModel = SidebarViewModel(
+      sessionStorage: NoOpSessionStorage(),
+      projectManager: SidebarProjectManagerStub(projects: []),
+      designSystemManager: SidebarDesignSystemManagerStub()
+    )
+
+    viewModel.addDesignSystem(.preset(.airbnb))
+    viewModel.addDesignSystem(.preset(.material))
+    viewModel.selectDesignSystem(.preset(.none))
+
+    #expect(viewModel.selectedDesignSystems == [.preset(.none)])
   }
 
   @Test
@@ -224,6 +288,8 @@ private actor SidebarDesignSystemManagerStub: EaselDesignSystemManaging {
   func loadCatalog(forDesignSystemAt path: String) async throws -> EaselDesignSystemCatalog? {
     nil
   }
+
+  func deleteDesignSystem(_ profile: EaselDesignSystemProfile) async throws {}
 }
 
 private actor SidebarProjectManagerStub: EaselProjectManaging {
@@ -245,7 +311,7 @@ private actor SidebarProjectManagerStub: EaselProjectManaging {
 
   func createProject(from request: EaselProjectCreateRequest) async throws -> EaselDesignProject {
     createRequests.append(request)
-    projects[0]
+    return projects[0]
   }
 
   func deleteProject(_ project: EaselDesignProject) async throws {

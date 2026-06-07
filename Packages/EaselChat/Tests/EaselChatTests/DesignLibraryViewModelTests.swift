@@ -107,6 +107,41 @@ struct DesignLibraryViewModelTests {
     #expect(viewModel.errorMessage?.contains("Projects:") == true)
   }
 
+  @Test
+  func deleteDesignSystemRemovesItemDeletesSessionsAndNotifies() async throws {
+    let rootURL = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+
+    let keepURL = try makeDirectory(named: "keep-system", in: rootURL)
+    let dropURL = try makeDirectory(named: "drop-system", in: rootURL)
+    let keep = makeDesignSystem(name: "Keep", path: keepURL.path, updatedAt: Date(timeIntervalSince1970: 100))
+    let drop = makeDesignSystem(name: "Drop", path: dropURL.path, updatedAt: Date(timeIntervalSince1970: 200))
+    let dropSession = makeSession(id: "drop-session", path: drop.workingDirectory, lastAccessedAt: Date(timeIntervalSince1970: 250))
+    let keepSession = makeSession(id: "keep-session", path: keep.workingDirectory, lastAccessedAt: Date(timeIntervalSince1970: 150))
+
+    let designSystemStub = DesignLibraryDesignSystemManagerStub(profiles: [keep, drop])
+    let sessionStub = DesignLibrarySessionStorageStub(sessions: [dropSession, keepSession])
+    let viewModel = DesignLibraryViewModel(
+      sessionStorage: sessionStub,
+      projectManager: DesignLibraryProjectManagerStub(projects: []),
+      designSystemManager: designSystemStub
+    )
+
+    await viewModel.refresh()
+    #expect(viewModel.items.map(\.title) == ["Drop", "Keep"])
+
+    var notifiedID: UUID?
+    viewModel.onDesignSystemDeleted = { notifiedID = $0.id }
+
+    await viewModel.deleteDesignSystem(drop)
+
+    #expect(viewModel.errorMessage == nil)
+    #expect(viewModel.items.map(\.title) == ["Keep"])
+    #expect(await designSystemStub.deletedProfileIDs == [drop.id])
+    #expect(await sessionStub.deletedSessionIDs == ["drop-session"])
+    #expect(notifiedID == drop.id)
+  }
+
   private func temporaryRoot() -> URL {
     FileManager.default.temporaryDirectory
       .appendingPathComponent("DesignLibraryViewModelTests-\(UUID().uuidString)", isDirectory: true)
@@ -198,7 +233,8 @@ private actor DesignLibraryProjectManagerStub: EaselProjectManaging {
 }
 
 private actor DesignLibraryDesignSystemManagerStub: EaselDesignSystemManaging {
-  private let profiles: [EaselDesignSystemProfile]
+  private var profiles: [EaselDesignSystemProfile]
+  private(set) var deletedProfileIDs: [UUID] = []
 
   init(profiles: [EaselDesignSystemProfile]) {
     self.profiles = profiles
@@ -215,10 +251,16 @@ private actor DesignLibraryDesignSystemManagerStub: EaselDesignSystemManaging {
   func loadCatalog(forDesignSystemAt path: String) async throws -> EaselDesignSystemCatalog? {
     nil
   }
+
+  func deleteDesignSystem(_ profile: EaselDesignSystemProfile) async throws {
+    deletedProfileIDs.append(profile.id)
+    profiles.removeAll { $0.id == profile.id }
+  }
 }
 
 private actor DesignLibrarySessionStorageStub: SessionStorageProtocol {
-  private let sessions: [StoredSession]
+  private var sessions: [StoredSession]
+  private(set) var deletedSessionIDs: [String] = []
 
   init(sessions: [StoredSession]) {
     self.sessions = sessions
@@ -242,7 +284,10 @@ private actor DesignLibrarySessionStorageStub: SessionStorageProtocol {
 
   func updateLastAccessed(id: String) async throws {}
 
-  func deleteSession(id: String) async throws {}
+  func deleteSession(id: String) async throws {
+    deletedSessionIDs.append(id)
+    sessions.removeAll { $0.id == id }
+  }
 
   func deleteAllSessions() async throws {}
 

@@ -11,7 +11,7 @@ struct ProjectHeaderView: View {
   let project: ProjectGroup
   let onToggle: () -> Void
   let onNewChat: () -> Void
-  let onDelete: () -> Void
+  let onDelete: (() -> Void)?
 
   @State private var isHovering = false
   @Environment(\.colorScheme) private var colorScheme
@@ -20,7 +20,7 @@ struct ProjectHeaderView: View {
     HStack(alignment: .center, spacing: 8) {
       Button(action: onToggle) {
         HStack(spacing: 8) {
-          Image(systemName: project.kind?.systemImage ?? (project.isExpanded ? "folder.fill" : "folder"))
+          Image(systemName: project.systemImage)
             .font(.system(size: 14, weight: .medium))
             .foregroundStyle(projectIconColor)
             .frame(width: 20)
@@ -52,14 +52,16 @@ struct ProjectHeaderView: View {
           action: onNewChat
         )
 
-        ProjectHeaderActionButton(
-          title: "Delete project",
-          systemImage: "trash",
-          role: .destructive,
-          foregroundColor: EaselDesignSystem.Palette.secondaryText(for: colorScheme),
-          hoverColor: EaselDesignSystem.Palette.hoverSurface(for: colorScheme),
-          action: onDelete
-        )
+        if let onDelete {
+          ProjectHeaderActionButton(
+            title: "Delete project",
+            systemImage: "trash",
+            role: .destructive,
+            foregroundColor: EaselDesignSystem.Palette.secondaryText(for: colorScheme),
+            hoverColor: EaselDesignSystem.Palette.hoverSurface(for: colorScheme),
+            action: onDelete
+          )
+        }
       }
       .opacity(isHovering ? 1 : 0.8)
     }
@@ -82,8 +84,14 @@ struct ProjectHeaderView: View {
   }
 
   private var projectIconColor: Color {
-    project.project == nil
-      ? EaselDesignSystem.Palette.secondaryText(for: colorScheme)
-      : EaselDesignSystem.Palette.accentForeground(for: colorScheme)
+    if project.designSystem != nil {
+      return EaselDesignSystem.Palette.accent
+    }
+
+    if project.project == nil {
+      return EaselDesignSystem.Palette.secondaryText(for: colorScheme)
+    }
+
+    return EaselDesignSystem.Palette.accentForeground(for: colorScheme)
   }
 }

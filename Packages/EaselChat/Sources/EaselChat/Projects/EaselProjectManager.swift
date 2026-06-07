@@ -85,7 +85,7 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
       id: UUID(),
       name: projectName,
       kind: request.kind,
-      designSystem: request.designSystem,
+      designSystems: request.designSystems,
       fidelity: fidelity,
       workingDirectory: directoryURL.path,
       createdAt: now,
@@ -94,6 +94,9 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
 
     try writeScaffold(for: project, at: directoryURL)
     try writeMetadata(project, in: directoryURL)
+    // Bundle the selected custom design systems into the project once, at
+    // creation. Every session in the project then reads them from resources/.
+    try writeDesignSystemResources(project.designSystems, at: directoryURL)
     return project
   }
 
@@ -164,6 +167,93 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
     try fileManager.createDirectory(at: metadataDirectory, withIntermediateDirectories: true)
     let data = try encoder.encode(project)
     try data.write(to: Self.metadataURL(for: directoryURL), options: .atomic)
+  }
+
+  /// Copies each selected custom design system's catalog, rendered page, and
+  /// brand assets into `resources/design-systems/<slug>/` so the agent can read
+  /// the tokens locally (the original folder lives outside the project sandbox).
+  private func writeDesignSystemResources(
+    _ designSystems: [EaselDesignSystemChoice],
+    at projectDirectoryURL: URL
+  ) throws {
+    let customSystems = designSystems.filter { $0.kind == .custom }
+    guard !customSystems.isEmpty else { return }
+
+    let destinationRoot = projectDirectoryURL
+      .appendingPathComponent(ProjectResource.resourcesDirectoryName, isDirectory: true)
+      .appendingPathComponent("design-systems", isDirectory: true)
+
+    for choice in customSystems {
+      guard let sourcePath = choice.workingDirectory,
+            let folderName = choice.resourceFolderName else { continue }
+
+      let sourceURL = URL(fileURLWithPath: sourcePath)
+      var isDirectory: ObjCBool = false
+      guard fileManager.fileExists(atPath: sourceURL.path, isDirectory: &isDirectory),
+            isDirectory.boolValue else {
+        continue // Source design system folder is missing; skip rather than fail creation.
+      }
+
+      let destinationURL = destinationRoot.appendingPathComponent(folderName, isDirectory: true)
+      // Re-copy fresh so the snapshot tracks the current source on each sync.
+      if fileManager.fileExists(atPath: destinationURL.path) {
+        try fileManager.removeItem(at: destinationURL)
+      }
+      try fileManager.createDirectory(at: destinationURL, withIntermediateDirectories: true)
+
+      // The token source of truth.
+      try copyIfExists(
+        sourceURL.appendingPathComponent(".easel/catalog.json"),
+        to: destinationURL.appendingPathComponent("catalog.json")
+      )
+      // The rendered reference page, so the system is browsable on its own.
+      try copyIfExists(
+        sourceURL.appendingPathComponent("index.html"),
+        to: destinationURL.appendingPathComponent("index.html")
+      )
+      // Brand assets (logos, fonts) — but not the heavy code/figma source imports.
+      try copyTreeIfExists(
+        sourceURL
+          .appendingPathComponent(ProjectResource.resourcesDirectoryName, isDirectory: true)
+          .appendingPathComponent("assets", isDirectory: true),
+        to: destinationURL.appendingPathComponent("assets", isDirectory: true)
+      )
+    }
+  }
+
+  private func copyIfExists(_ source: URL, to destination: URL) throws {
+    guard fileManager.fileExists(atPath: source.path) else { return }
+    try fileManager.createDirectory(
+      at: destination.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
+    try fileManager.copyItem(at: source, to: destination)
+  }
+
+  private func copyTreeIfExists(_ source: URL, to destination: URL) throws {
+    var isDirectory: ObjCBool = false
+    guard fileManager.fileExists(atPath: source.path, isDirectory: &isDirectory),
+          isDirectory.boolValue else { return }
+
+    try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
+    guard let enumerator = fileManager.enumerator(atPath: source.path) else { return }
+
+    for case let relativePath as String in enumerator {
+      let itemURL = source.appendingPathComponent(relativePath)
+      let destinationURL = destination.appendingPathComponent(relativePath)
+      let values = try? itemURL.resourceValues(forKeys: [.isDirectoryKey])
+      if values?.isDirectory == true {
+        try fileManager.createDirectory(at: destinationURL, withIntermediateDirectories: true)
+      } else {
+        try fileManager.createDirectory(
+          at: destinationURL.deletingLastPathComponent(),
+          withIntermediateDirectories: true
+        )
+        if fileManager.fileExists(atPath: destinationURL.path) == false {
+          try fileManager.copyItem(at: itemURL, to: destinationURL)
+        }
+      }
+    }
   }
 
   private func writeScaffold(for project: EaselDesignProject, at directoryURL: URL) throws {
@@ -258,7 +348,7 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
       metadataLines.append("- Fidelity: \(project.fidelity.displayName)")
     }
 
-    metadataLines.append("- Design system: \(project.designSystem.displayName)")
+    metadataLines.append("- Design systems: \(project.designSystemDisplaySummary)")
 
     return """
     # \(project.name)
@@ -280,7 +370,7 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
     case .slideDeck:
       return SlideDeckScaffold.indexHTML(
         title: project.name,
-        designSystemDisplayName: project.designSystem.displayName
+        designSystemDisplayName: project.designSystemDisplaySummary
       )
     }
   }
@@ -289,7 +379,7 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
     let title = escapedHTML(project.name)
     let kind = escapedHTML(project.kind.displayName)
     let fidelity = escapedHTML(project.fidelity.displayName)
-    let designSystem = escapedHTML(project.designSystem.displayName)
+    let designSystem = escapedHTML(project.designSystemDisplaySummary)
     let accent = project.kind == .prototype ? "#2f6fed" : "#d86f51"
 
     return """

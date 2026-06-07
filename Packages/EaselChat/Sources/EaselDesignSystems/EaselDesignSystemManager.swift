@@ -9,6 +9,7 @@ public protocol EaselDesignSystemManaging: Sendable {
   func loadDesignSystems() async throws -> [EaselDesignSystemProfile]
   func createDesignSystem(from request: EaselDesignSystemCreateRequest) async throws -> EaselDesignSystemProfile
   func loadCatalog(forDesignSystemAt path: String) async throws -> EaselDesignSystemCatalog?
+  func deleteDesignSystem(_ profile: EaselDesignSystemProfile) async throws
 }
 
 public enum EaselDesignSystemManagerError: LocalizedError, Equatable, Sendable {
@@ -64,7 +65,9 @@ public actor LocalEaselDesignSystemManager: EaselDesignSystemManaging {
 
       do {
         let data = try Data(contentsOf: metadataURL)
-        profiles.append(try decoder.decode(EaselDesignSystemProfile.self, from: data))
+        let profile = try decoder.decode(EaselDesignSystemProfile.self, from: data)
+        try ensureCatalogTemplate(for: profile, at: directoryURL, backsUpExistingIndex: true)
+        profiles.append(profile)
       } catch {
         continue
       }
@@ -118,6 +121,21 @@ public actor LocalEaselDesignSystemManager: EaselDesignSystemManaging {
 
     let data = try Data(contentsOf: catalogURL)
     return try decoder.decode(EaselDesignSystemCatalog.self, from: data)
+  }
+
+  public func deleteDesignSystem(_ profile: EaselDesignSystemProfile) async throws {
+    try ensureRootDirectoryExists()
+
+    let directoryURL = try validatedDesignSystemURL(for: profile.workingDirectory)
+
+    // Defense-in-depth: only ever remove folders inside the managed root so a
+    // bad/stale path can never delete something outside Easel Design Systems.
+    let rootPath = rootDirectory.standardizedFileURL.resolvingSymlinksInPath().path
+    guard directoryURL.path.hasPrefix(rootPath + "/") else {
+      throw EaselDesignSystemManagerError.missingDesignSystemDirectory(profile.workingDirectory)
+    }
+
+    try fileManager.removeItem(at: directoryURL)
   }
 
   private static func defaultRootDirectory(fileManager: FileManager) -> URL {
@@ -182,10 +200,14 @@ public actor LocalEaselDesignSystemManager: EaselDesignSystemManaging {
       at: directoryURL.appendingPathComponent("resources", isDirectory: true),
       withIntermediateDirectories: true
     )
+    try fileManager.createDirectory(
+      at: directoryURL.appendingPathComponent(Self.metadataDirectoryName, isDirectory: true),
+      withIntermediateDirectories: true
+    )
 
     try write(packageJSON(for: profile), to: directoryURL.appendingPathComponent("package.json"))
     try write(readme(for: profile), to: directoryURL.appendingPathComponent("README.md"))
-    try write(indexHTML(for: profile), to: directoryURL.appendingPathComponent("index.html"))
+    try ensureCatalogTemplate(for: profile, at: directoryURL, backsUpExistingIndex: false)
   }
 
   private func importResources(from request: EaselDesignSystemCreateRequest, into directoryURL: URL) throws {
@@ -395,88 +417,51 @@ public actor LocalEaselDesignSystemManager: EaselDesignSystemManaging {
     """
   }
 
-  private func indexHTML(for profile: EaselDesignSystemProfile) -> String {
-    let title = escapedHTML(profile.name)
-    let blurb = escapedHTML(profile.blurb)
+  private func ensureCatalogTemplate(
+    for profile: EaselDesignSystemProfile,
+    at directoryURL: URL,
+    backsUpExistingIndex: Bool
+  ) throws {
+    let metadataDirectory = directoryURL.appendingPathComponent(Self.metadataDirectoryName, isDirectory: true)
+    try fileManager.createDirectory(at: metadataDirectory, withIntermediateDirectories: true)
 
-    return """
-    <!doctype html>
-    <html lang="en">
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <title>\(title)</title>
-      <style>
-        :root {
-          color-scheme: light;
-          --ink: #22201d;
-          --muted: #6f6a63;
-          --surface: #fbfaf8;
-          --line: #dedbd5;
-        }
+    let indexURL = directoryURL.appendingPathComponent("index.html")
+    if let existingHTML = try? String(contentsOf: indexURL, encoding: .utf8),
+       existingHTML.contains(EaselDesignSystemCatalogTemplate.marker) == false {
+      if backsUpExistingIndex {
+        try fileManager.copyItem(at: indexURL, to: uniqueIndexBackupURL(in: metadataDirectory))
+      }
+      try write(indexHTML(for: profile), to: indexURL)
+    } else if fileManager.fileExists(atPath: indexURL.path) == false {
+      try write(indexHTML(for: profile), to: indexURL)
+    }
 
-        * {
-          box-sizing: border-box;
-        }
-
-        body {
-          margin: 0;
-          min-height: 100vh;
-          font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-          color: var(--ink);
-          background: var(--surface);
-        }
-
-        main {
-          width: min(920px, calc(100vw - 40px));
-          margin: 0 auto;
-          padding: 72px 0;
-        }
-
-        h1 {
-          margin: 0 0 16px;
-          font-size: clamp(40px, 8vw, 84px);
-          line-height: 0.95;
-          letter-spacing: 0;
-        }
-
-        p {
-          max-width: 680px;
-          margin: 0;
-          color: var(--muted);
-          font-size: 18px;
-          line-height: 1.55;
-        }
-
-        .panel {
-          margin-top: 40px;
-          border: 1px solid var(--line);
-          border-radius: 8px;
-          padding: 24px;
-          background: white;
-        }
-      </style>
-    </head>
-    <body>
-      <main>
-        <h1>\(title)</h1>
-        <p>\(blurb)</p>
-        <div class="panel">
-          <p>Codex will replace this scaffold with a browsable component catalog and write metadata to <code>.easel/catalog.json</code>.</p>
-        </div>
-      </main>
-    </body>
-    </html>
-    """
+    let catalogURL = Self.catalogURL(for: directoryURL)
+    if fileManager.fileExists(atPath: catalogURL.path) == false {
+      let catalog = EaselDesignSystemCatalog.placeholder(for: profile)
+      let data = try encoder.encode(catalog)
+      try data.write(to: catalogURL, options: .atomic)
+    }
   }
 
-  private func escapedHTML(_ value: String) -> String {
-    value
-      .replacingOccurrences(of: "&", with: "&amp;")
-      .replacingOccurrences(of: "<", with: "&lt;")
-      .replacingOccurrences(of: ">", with: "&gt;")
-      .replacingOccurrences(of: "\"", with: "&quot;")
-      .replacingOccurrences(of: "'", with: "&#39;")
+  private func uniqueIndexBackupURL(in metadataDirectory: URL) -> URL {
+    let preferredURL = metadataDirectory.appendingPathComponent("index.previous.html")
+    guard fileManager.fileExists(atPath: preferredURL.path) else {
+      return preferredURL
+    }
+
+    var suffix = 2
+    var candidate: URL
+    repeat {
+      candidate = metadataDirectory.appendingPathComponent("index.previous-\(suffix).html")
+      suffix += 1
+    } while fileManager.fileExists(atPath: candidate.path)
+
+    return candidate
+  }
+
+  private func indexHTML(for profile: EaselDesignSystemProfile) -> String {
+    EaselDesignSystemCatalogTemplate.indexHTML(name: profile.name, summary: profile.blurb)
   }
 
   private func write(_ contents: String, to url: URL) throws {

@@ -188,8 +188,8 @@ public final class ProjectResourcesViewModel {
     existingSelection: String?,
     projects: [EaselDesignProject]
   ) -> String? {
-    if let currentProjectPath, projects.contains(where: { $0.workingDirectory == currentProjectPath }) {
-      return currentProjectPath
+    if let currentProjectPath {
+      return projects.contains(where: { $0.workingDirectory == currentProjectPath }) ? currentProjectPath : nil
     }
 
     if let existingSelection, projects.contains(where: { $0.workingDirectory == existingSelection }) {

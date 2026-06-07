@@ -22,6 +22,7 @@ struct CanvasContentView: View {
   @State private var resourcesViewModel = ProjectResourcesViewModel()
   @State private var designSystemSetupViewModel = DesignSystemSetupViewModel()
   @State private var designSystemBrowserViewModel = DesignSystemBrowserViewModel()
+  @State private var currentDesignSystemProfile: EaselDesignSystemProfile?
   @State private var contentMode: CanvasContentMode = .designs
   @State private var selectedCanvasSurface: CanvasSurface = .canvas
   @State private var panelLayoutState: CanvasPanelLayoutState = .allPanels
@@ -112,6 +113,13 @@ struct CanvasContentView: View {
         Task {
           await chatService.initialize()
           await chatService.switchToSession(session)
+          currentDesignSystemProfile = designSystemProfile(
+            for: chatService.currentWorkingDirectory,
+            sidebarViewModel: vm
+          )
+          if currentDesignSystemProfile != nil {
+            selectedCanvasSurface = .canvas
+          }
           // Use running dev server URL if available, otherwise start one
           if let dir = chatService.currentWorkingDirectory {
             await startDevServer(for: dir)
@@ -122,6 +130,13 @@ struct CanvasContentView: View {
       }
       vm.onNewChatRequested = { workingDirectory in
         enterWorkspace()
+        currentDesignSystemProfile = designSystemProfile(
+          for: workingDirectory,
+          sidebarViewModel: vm
+        )
+        if currentDesignSystemProfile != nil {
+          selectedCanvasSurface = .canvas
+        }
         Task {
           await chatService.initialize()
           await chatService.startNewSession(workingDirectory: workingDirectory)
@@ -134,6 +149,7 @@ struct CanvasContentView: View {
       }
       vm.onProjectLaunchRequested = { launch in
         enterWorkspace()
+        currentDesignSystemProfile = nil
         Task {
           await chatService.initialize()
           await chatService.startNewSession(workingDirectory: launch.project.workingDirectory)
@@ -159,6 +175,18 @@ struct CanvasContentView: View {
       vm.onProjectDeleted = {
         Task {
           await libraryVM.refresh()
+        }
+      }
+      libraryVM.onDesignSystemDeleted = { deleted in
+        // If the deleted design system is the one open in the canvas, leave the
+        // now-stale workspace and return to the grid.
+        if currentDesignSystemProfile?.id == deleted.id {
+          currentDesignSystemProfile = nil
+          showDesignLibrary()
+        }
+        // Refresh sidebar choices so the removed custom system drops out.
+        Task {
+          await vm.loadSessions()
         }
       }
       chatService.onSessionChanged = {
@@ -204,6 +232,7 @@ struct CanvasContentView: View {
             isDesignSystemBrowserPresented = false
             isDesignSystemSetupPresented = true
           },
+          onUseStartingPoint: handleDesignSystemStartingPoint,
           onDone: {
             isDesignSystemBrowserPresented = false
           }
@@ -361,6 +390,7 @@ struct CanvasContentView: View {
     _ project: EaselDesignProject,
     selection: DesignLibrarySelection
   ) {
+    currentDesignSystemProfile = nil
     sidebarViewModel?.requestScrollToProjectHeader(workingDirectory: project.workingDirectory)
 
     Task {
@@ -386,6 +416,8 @@ struct CanvasContentView: View {
     _ profile: EaselDesignSystemProfile,
     selection: DesignLibrarySelection
   ) {
+    currentDesignSystemProfile = profile
+    selectedCanvasSurface = .canvas
     sidebarViewModel?.selectDesignSystem(.custom(profile))
 
     Task {
@@ -425,14 +457,31 @@ struct CanvasContentView: View {
     isDesignSystemSetupPresented = false
     enterWorkspace()
     selectedCanvasSurface = .canvas
-    sidebarViewModel?.selectDesignSystem(.custom(launch.profile))
+    currentDesignSystemProfile = launch.profile
+    let choice = EaselDesignSystemChoice.custom(launch.profile)
+    sidebarViewModel?.addDesignSystem(choice)
+    sidebarViewModel?.makeHighestPrecedenceDesignSystem(choice)
 
     Task {
       await chatService.initialize()
       await chatService.startNewSession(workingDirectory: launch.profile.workingDirectory)
       await startDevServer(for: launch.profile.workingDirectory)
+      chatService.generateDesignSystem(launch.profile)
       await sidebarViewModel?.loadSessions()
       await designLibraryViewModel?.refresh()
+    }
+  }
+
+  private func handleDesignSystemStartingPoint(_ startingPoint: EaselDesignSystemStartingPoint) {
+    isDesignSystemBrowserPresented = false
+    enterWorkspace()
+
+    Task {
+      await chatService.initialize()
+      chatService.sendMessage(
+        "Use \(startingPoint.displayTitle) from \(startingPoint.designSystem.displayName) as the starting point for this design.",
+        hiddenContext: startingPoint.promptContext
+      )
     }
   }
 
@@ -500,9 +549,9 @@ struct CanvasContentView: View {
               viewModel: resourcesViewModel,
               currentProjectPath: chatService.currentWorkingDirectory
             )
-            .opacity(selectedCanvasSurface == .resources ? 1 : 0)
-            .allowsHitTesting(selectedCanvasSurface == .resources)
-            .accessibilityHidden(selectedCanvasSurface != .resources)
+            .opacity(currentDesignSystemProfile == nil && selectedCanvasSurface == .resources ? 1 : 0)
+            .allowsHitTesting(currentDesignSystemProfile == nil && selectedCanvasSurface == .resources)
+            .accessibilityHidden(currentDesignSystemProfile != nil || selectedCanvasSurface != .resources)
           }
         }
       }
@@ -529,18 +578,36 @@ struct CanvasContentView: View {
 
   private var canvasSurfaceTopBar: some View {
     HStack(spacing: 12) {
-      Picker("Canvas surface", selection: $selectedCanvasSurface) {
-        ForEach(CanvasSurface.allCases) { surface in
-          Label(
-            surface.displayName(isSlideDeckProject: isSlideDeckProject),
-            systemImage: surface.systemImage(isSlideDeckProject: isSlideDeckProject)
-          )
-            .tag(surface)
+      if availableCanvasSurfaces.count > 1 {
+        Picker("Canvas surface", selection: $selectedCanvasSurface) {
+          ForEach(availableCanvasSurfaces) { surface in
+            Label(
+              surface.displayName(
+                isSlideDeckProject: isSlideDeckProject,
+                isDesignSystemWorkspace: isDesignSystemWorkspace
+              ),
+              systemImage: surface.systemImage(
+                isSlideDeckProject: isSlideDeckProject,
+                isDesignSystemWorkspace: isDesignSystemWorkspace
+              )
+            )
+              .tag(surface)
+          }
         }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .frame(width: 250)
+      } else {
+        Label(
+          isDesignSystemWorkspace ? "Design system" : canvasSurfaceLabel,
+          systemImage: CanvasSurface.canvas.systemImage(
+            isSlideDeckProject: isSlideDeckProject,
+            isDesignSystemWorkspace: isDesignSystemWorkspace
+          )
+        )
+        .font(.callout.weight(.semibold))
+        .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
       }
-      .pickerStyle(.segmented)
-      .labelsHidden()
-      .frame(width: 250)
 
       Spacer()
 
@@ -608,6 +675,31 @@ struct CanvasContentView: View {
   private var isSlideDeckProject: Bool {
     chatService.currentProject?.kind == .slideDeck
   }
+
+  private var isDesignSystemWorkspace: Bool {
+    currentDesignSystemProfile != nil
+  }
+
+  private var availableCanvasSurfaces: [CanvasSurface] {
+    isDesignSystemWorkspace ? [.canvas] : CanvasSurface.allCases
+  }
+
+  private var canvasSurfaceLabel: String {
+    CanvasSurface.canvas.displayName(
+      isSlideDeckProject: isSlideDeckProject,
+      isDesignSystemWorkspace: isDesignSystemWorkspace
+    )
+  }
+
+  private func designSystemProfile(
+    for workingDirectory: String?,
+    sidebarViewModel: SidebarViewModel?
+  ) -> EaselDesignSystemProfile? {
+    guard let workingDirectory else { return nil }
+    return sidebarViewModel?.customDesignSystems.first { profile in
+      profile.workingDirectory == workingDirectory
+    }
+  }
 }
 
 private enum CanvasSurface: String, CaseIterable, Identifiable {
@@ -616,7 +708,10 @@ private enum CanvasSurface: String, CaseIterable, Identifiable {
 
   var id: String { rawValue }
 
-  func displayName(isSlideDeckProject: Bool) -> String {
+  func displayName(
+    isSlideDeckProject: Bool,
+    isDesignSystemWorkspace: Bool
+  ) -> String {
     switch self {
     case .canvas:
       return isSlideDeckProject ? "Slides" : "Canvas"
@@ -625,7 +720,10 @@ private enum CanvasSurface: String, CaseIterable, Identifiable {
     }
   }
 
-  func systemImage(isSlideDeckProject: Bool) -> String {
+  func systemImage(
+    isSlideDeckProject: Bool,
+    isDesignSystemWorkspace: Bool
+  ) -> String {
     switch self {
     case .canvas:
       return isSlideDeckProject ? "rectangle.on.rectangle" : "rectangle.inset.filled"

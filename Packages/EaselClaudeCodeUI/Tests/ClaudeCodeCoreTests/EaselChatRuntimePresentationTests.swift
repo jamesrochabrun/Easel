@@ -199,6 +199,34 @@ final class EaselChatRuntimePresentationTests: XCTestCase {
     XCTAssertEqual(presentation.subtitle, "in *.swift")
   }
 
+  func testWebSearchPresentationDoesNotShowPlaceholderQuery() {
+    let toolUse = ChatMessage(
+      role: .assistant,
+      content: "",
+      messageType: .toolUse,
+      toolName: "WebSearch",
+      toolInputData: ToolInputData(parameters: ["query": " Search "])
+    )
+
+    let presentation = EaselToolCardPresentation(toolUse: toolUse, toolResult: nil)
+
+    XCTAssertEqual(presentation.title, "Searching the web")
+  }
+
+  func testWebSearchPresentationShowsRealQuery() {
+    let toolUse = ChatMessage(
+      role: .assistant,
+      content: "",
+      messageType: .toolUse,
+      toolName: "WebSearch",
+      toolInputData: ToolInputData(parameters: ["query": "design system examples"])
+    )
+
+    let presentation = EaselToolCardPresentation(toolUse: toolUse, toolResult: nil)
+
+    XCTAssertEqual(presentation.title, "Searching the web for \"design system examples\"")
+  }
+
   func testGlobPresentationDescribesFileType() {
     let toolUse = ChatMessage(
       role: .assistant,

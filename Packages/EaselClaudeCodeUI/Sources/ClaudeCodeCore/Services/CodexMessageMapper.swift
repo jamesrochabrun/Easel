@@ -94,11 +94,18 @@ enum CodexMessageMapper {
   }
 
   static func webSearchToolUse(query: String?, itemID: String?) -> ChatMessage {
-    let searchQuery = query?.isEmpty == false ? query! : "Search"
+    let searchQuery = query?.trimmingCharacters(in: .whitespacesAndNewlines)
+    let toolInputData: ToolInputData?
+    if let searchQuery, !searchQuery.isEmpty {
+      toolInputData = ToolInputData(parameters: ["query": searchQuery])
+    } else {
+      toolInputData = nil
+    }
+
     return MessageFactory.toolUseMessage(
       toolName: "WebSearch",
-      input: searchQuery,
-      toolInputData: ToolInputData(parameters: ["query": searchQuery]),
+      input: searchQuery ?? "",
+      toolInputData: toolInputData,
       toolUseID: itemID
     )
   }

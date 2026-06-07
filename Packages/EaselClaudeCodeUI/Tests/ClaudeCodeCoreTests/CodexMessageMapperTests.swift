@@ -30,6 +30,23 @@ final class CodexMessageMapperTests: XCTestCase {
     XCTAssertEqual(message.toolName, "MCPTool")
   }
 
+  func testWebSearchToolUseWithoutQueryDoesNotInventPlaceholderQuery() {
+    let message = CodexMessageMapper.webSearchToolUse(query: nil, itemID: "web-1")
+
+    XCTAssertEqual(message.messageType, .toolUse)
+    XCTAssertEqual(message.toolName, "WebSearch")
+    XCTAssertNil(message.toolInputData)
+    XCTAssertEqual(message.content, "TOOL USE: WebSearch")
+    XCTAssertEqual(message.toolUseID, "web-1")
+  }
+
+  func testWebSearchToolUsePreservesRealQuery() {
+    let message = CodexMessageMapper.webSearchToolUse(query: "  design system examples  ", itemID: "web-1")
+
+    XCTAssertEqual(message.toolInputData?.parameters["query"], "design system examples")
+    XCTAssertTrue(message.content.contains("design system examples"))
+  }
+
   func testShortenCommandHandlesCommonShellWrappers() {
     XCTAssertEqual(CodexMessageMapper.shortenCommand("/bin/bash -lc 'npm test'"), "npm test")
     XCTAssertEqual(CodexMessageMapper.shortenCommand("sh -lc \"ls\""), "ls")

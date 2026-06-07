@@ -13,6 +13,10 @@ public final class DesignLibraryViewModel {
   public private(set) var isLoading = false
   public private(set) var errorMessage: String?
 
+  /// Called after a design system is deleted so the host can reconcile other
+  /// surfaces (sidebar choices, an open canvas pointing at the removed folder).
+  public var onDesignSystemDeleted: ((EaselDesignSystemProfile) -> Void)?
+
   private let sessionStorage: SessionStorageProtocol
   private let projectManager: any EaselProjectManaging
   private let designSystemManager: any EaselDesignSystemManaging
@@ -91,6 +95,24 @@ public final class DesignLibraryViewModel {
 
     items = (projectItems + designSystemItems).sorted(by: sortLibraryItems)
     errorMessage = failures.isEmpty ? nil : failures.joined(separator: "\n")
+  }
+
+  /// Permanently deletes a design system's local folder and any sessions that
+  /// were created inside it, then refreshes the library.
+  public func deleteDesignSystem(_ profile: EaselDesignSystemProfile) async {
+    do {
+      try await designSystemManager.deleteDesignSystem(profile)
+
+      let sessions = (try? await sessionStorage.getAllSessions()) ?? []
+      for session in sessions where session.workingDirectory == profile.workingDirectory {
+        try? await sessionStorage.deleteSession(id: session.id)
+      }
+
+      await refresh()
+      onDesignSystemDeleted?(profile)
+    } catch {
+      errorMessage = error.localizedDescription
+    }
   }
 
   private func latestSession(in sessions: [StoredSession]) -> StoredSession? {

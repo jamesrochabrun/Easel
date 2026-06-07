@@ -33,6 +33,23 @@ struct ProjectResourcesViewModelTests {
   }
 
   @Test
+  func refreshDoesNotFallBackToFirstProjectWhenCurrentPathIsNotAProject() async {
+    let project = makeProject(name: "Project", path: "/tmp/project")
+    let viewModel = ProjectResourcesViewModel(
+      projectManager: StubProjectManager(projects: [project]),
+      resourceManager: StubProjectResourceManager(resourcesByProject: [
+        project.workingDirectory: [makeResource(projectPath: project.workingDirectory, fileName: "hero.png")]
+      ])
+    )
+
+    await viewModel.refresh(currentProjectPath: "/tmp/design-system")
+
+    #expect(viewModel.selectedProjectPath == nil)
+    #expect(viewModel.resources.isEmpty)
+    #expect(viewModel.projectStructureSections.isEmpty)
+  }
+
+  @Test
   func importResourcesLoadsImportedAssets() async {
     let project = makeProject(name: "Project", path: "/tmp/project")
     let importedResource = makeResource(projectPath: project.workingDirectory, fileName: "brief.pdf")

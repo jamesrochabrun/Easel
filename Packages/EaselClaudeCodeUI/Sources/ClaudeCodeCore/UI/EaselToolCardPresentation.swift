@@ -150,7 +150,7 @@ struct EaselToolCardPresentation: Equatable {
       return "Looking through files"
 
     case "WebSearch":
-      if let query = nonEmpty(parameters?["query"]) {
+      if let query = webSearchQuery(parameters?["query"]) {
         return "Searching the web for \"\(truncate(query, limit: 40))\""
       }
       return "Searching the web"
@@ -655,6 +655,15 @@ struct EaselToolCardPresentation: Equatable {
   private static func nonEmpty(_ value: String?) -> String? {
     guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
     return value
+  }
+
+  private static func webSearchQuery(_ value: String?) -> String? {
+    guard let value else { return nil }
+    let query = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !query.isEmpty, query.caseInsensitiveCompare("Search") != .orderedSame else {
+      return nil
+    }
+    return query
   }
 
   /// Last path component for a file path parameter, ignoring empty values.

@@ -6,6 +6,7 @@
 import Foundation
 import Testing
 import ClaudeCodeCore
+import EaselDesignSystems
 @testable import EaselChat
 
 struct ProjectGroupTests {
@@ -68,6 +69,61 @@ struct ProjectGroupTests {
   }
 
   @Test
+  func groupsIncludeDesignSystemsWithMatchingSessions() {
+    let designSystem = EaselDesignSystemProfile(
+      id: UUID(),
+      name: "AgentHub Design System",
+      blurb: "AgentHub product UI",
+      notes: "",
+      sourceLinks: [],
+      workingDirectory: "/tmp/agenthub-design-system",
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+    let matchingSession = StoredSession(
+      id: "design-system-session",
+      createdAt: Date(),
+      firstUserMessage: "Generate this design system.",
+      lastAccessedAt: Date(),
+      workingDirectory: designSystem.workingDirectory
+    )
+
+    let groups = ProjectGroup.groups(
+      projects: [],
+      designSystems: [designSystem],
+      sessions: [matchingSession],
+      previousExpansion: [:]
+    )
+
+    #expect(groups.count == 1)
+    #expect(groups.first?.displayName == "AgentHub Design System")
+    #expect(groups.first?.designSystem == designSystem)
+    #expect(groups.first?.subtitle.contains("Design system") == true)
+    #expect(groups.first?.systemImage == "square.grid.2x2")
+    #expect(groups.first?.sessions.map(\.id) == ["design-system-session"])
+  }
+
+  @Test
+  func groupsIgnoreSessionsWithoutManagedProjectsOrDesignSystems() {
+    let legacySession = StoredSession(
+      id: "legacy",
+      createdAt: Date(),
+      firstUserMessage: "Old project",
+      lastAccessedAt: Date(),
+      workingDirectory: "/tmp/old-project"
+    )
+
+    let groups = ProjectGroup.groups(
+      projects: [],
+      designSystems: [],
+      sessions: [legacySession],
+      previousExpansion: [:]
+    )
+
+    #expect(groups.isEmpty)
+  }
+
+  @Test
   func subtitleIncludesFidelityOnlyForPrototypes() {
     let prototype = EaselDesignProject(
       id: UUID(),
@@ -111,5 +167,47 @@ struct ProjectGroupTests {
     #expect(deckGroup.subtitle.contains("Slide deck"))
     #expect(deckGroup.subtitle.contains("High fidelity") == false)
     #expect(deckGroup.subtitle.contains("0 sessions"))
+  }
+
+  @Test
+  func subtitleIncludesDesignSystemName() {
+    let withDesignSystem = EaselDesignProject(
+      id: UUID(),
+      name: "Checkout",
+      kind: .prototype,
+      designSystem: .airbnb,
+      fidelity: .highFidelity,
+      workingDirectory: "/tmp/checkout",
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+    let plain = EaselDesignProject(
+      id: UUID(),
+      name: "Plain",
+      kind: .prototype,
+      designSystem: EaselDesignSystemPreset.none,
+      fidelity: .highFidelity,
+      workingDirectory: "/tmp/plain",
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+
+    let withGroup = ProjectGroup(
+      id: withDesignSystem.workingDirectory,
+      displayName: withDesignSystem.name,
+      project: withDesignSystem,
+      workingDirectory: withDesignSystem.workingDirectory,
+      sessions: []
+    )
+    let plainGroup = ProjectGroup(
+      id: plain.workingDirectory,
+      displayName: plain.name,
+      project: plain,
+      workingDirectory: plain.workingDirectory,
+      sessions: []
+    )
+
+    #expect(withGroup.subtitle.contains("Airbnb Design System"))
+    #expect(plainGroup.subtitle.contains("Design System") == false)
   }
 }

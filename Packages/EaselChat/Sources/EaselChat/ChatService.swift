@@ -5,6 +5,7 @@
 
 import ClaudeCodeCore
 import ClaudeCodeSDK
+import EaselDesignSystems
 import EaselKit
 import Foundation
 import OSLog
@@ -152,6 +153,13 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
     sendMessageToViewModel(prompt, hiddenContext: prompt)
   }
 
+  public func generateDesignSystem(_ profile: EaselDesignSystemProfile) {
+    sendMessageToViewModel(
+      "Generate this design system.",
+      hiddenContext: EaselAgentInstructions.designSystemGenerationHiddenContext(for: profile)
+    )
+  }
+
   public func sendCropPrompt(_ prompt: String) {
     sendMessageToViewModel(prompt)
   }
@@ -282,6 +290,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
       projectPath: currentWorkingDirectory,
       projectKind: currentProject?.kind,
       projectFidelity: currentPrototypeFidelity,
+      designSystems: currentProject?.designSystems ?? [],
       previewURL: previewURL
     )
     chatViewModel?.sendMessage(text, context: context, hiddenContext: combinedHiddenContext)

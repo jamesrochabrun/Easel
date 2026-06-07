@@ -10,6 +10,7 @@ public struct EaselDesignSystemComponentGroup: Codable, Equatable, Identifiable,
   public let title: String
   public let summary: String
   public let previewPath: String?
+  public let sourcePath: String?
   public let items: [EaselDesignSystemComponentItem]
 
   public init(
@@ -17,12 +18,14 @@ public struct EaselDesignSystemComponentGroup: Codable, Equatable, Identifiable,
     title: String,
     summary: String,
     previewPath: String?,
+    sourcePath: String? = nil,
     items: [EaselDesignSystemComponentItem]
   ) {
     self.id = id
     self.title = title
     self.summary = summary
     self.previewPath = previewPath
+    self.sourcePath = sourcePath
     self.items = items
   }
 }

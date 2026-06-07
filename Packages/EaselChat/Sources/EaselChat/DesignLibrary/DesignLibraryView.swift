@@ -3,6 +3,7 @@
 //  EaselChat
 //
 
+import EaselDesignSystems
 import EaselKit
 import SwiftUI
 
@@ -13,6 +14,7 @@ public struct DesignLibraryView: View {
   private let onCreateDesign: (() -> Void)?
 
   @State private var thumbnailCache = DesignLibraryThumbnailCache()
+  @State private var designSystemPendingDeletion: EaselDesignSystemProfile?
   @Environment(\.colorScheme) private var colorScheme
 
   public init(
@@ -55,7 +57,8 @@ public struct DesignLibraryView: View {
             DesignLibraryGridView(
               items: viewModel.items,
               thumbnailCache: thumbnailCache,
-              onOpenSelection: onOpenSelection
+              onOpenSelection: onOpenSelection,
+              onRequestDeleteDesignSystem: { designSystemPendingDeletion = $0 }
             )
           }
         }
@@ -74,6 +77,16 @@ public struct DesignLibraryView: View {
     .background(EaselDesignSystem.Palette.canvas(for: colorScheme))
     .task {
       await refresh()
+    }
+    .sheet(item: $designSystemPendingDeletion) { profile in
+      DeleteDesignSystemConfirmationView(
+        profile: profile,
+        onCancel: { designSystemPendingDeletion = nil },
+        onConfirm: {
+          designSystemPendingDeletion = nil
+          Task { await viewModel.deleteDesignSystem(profile) }
+        }
+      )
     }
   }
 

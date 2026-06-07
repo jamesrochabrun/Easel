@@ -4,6 +4,7 @@
 //
 
 import EaselSlides
+import EaselDesignSystems
 import Foundation
 
 enum EaselAgentInstructions {
@@ -222,6 +223,7 @@ enum EaselAgentInstructions {
     projectPath: String?,
     projectKind: EaselProjectKind? = nil,
     projectFidelity: EaselProjectFidelity? = nil,
+    designSystems: [EaselDesignSystemChoice] = [],
     previewURL: URL?
   ) -> String {
     var lines = [
@@ -250,8 +252,91 @@ enum EaselAgentInstructions {
       }
     }
 
+    let normalizedDesignSystems = EaselDesignSystemChoice.normalizedPrecedence(designSystems)
+    if !normalizedDesignSystems.isEmpty && normalizedDesignSystems != [.preset(.none)] {
+      lines.append("Selected design systems in precedence order. You MUST apply these as the primary styling source — do not invent an unrelated visual style:")
+      for (index, designSystem) in normalizedDesignSystems.enumerated() {
+        lines.append("\(index + 1). \(designSystem.displayName) - \(designSystem.detail)")
+        if let folderName = designSystem.resourceFolderName {
+          let base = "resources/design-systems/\(folderName)"
+          lines.append("   Design tokens (copied into THIS project): \(base)/catalog.json")
+          lines.append("   Read \(base)/catalog.json and apply its tokens — colors, typography, spacing, radii, elevation, states, and components — to every screen, section, and component you build.")
+          lines.append("   Rendered reference: \(base)/index.html")
+          lines.append("   Design-system assets (logos, fonts): \(base)/assets/")
+          if let workingDirectory = designSystem.workingDirectory {
+            lines.append("   Original source (outside this project, reference only): \(workingDirectory)/.easel/catalog.json")
+          }
+        }
+        if let notes = designSystem.notes?.trimmingCharacters(in: .whitespacesAndNewlines), !notes.isEmpty {
+          lines.append("   Notes: \(notes)")
+        }
+        if !designSystem.sourceLinks.isEmpty {
+          lines.append("   Source links: \(designSystem.sourceLinks.joined(separator: ", "))")
+        }
+        if let preset = designSystem.preset, preset != .none {
+          lines.append(contentsOf: presetCatalogLines(for: preset))
+        }
+      }
+      lines.append("The custom design systems above have been copied into this project under resources/design-systems/. Read each catalog.json and reuse its exact tokens (hex colors, font stacks, spacing, radii, shadows, and component styles) rather than approximating them. Honor precedence: if guidance conflicts, the first design system wins.")
+    }
+
     if let previewURL {
       lines.append("Current embedded preview URL: \(previewURL.absoluteString)")
+    }
+
+    return lines.joined(separator: "\n")
+  }
+
+  static func designSystemGenerationHiddenContext(for profile: EaselDesignSystemProfile) -> String {
+    var lines = [
+      "--- Codex Design System Generation Request ---",
+      "This is a design-system authoring session, not a prototype or slide deck project.",
+      "Design system name: \(profile.name)",
+      "Design system folder: \(profile.workingDirectory)",
+      "User description: \(profile.blurb)",
+      "",
+      "GOAL: generate a low-level design TOKEN system. Stay strictly at the primitive + basic-component level. Do NOT build screens, a landing/marketing page, hero sections, navigation, app UI, React components, or documentation prose. The single deliverable is `.easel/catalog.json`.",
+      "Inspect any copied local resources under `resources/code`, `resources/figma`, and `resources/assets` first to infer the brand's palette, type, and shape.",
+      "Do not replace or restyle `index.html`. The app owns `index.html` as the token renderer; it reads `.easel/catalog.json` automatically and hard-reloads on save.",
+      "",
+      "Write `.easel/catalog.json` using this schemaVersion 3 token schema. Every value must be real and self-consistent because the canvas renders these values literally.",
+      "Top-level keys (include only the ones you populate):",
+      "- `schemaVersion`: 3",
+      "- `name`, `summary` (one sentence), `generatedAt` (ISO-8601)",
+      "- `colors`: [ { `id`, `name`, `group` (\"Brand\" | \"Neutral\" | \"Semantic\" | \"Surface\"), `value` (hex, e.g. \"#0E7C66\"), `onColor` (readable hex placed on top), `description` } ]",
+      "- `typography`: { `fonts`: [ { `role` (\"Sans\" | \"Mono\" | ...), `family`, `stack` (full CSS font stack with fallbacks), `link` (optional Google-Fonts stylesheet URL) } ], `styles`: [ { `id`, `name`, `fontRole` (matches a font role), `size` (px number), `weight` (number), `lineHeight` (unitless number), `letterSpacing` (e.g. \"-0.02em\"), `sample`, `usage` } ] }",
+      "- `spacing`: [ { `id`, `name`, `value` (px number), `description` } ]",
+      "- `radii`: [ { `id`, `name`, `value` (px number) } ]",
+      "- `elevation`: [ { `id`, `name`, `shadow` (a complete CSS box-shadow string), `usage` } ]",
+      "- `states`: [ { `id`, `name` (\"Default\" | \"Hover\" | \"Pressed\" | \"Focus\" | \"Disabled\"), `description`, `background` (hex), `foreground` (hex), `border` (hex) } ]",
+      "- `icons`: [ { `id`, `name`, `svg` (inline SVG: a single `<path .../>` on a 24x24 viewBox, or a full `<svg>`), `keywords` } ]",
+      "- `components`: [ { `id`, `kind`, `name`, `summary`, `variants`: [ ... ] } ]",
+      "",
+      "Supported component `kind`s and the variant fields each renderer uses:",
+      "- \"button\": `name`, `label`, `background`, `foreground`, `border`, `radius` (px), `shadow`, `states` { hover | active | focus | disabled : { `background`, `foreground`, `border`, `shadow` } }",
+      "- \"badge\": `name`, `label`, `background`, `foreground`, `border`, `radius` (px)",
+      "- \"segmented\": `name`, `options` ([strings]), `selectedIndex`, `background`, `selectedBackground`, `foreground`, `selectedForeground`, `radius` (px)",
+      "- \"textfield\" / \"textarea\": `name`, `label`, `placeholder`, `background`, `foreground`, `border`, `focusBorder`, `radius` (px)",
+      "- \"toggle\": `name`, `checked` (bool), `onColor`, `offColor`",
+      "- \"checkbox\" / \"radio\": `name`, `label`, `checked` (bool), `onColor`, `offColor`",
+      "",
+      "Component scope (generate only the ones that fit the brand): buttons, segmented controls, text fields & text areas, toggles, checkboxes, radios, and badges.",
+      "Keep the system tight and complete: a focused palette grouped by role, one type scale, a spacing scale, a radius scale, 3–5 elevation levels, the standard interaction states, a small icon set, and the basic components above.",
+      "Formatting rules: all colors are hex strings; all sizes/spacing/radii are plain px numbers (no units); every shadow is a full CSS `box-shadow` string; ids are stable kebab-case.",
+      "Do not emit `sections`/`componentGroups` (legacy). Do not ask the user for more input before generating — use the supplied description and resources as sufficient context.",
+    ]
+
+    let notes = profile.notes.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !notes.isEmpty {
+      lines.append("User notes: \(notes)")
+    }
+
+    if !profile.sourceLinks.isEmpty {
+      lines.append("User-provided source links:")
+      for link in profile.sourceLinks {
+        lines.append("- \(link)")
+      }
+      lines.append("Use source links as reference material when accessible, but do not leave the generated system dependent on external links.")
     }
 
     return lines.joined(separator: "\n")
@@ -262,12 +347,14 @@ enum EaselAgentInstructions {
     projectPath: String?,
     projectKind: EaselProjectKind? = nil,
     projectFidelity: EaselProjectFidelity? = nil,
+    designSystems: [EaselDesignSystemChoice] = [],
     previewURL: URL?
   ) -> String {
     [hiddenContext, self.hiddenContext(
       projectPath: projectPath,
       projectKind: projectKind,
       projectFidelity: projectFidelity,
+      designSystems: designSystems,
       previewURL: previewURL
     )]
       .compactMap { value in
@@ -275,5 +362,21 @@ enum EaselAgentInstructions {
         return trimmed?.isEmpty == false ? trimmed : nil
       }
       .joined(separator: "\n\n")
+  }
+
+  private static func presetCatalogLines(for preset: EaselDesignSystemPreset) -> [String] {
+    let catalog = preset.catalog
+    guard !catalog.componentGroups.isEmpty else { return [] }
+
+    var lines = [
+      "   Built-in catalog summary: \(catalog.summary)",
+      "   Built-in catalog groups:",
+    ]
+    for group in catalog.componentGroups {
+      let itemTitles = group.items.map(\.title).joined(separator: ", ")
+      let suffix = itemTitles.isEmpty ? "" : " - \(itemTitles)"
+      lines.append("   - \(group.title): \(group.summary)\(suffix)")
+    }
+    return lines
   }
 }

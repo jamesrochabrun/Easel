@@ -415,7 +415,7 @@ public actor LocalProjectResourceManager: ProjectResourceManaging {
       id: existingProject.id,
       name: existingProject.name,
       kind: existingProject.kind,
-      designSystem: existingProject.designSystem,
+      designSystems: existingProject.designSystems,
       fidelity: existingProject.fidelity,
       workingDirectory: existingProject.workingDirectory,
       createdAt: existingProject.createdAt,

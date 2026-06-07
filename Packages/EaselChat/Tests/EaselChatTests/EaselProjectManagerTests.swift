@@ -34,6 +34,7 @@ struct EaselProjectManagerTests {
 
     let readme = try String(contentsOf: projectURL.appendingPathComponent("README.md"), encoding: .utf8)
     #expect(readme.contains("- Fidelity: High fidelity"))
+    #expect(readme.contains("- Design systems: Airbnb Design System"))
 
     let metadataURL = projectURL
       .appendingPathComponent(".easel", isDirectory: true)
@@ -177,7 +178,97 @@ struct EaselProjectManagerTests {
     let project = try decoder.decode(EaselDesignProject.self, from: Data(json.utf8))
 
     #expect(project.designSystem == .preset(.material))
+    #expect(project.designSystems == [.preset(.material)])
     #expect(project.designSystem.displayName == "Material Design")
+  }
+
+  @Test
+  func projectDecodingSupportsDesignSystemPrecedenceList() throws {
+    let json = """
+    {
+      "createdAt": "2026-01-01T00:00:00Z",
+      "designSystems": [
+        {
+          "detail": "AgentHub product UI",
+          "displayName": "AgentHub Design System",
+          "kind": "custom",
+          "notes": "Dense shell",
+          "referenceID": "agenthub",
+          "sourceLinks": ["https://github.com/example/agenthub"],
+          "workingDirectory": "/tmp/agenthub-design-system"
+        },
+        "airbnb"
+      ],
+      "fidelity": "highFidelity",
+      "id": "00000000-0000-0000-0000-000000000001",
+      "kind": "prototype",
+      "name": "Precedence",
+      "updatedAt": "2026-01-01T00:00:00Z",
+      "workingDirectory": "/tmp/precedence"
+    }
+    """
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+
+    let project = try decoder.decode(EaselDesignProject.self, from: Data(json.utf8))
+
+    #expect(project.designSystems.map(\.displayName) == [
+      "AgentHub Design System",
+      "Airbnb Design System",
+    ])
+    #expect(project.designSystemDisplaySummary == "AgentHub Design System -> Airbnb Design System")
+  }
+
+  @Test
+  func createProjectCopiesCustomDesignSystemIntoResources() async throws {
+    let rootDirectory = temporaryRoot()
+    let designSystemRoot = temporaryRoot()
+    defer {
+      try? FileManager.default.removeItem(at: rootDirectory)
+      try? FileManager.default.removeItem(at: designSystemRoot)
+    }
+
+    let designSystemURL = try makeFakeDesignSystem(named: "OpenAI", in: designSystemRoot)
+    let choice = EaselDesignSystemChoice(
+      kind: .custom,
+      referenceID: UUID().uuidString,
+      displayName: "OpenAI",
+      detail: "OpenAI brand",
+      workingDirectory: designSystemURL.path,
+      notes: nil,
+      sourceLinks: []
+    )
+
+    let manager = LocalEaselProjectManager(rootDirectory: rootDirectory)
+    let project = try await manager.createProject(from: EaselProjectCreateRequest(
+      name: "OpenAI Landing",
+      kind: .prototype,
+      designSystem: choice,
+      fidelity: .highFidelity
+    ))
+
+    let base = URL(fileURLWithPath: project.workingDirectory)
+      .appendingPathComponent("resources/design-systems/openai", isDirectory: true)
+    #expect(FileManager.default.fileExists(atPath: base.appendingPathComponent("catalog.json").path))
+    #expect(FileManager.default.fileExists(atPath: base.appendingPathComponent("index.html").path))
+    #expect(FileManager.default.fileExists(atPath: base.appendingPathComponent("assets/logo.png").path))
+
+    let copiedCatalog = try String(contentsOf: base.appendingPathComponent("catalog.json"), encoding: .utf8)
+    #expect(copiedCatalog.contains("\"name\":\"OpenAI\""))
+  }
+
+  private func makeFakeDesignSystem(named name: String, in rootURL: URL) throws -> URL {
+    let designSystemURL = rootURL.appendingPathComponent(name.lowercased(), isDirectory: true)
+    let easelDir = designSystemURL.appendingPathComponent(".easel", isDirectory: true)
+    let assetsDir = designSystemURL.appendingPathComponent("resources/assets", isDirectory: true)
+    try FileManager.default.createDirectory(at: easelDir, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: assetsDir, withIntermediateDirectories: true)
+    try Data("{\"schemaVersion\":3,\"name\":\"\(name)\",\"summary\":\"x\"}".utf8)
+      .write(to: easelDir.appendingPathComponent("catalog.json"))
+    try Data("<!doctype html>".utf8)
+      .write(to: designSystemURL.appendingPathComponent("index.html"))
+    try Data([0, 1, 2]).write(to: assetsDir.appendingPathComponent("logo.png"))
+    return designSystemURL
   }
 
   private func temporaryRoot() -> URL {

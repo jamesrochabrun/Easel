@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import EaselDesignSystems
 import Testing
 @testable import EaselChat
 
@@ -68,6 +69,72 @@ struct EaselAgentInstructionsTests {
     #expect(context.contains("16:9"))
     #expect(context.contains("Current prototype fidelity") == false)
     #expect(context.contains("Prototype fidelity guidance") == false)
+  }
+
+  @Test
+  func hiddenContextIncludesDesignSystemPrecedence() {
+    let customSystem = EaselDesignSystemProfile(
+      id: UUID(),
+      name: "AgentHub Design System",
+      blurb: "AgentHub product UI",
+      notes: "Dense macOS shell",
+      sourceLinks: ["https://github.com/example/agenthub"],
+      workingDirectory: "/tmp/agenthub-design-system",
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+
+    let context = EaselAgentInstructions.hiddenContext(
+      projectPath: "/tmp/prototype",
+      projectKind: .prototype,
+      projectFidelity: .highFidelity,
+      designSystems: [
+        .custom(customSystem),
+        .preset(.airbnb),
+      ],
+      previewURL: nil
+    )
+
+    #expect(context.contains("Selected design systems in precedence order"))
+    #expect(context.contains("1. AgentHub Design System"))
+    #expect(context.contains("resources/design-systems/agenthub-design-system/catalog.json"))
+    #expect(context.contains("apply its tokens"))
+    #expect(context.contains("Original source (outside this project, reference only): /tmp/agenthub-design-system/.easel/catalog.json"))
+    #expect(context.contains("2. Airbnb Design System"))
+    #expect(context.contains("Built-in catalog summary"))
+    #expect(context.contains("Built-in catalog groups"))
+    #expect(context.contains("first design system wins"))
+  }
+
+  @Test
+  func designSystemGenerationHiddenContextIncludesProvidedInputsAndCatalogContract() {
+    let profile = EaselDesignSystemProfile(
+      id: UUID(),
+      name: "AgentHub Design System",
+      blurb: "IDE for multi orchestration coding agents",
+      notes: "Dark shell with command palette",
+      sourceLinks: ["https://github.com/example/agenthub"],
+      workingDirectory: "/tmp/agenthub-design-system",
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+
+    let context = EaselAgentInstructions.designSystemGenerationHiddenContext(for: profile)
+
+    #expect(context.contains("design-system authoring session"))
+    #expect(context.contains("IDE for multi orchestration coding agents"))
+    #expect(context.contains("resources/code"))
+    #expect(context.contains(".easel/catalog.json"))
+    #expect(context.contains("low-level design TOKEN system"))
+    #expect(context.contains("schemaVersion 3 token schema"))
+    #expect(context.contains("`colors`"))
+    #expect(context.contains("`elevation`"))
+    #expect(context.contains("`components`"))
+    #expect(context.contains("segmented"))
+    #expect(context.contains("Do not replace or restyle `index.html`"))
+    #expect(context.contains("landing/marketing page"))
+    #expect(context.contains("https://github.com/example/agenthub"))
+    #expect(context.contains("Do not ask the user for more input"))
   }
 
   @Test

@@ -3,6 +3,7 @@
 //  EaselChat
 //
 
+import EaselDesignSystems
 import EaselKit
 import SwiftUI
 
@@ -10,6 +11,7 @@ struct DesignLibraryGridView: View {
   let items: [DesignLibraryItem]
   @Bindable var thumbnailCache: DesignLibraryThumbnailCache
   let onOpenSelection: (DesignLibrarySelection) -> Void
+  let onRequestDeleteDesignSystem: (EaselDesignSystemProfile) -> Void
 
   /// The grid renders its first wave of cells together, so those stagger into
   /// view. Once that wave has played, cells revealed later (while scrolling)
@@ -29,7 +31,8 @@ struct DesignLibraryGridView: View {
             selection: selection,
             revealDelay: isStaggeringInitialReveal ? Self.staggerDelay(forCellAt: index) : 0,
             thumbnailCache: thumbnailCache,
-            onOpenSelection: onOpenSelection
+            onOpenSelection: onOpenSelection,
+            onRequestDeleteDesignSystem: onRequestDeleteDesignSystem
           )
         }
       }
@@ -54,22 +57,66 @@ private struct DesignLibraryGridCellButton: View {
   let revealDelay: Double
   @Bindable var thumbnailCache: DesignLibraryThumbnailCache
   let onOpenSelection: (DesignLibrarySelection) -> Void
+  let onRequestDeleteDesignSystem: (EaselDesignSystemProfile) -> Void
 
   @State private var isVisible = false
+  @State private var isHovering = false
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.colorScheme) private var colorScheme
 
   var body: some View {
-    Button {
-      onOpenSelection(selection)
-    } label: {
-      DesignLibraryCardView(item: item, thumbnailCache: thumbnailCache)
+    ZStack(alignment: .topTrailing) {
+      Button {
+        onOpenSelection(selection)
+      } label: {
+        DesignLibraryCardView(item: item, thumbnailCache: thumbnailCache)
+      }
+      .buttonStyle(.plain)
+      .help("Open \(item.title)")
+      .accessibilityLabel(accessibilityLabel(for: item))
+
+      if item.designSystem != nil {
+        menuButton
+          .opacity(isHovering ? 1 : 0.65)
+      }
     }
-    .buttonStyle(.plain)
-    .help("Open \(item.title)")
-    .accessibilityLabel(accessibilityLabel(for: item))
     .opacity(isVisible ? 1 : 0)
     .offset(y: isVisible ? 0 : 6)
+    .onHover { hovering in
+      withAnimation(.easeOut(duration: 0.12)) { isHovering = hovering }
+    }
+    .contextMenu { deleteMenuItems }
     .onAppear(perform: reveal)
+  }
+
+  @ViewBuilder
+  private var deleteMenuItems: some View {
+    if let designSystem = item.designSystem {
+      Button("Delete Design System…", systemImage: "trash", role: .destructive) {
+        onRequestDeleteDesignSystem(designSystem)
+      }
+    }
+  }
+
+  private var menuButton: some View {
+    Menu {
+      deleteMenuItems
+    } label: {
+      Image(systemName: "ellipsis")
+        .font(.system(size: 13, weight: .bold))
+        .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
+        .frame(width: 26, height: 26)
+        .background(.regularMaterial, in: Circle())
+        .overlay {
+          Circle().stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1)
+        }
+        .contentShape(Circle())
+    }
+    .menuStyle(.borderlessButton)
+    .menuIndicator(.hidden)
+    .fixedSize()
+    .padding(10)
+    .help("Manage \(item.title)")
   }
 
   private func reveal() {

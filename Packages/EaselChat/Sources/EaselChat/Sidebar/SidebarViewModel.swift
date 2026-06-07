@@ -19,7 +19,15 @@ public final class SidebarViewModel {
   private(set) var projectHeaderScrollRequest: ProjectHeaderScrollRequest?
   var selectedProjectKind: EaselProjectKind = .prototype
   var projectName: String = ""
-  var selectedDesignSystem: EaselDesignSystemChoice = .preset(.none)
+  var selectedDesignSystems: [EaselDesignSystemChoice] = [.preset(.none)]
+  var selectedDesignSystem: EaselDesignSystemChoice {
+    get {
+      selectedDesignSystems.first ?? .preset(.none)
+    }
+    set {
+      selectedDesignSystems = EaselDesignSystemChoice.normalizedPrecedence([newValue])
+    }
+  }
   var selectedFidelity: EaselProjectFidelity = .highFidelity
   var isCreatingProject = false
   var creationError: String?
@@ -59,11 +67,24 @@ public final class SidebarViewModel {
 
   var availableDesignSystemChoices: [EaselDesignSystemChoice] {
     [EaselDesignSystemChoice.preset(.none)]
+      + EaselDesignSystemPreset.allCases
+        .filter { $0 != .none }
+        .map(EaselDesignSystemChoice.preset)
       + customDesignSystems.map(EaselDesignSystemChoice.custom)
   }
 
+  var unselectedDesignSystemChoices: [EaselDesignSystemChoice] {
+    availableDesignSystemChoices.filter { choice in
+      !selectedDesignSystems.contains(where: { $0.id == choice.id })
+    }
+  }
+
+  var selectedDesignSystemSummary: String {
+    selectedDesignSystems.map(\.displayName).joined(separator: ", ")
+  }
+
   var shouldShowCreateOnlyDesignSystemControl: Bool {
-    customDesignSystems.isEmpty && selectedDesignSystem == .preset(.none)
+    customDesignSystems.isEmpty && selectedDesignSystems == [.preset(.none)]
   }
 
   var shouldShowFidelityPicker: Bool {
@@ -85,6 +106,7 @@ public final class SidebarViewModel {
       let projects = (try? await projectManager.loadProjects()) ?? []
       projectGroups = ProjectGroup.groups(
         projects: projects,
+        designSystems: customDesignSystems,
         sessions: sessions,
         previousExpansion: previousExpansion
       )
@@ -115,7 +137,36 @@ public final class SidebarViewModel {
   }
 
   public func selectDesignSystem(_ choice: EaselDesignSystemChoice) {
-    selectedDesignSystem = choice
+    selectedDesignSystems = EaselDesignSystemChoice.normalizedPrecedence([choice])
+  }
+
+  public func addDesignSystem(_ choice: EaselDesignSystemChoice) {
+    selectedDesignSystems = EaselDesignSystemChoice.normalizedPrecedence(selectedDesignSystems + [choice])
+  }
+
+  public func removeDesignSystem(_ choice: EaselDesignSystemChoice) {
+    selectedDesignSystems.removeAll { $0.id == choice.id }
+    selectedDesignSystems = EaselDesignSystemChoice.normalizedPrecedence(selectedDesignSystems)
+  }
+
+  public func moveSelectedDesignSystems(from source: IndexSet, to destination: Int) {
+    var updated = selectedDesignSystems
+    let movingItems = source.sorted().map { updated[$0] }
+    for index in source.sorted(by: >) {
+      updated.remove(at: index)
+    }
+
+    let removedBeforeDestination = source.filter { $0 < destination }.count
+    let insertionIndex = max(0, min(destination - removedBeforeDestination, updated.count))
+    updated.insert(contentsOf: movingItems, at: insertionIndex)
+    selectedDesignSystems = updated
+    selectedDesignSystems = EaselDesignSystemChoice.normalizedPrecedence(selectedDesignSystems)
+  }
+
+  public func makeHighestPrecedenceDesignSystem(_ choice: EaselDesignSystemChoice) {
+    var updated = selectedDesignSystems.filter { $0.id != choice.id }
+    updated.insert(choice, at: 0)
+    selectedDesignSystems = EaselDesignSystemChoice.normalizedPrecedence(updated)
   }
 
   public func createPrototypeProject(fromPrompt prompt: String) async {
@@ -186,7 +237,7 @@ public final class SidebarViewModel {
     let request = EaselProjectCreateRequest(
       name: name,
       kind: selectedProjectKind,
-      designSystem: selectedDesignSystem,
+      designSystems: selectedDesignSystems,
       fidelity: projectCreationFidelity
     )
 
@@ -208,15 +259,23 @@ public final class SidebarViewModel {
       customDesignSystems = try await designSystemManager.loadDesignSystems()
       designSystemError = nil
 
-      if selectedDesignSystem.kind == .custom,
-         !availableDesignSystemChoices.contains(where: { $0.id == selectedDesignSystem.id }) {
-        selectedDesignSystem = .preset(.none)
+      let selectedBeforeValidation = selectedDesignSystems
+      selectedDesignSystems = EaselDesignSystemChoice.normalizedPrecedence(
+        selectedDesignSystems.filter { selected in
+          selected.kind == .preset || availableDesignSystemChoices.contains(where: { $0.id == selected.id })
+        }
+      )
+
+      if selectedBeforeValidation.contains(where: { $0.kind == .custom })
+          && selectedBeforeValidation != selectedDesignSystems {
         designSystemError = "The selected design system could not be found."
       }
     } catch {
       customDesignSystems = []
-      if selectedDesignSystem.kind == .custom {
-        selectedDesignSystem = .preset(.none)
+      if selectedDesignSystems.contains(where: { $0.kind == .custom }) {
+        selectedDesignSystems = EaselDesignSystemChoice.normalizedPrecedence(
+          selectedDesignSystems.filter { $0.kind == .preset }
+        )
       }
       designSystemError = error.localizedDescription
     }
