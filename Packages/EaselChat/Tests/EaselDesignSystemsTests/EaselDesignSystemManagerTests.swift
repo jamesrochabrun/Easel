@@ -119,6 +119,30 @@ struct EaselDesignSystemManagerTests {
     #expect(loadedCatalog == catalog)
   }
 
+  @Test
+  func deleteDesignSystemRemovesManagedDirectory() async throws {
+    let rootDirectory = temporaryRoot(named: "DesignSystemDeleteTests")
+    defer { try? FileManager.default.removeItem(at: rootDirectory) }
+
+    let manager = LocalEaselDesignSystemManager(rootDirectory: rootDirectory)
+    let profile = try await manager.createDesignSystem(from: EaselDesignSystemCreateRequest(
+      blurb: "Brand System",
+      sourceLinks: [],
+      codeSourceURLs: [],
+      figFileURLs: [],
+      assetURLs: [],
+      notes: ""
+    ))
+    let designSystemURL = URL(fileURLWithPath: profile.workingDirectory)
+
+    #expect(FileManager.default.fileExists(atPath: designSystemURL.path))
+
+    try await manager.deleteDesignSystem(profile)
+
+    #expect(FileManager.default.fileExists(atPath: designSystemURL.path) == false)
+    #expect(try await manager.loadDesignSystems().isEmpty)
+  }
+
   private func temporaryRoot(named name: String) -> URL {
     FileManager.default.temporaryDirectory
       .appendingPathComponent("\(name)-\(UUID().uuidString)", isDirectory: true)

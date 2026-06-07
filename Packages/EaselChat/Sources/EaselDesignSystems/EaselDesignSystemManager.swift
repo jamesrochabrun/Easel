@@ -8,12 +8,14 @@ import Foundation
 public protocol EaselDesignSystemManaging: Sendable {
   func loadDesignSystems() async throws -> [EaselDesignSystemProfile]
   func createDesignSystem(from request: EaselDesignSystemCreateRequest) async throws -> EaselDesignSystemProfile
+  func deleteDesignSystem(_ profile: EaselDesignSystemProfile) async throws
   func loadCatalog(forDesignSystemAt path: String) async throws -> EaselDesignSystemCatalog?
 }
 
 public enum EaselDesignSystemManagerError: LocalizedError, Equatable, Sendable {
   case missingDesignSystemDirectory(String)
   case emptyDesignSystemDescription
+  case designSystemNotFound
 
   public var errorDescription: String? {
     switch self {
@@ -21,6 +23,8 @@ public enum EaselDesignSystemManagerError: LocalizedError, Equatable, Sendable {
       return "The selected design system folder could not be found."
     case .emptyDesignSystemDescription:
       return "Add a company or design system description before creating a design system."
+    case .designSystemNotFound:
+      return "The design system could not be found."
     }
   }
 }
@@ -108,6 +112,16 @@ public actor LocalEaselDesignSystemManager: EaselDesignSystemManaging {
     return profile
   }
 
+  public func deleteDesignSystem(_ profile: EaselDesignSystemProfile) async throws {
+    try ensureRootDirectoryExists()
+
+    guard let directoryURL = try designSystemDirectoryURL(matching: profile.id) else {
+      throw EaselDesignSystemManagerError.designSystemNotFound
+    }
+
+    try fileManager.removeItem(at: directoryURL)
+  }
+
   public func loadCatalog(forDesignSystemAt path: String) async throws -> EaselDesignSystemCatalog? {
     let directoryURL = try validatedDesignSystemURL(for: path)
     let catalogURL = Self.catalogURL(for: directoryURL)
@@ -155,6 +169,27 @@ public actor LocalEaselDesignSystemManager: EaselDesignSystemManaging {
     return try directoryURLs.filter { directoryURL in
       try directoryURL.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true
     }
+  }
+
+  private func designSystemDirectoryURL(matching designSystemID: UUID) throws -> URL? {
+    for directoryURL in try designSystemDirectoryURLs() {
+      let metadataURL = Self.metadataURL(for: directoryURL)
+      guard fileManager.fileExists(atPath: metadataURL.path) else {
+        continue
+      }
+
+      do {
+        let data = try Data(contentsOf: metadataURL)
+        let profile = try decoder.decode(EaselDesignSystemProfile.self, from: data)
+        if profile.id == designSystemID {
+          return directoryURL
+        }
+      } catch {
+        continue
+      }
+    }
+
+    return nil
   }
 
   private func validatedDesignSystemURL(for path: String) throws -> URL {

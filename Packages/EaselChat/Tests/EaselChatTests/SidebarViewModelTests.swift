@@ -195,10 +195,61 @@ struct SidebarViewModelTests {
     #expect(viewModel.selectedSessionId == nil)
     #expect(viewModel.projectGroups.isEmpty)
   }
+
+  @Test
+  func deletingSelectedDesignSystemRemovesSessionsAndResetsSelection() async throws {
+    let designSystem = EaselDesignSystemProfile(
+      id: UUID(),
+      name: "Brand System",
+      blurb: "Brand System components",
+      notes: "",
+      sourceLinks: [],
+      workingDirectory: "/tmp/brand-system",
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+    let session = StoredSession(
+      id: "design-system-session",
+      createdAt: Date(),
+      firstUserMessage: "Generate tokens",
+      lastAccessedAt: Date(),
+      workingDirectory: designSystem.workingDirectory
+    )
+    let sessionStorage = RecordingSessionStorage(sessions: [session])
+    let designSystemManager = SidebarDesignSystemManagerStub(profiles: [designSystem])
+    let viewModel = SidebarViewModel(
+      sessionStorage: sessionStorage,
+      projectManager: SidebarProjectManagerStub(projects: []),
+      designSystemManager: designSystemManager
+    )
+    viewModel.selectedDesignSystem = .custom(designSystem)
+    viewModel.selectedSessionId = session.id
+
+    var callbackDeletedSessionIDs: [String] = []
+    var didCallDesignSystemDeleted = false
+    viewModel.onDeleteSession = { deletedSession in
+      callbackDeletedSessionIDs.append(deletedSession.id)
+    }
+    viewModel.onDesignSystemDeleted = {
+      didCallDesignSystemDeleted = true
+    }
+
+    await viewModel.loadSessions()
+    await viewModel.deleteDesignSystem(designSystem)
+
+    #expect(await designSystemManager.deletedDesignSystemIDs() == [designSystem.id])
+    #expect(await sessionStorage.deletedSessionIDs() == [session.id])
+    #expect(callbackDeletedSessionIDs == [session.id])
+    #expect(didCallDesignSystemDeleted)
+    #expect(viewModel.selectedSessionId == nil)
+    #expect(viewModel.selectedDesignSystem == .preset(.none))
+    #expect(viewModel.customDesignSystems.isEmpty)
+  }
 }
 
 private actor SidebarDesignSystemManagerStub: EaselDesignSystemManaging {
-  private let profiles: [EaselDesignSystemProfile]
+  private var profiles: [EaselDesignSystemProfile]
+  private var deletedIDs: [UUID] = []
 
   init(profiles: [EaselDesignSystemProfile] = []) {
     self.profiles = profiles
@@ -221,8 +272,17 @@ private actor SidebarDesignSystemManagerStub: EaselDesignSystemManaging {
     )
   }
 
+  func deleteDesignSystem(_ profile: EaselDesignSystemProfile) async throws {
+    deletedIDs.append(profile.id)
+    profiles.removeAll { $0.id == profile.id }
+  }
+
   func loadCatalog(forDesignSystemAt path: String) async throws -> EaselDesignSystemCatalog? {
     nil
+  }
+
+  func deletedDesignSystemIDs() -> [UUID] {
+    deletedIDs
   }
 }
 
