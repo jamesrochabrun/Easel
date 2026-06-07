@@ -212,6 +212,8 @@ private actor DesignLibraryDesignSystemManagerStub: EaselDesignSystemManaging {
     profiles[0]
   }
 
+  func deleteDesignSystem(_ profile: EaselDesignSystemProfile) async throws {}
+
   func loadCatalog(forDesignSystemAt path: String) async throws -> EaselDesignSystemCatalog? {
     nil
   }

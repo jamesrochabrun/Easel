@@ -35,6 +35,7 @@ public final class SidebarViewModel {
   public var onBrowseDesignSystemsRequested: (() -> Void)?
   public var onDeleteSession: ((StoredSession) -> Void)?
   public var onProjectDeleted: (() -> Void)?
+  public var onDesignSystemDeleted: (() -> Void)?
 
   // MARK: - Private
 
@@ -68,6 +69,15 @@ public final class SidebarViewModel {
 
   var shouldShowFidelityPicker: Bool {
     selectedProjectKind == .prototype
+  }
+
+  var selectedCustomDesignSystem: EaselDesignSystemProfile? {
+    guard selectedDesignSystem.kind == .custom,
+          let designSystemID = UUID(uuidString: selectedDesignSystem.referenceID) else {
+      return nil
+    }
+
+    return customDesignSystems.first { $0.id == designSystemID }
   }
 
   private var projectCreationFidelity: EaselProjectFidelity {
@@ -171,6 +181,36 @@ public final class SidebarViewModel {
       onProjectDeleted?()
     } catch {
       projectDeletionError = error.localizedDescription
+    }
+  }
+
+  func deleteDesignSystem(_ profile: EaselDesignSystemProfile) async {
+    designSystemError = nil
+
+    do {
+      try await designSystemManager.deleteDesignSystem(profile)
+
+      let sessions = (try? await sessionStorage.getAllSessions()) ?? []
+      let designSystemSessions = sessions.filter { $0.workingDirectory == profile.workingDirectory }
+
+      for session in designSystemSessions {
+        try? await sessionStorage.deleteSession(id: session.id)
+        onDeleteSession?(session)
+      }
+
+      if designSystemSessions.contains(where: { $0.id == selectedSessionId }) {
+        selectedSessionId = nil
+      }
+
+      if selectedDesignSystem.kind == .custom,
+         selectedDesignSystem.referenceID == profile.id.uuidString {
+        selectedDesignSystem = .preset(.none)
+      }
+
+      await loadSessions()
+      onDesignSystemDeleted?()
+    } catch {
+      designSystemError = error.localizedDescription
     }
   }
 

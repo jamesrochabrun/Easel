@@ -161,6 +161,11 @@ struct CanvasContentView: View {
           await libraryVM.refresh()
         }
       }
+      vm.onDesignSystemDeleted = {
+        Task {
+          await libraryVM.refresh()
+        }
+      }
       chatService.onSessionChanged = {
         Task {
           await vm.loadSessions()

@@ -14,8 +14,11 @@ public struct SidebarView: View {
 
   @State private var showDeleteSessionConfirmation = false
   @State private var showDeleteProjectConfirmation = false
+  @State private var showDeleteDesignSystemConfirmation = false
   @State private var sessionToDelete: StoredSession?
   @State private var projectToDelete: ProjectGroup?
+  @State private var designSystemToDelete: EaselDesignSystemProfile?
+  @State private var designSystemDeleteConfirmationName = ""
   @Environment(\.colorScheme) private var colorScheme
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   private let projectKindChangeAnimation = Animation.easeInOut(duration: 0.22)
@@ -81,6 +84,23 @@ public struct SidebarView: View {
       }
     } message: {
       Text(projectDeleteConfirmationMessage)
+    }
+    .alert("Delete Design System", isPresented: $showDeleteDesignSystemConfirmation) {
+      TextField("Design system name", text: $designSystemDeleteConfirmationName)
+      Button("Cancel", role: .cancel) {
+        resetDesignSystemDeleteConfirmation()
+      }
+      Button("Delete", role: .destructive) {
+        if let designSystem = designSystemToDelete {
+          Task {
+            await sidebarViewModel.deleteDesignSystem(designSystem)
+            resetDesignSystemDeleteConfirmation()
+          }
+        }
+      }
+      .disabled(!canConfirmDesignSystemDeletion)
+    } message: {
+      Text(designSystemDeleteConfirmationMessage)
     }
     .task {
       await sidebarViewModel.loadSessions()
@@ -162,46 +182,62 @@ public struct SidebarView: View {
         if sidebarViewModel.shouldShowCreateOnlyDesignSystemControl {
           createDesignSystemButton
         } else {
-          Menu {
-            ForEach(sidebarViewModel.availableDesignSystemChoices) { system in
-              Button {
-                sidebarViewModel.selectDesignSystem(system)
-              } label: {
-                if sidebarViewModel.selectedDesignSystem == system {
-                  Label(system.displayName, systemImage: "checkmark")
-                } else {
-                  Text(system.displayName)
+          HStack(spacing: 6) {
+            Menu {
+              ForEach(sidebarViewModel.availableDesignSystemChoices) { system in
+                Button {
+                  sidebarViewModel.selectDesignSystem(system)
+                } label: {
+                  if sidebarViewModel.selectedDesignSystem == system {
+                    Label(system.displayName, systemImage: "checkmark")
+                  } else {
+                    Text(system.displayName)
+                  }
                 }
               }
+
+              Divider()
+
+              Button("Create Design System", systemImage: "plus", action: sidebarViewModel.requestCreateDesignSystem)
+            } label: {
+              HStack(spacing: 8) {
+                Text(sidebarViewModel.selectedDesignSystem.displayName)
+                  .lineLimit(1)
+
+                Spacer()
+
+                Image(systemName: "chevron.up.chevron.down")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
+              }
+              .font(EaselDesignSystem.Typography.interface(size: 14, weight: .medium))
+              .foregroundStyle(.primary)
+              .padding(.horizontal, 12)
+              .frame(height: 34)
+              .frame(maxWidth: .infinity)
+              .background(EaselDesignSystem.Palette.subtleSurface(for: colorScheme), in: RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.control))
+              .overlay {
+                RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.control)
+                  .stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1)
+              }
             }
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            Divider()
-
-            Button("Create Design System", systemImage: "plus", action: sidebarViewModel.requestCreateDesignSystem)
-          } label: {
-            HStack(spacing: 8) {
-              Text(sidebarViewModel.selectedDesignSystem.displayName)
-                .lineLimit(1)
-
-              Spacer()
-
-              Image(systemName: "chevron.up.chevron.down")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
-            }
-            .font(EaselDesignSystem.Typography.interface(size: 14, weight: .medium))
-            .foregroundStyle(.primary)
-            .padding(.horizontal, 12)
-            .frame(height: 34)
-            .frame(maxWidth: .infinity)
-            .background(EaselDesignSystem.Palette.subtleSurface(for: colorScheme), in: RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.control))
-            .overlay {
-              RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.control)
-                .stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1)
+            if let selectedCustomDesignSystem = sidebarViewModel.selectedCustomDesignSystem {
+              ProjectHeaderActionButton(
+                title: "Delete design system",
+                systemImage: "trash",
+                role: .destructive,
+                foregroundColor: EaselDesignSystem.Palette.secondaryText(for: colorScheme),
+                hoverColor: EaselDesignSystem.Palette.hoverSurface(for: colorScheme),
+                action: {
+                  requestDeleteDesignSystem(selectedCustomDesignSystem)
+                }
+              )
             }
           }
-          .menuStyle(.button)
-          .buttonStyle(.plain)
           .frame(maxWidth: .infinity, alignment: .leading)
         }
 
@@ -649,6 +685,32 @@ public struct SidebarView: View {
     return "Delete \"\(projectToDelete.displayName)\"? " +
       "This will remove the project folder and \(sessionLabel). " +
       "This action cannot be undone."
+  }
+
+  private var canConfirmDesignSystemDeletion: Bool {
+    guard let designSystemToDelete else { return false }
+    return designSystemDeleteConfirmationName == designSystemToDelete.name
+  }
+
+  private var designSystemDeleteConfirmationMessage: String {
+    guard let designSystemToDelete else {
+      return "This design system will be deleted. This action cannot be undone."
+    }
+
+    return "Delete \"\(designSystemToDelete.name)\"? " +
+      "This will remove the design system folder and related sessions. " +
+      "Type or paste the design system name exactly to confirm."
+  }
+
+  private func requestDeleteDesignSystem(_ designSystem: EaselDesignSystemProfile) {
+    designSystemToDelete = designSystem
+    designSystemDeleteConfirmationName = ""
+    showDeleteDesignSystemConfirmation = true
+  }
+
+  private func resetDesignSystemDeleteConfirmation() {
+    designSystemToDelete = nil
+    designSystemDeleteConfirmationName = ""
   }
 }
 
