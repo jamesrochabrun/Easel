@@ -13,6 +13,36 @@ public final class DesignLibraryViewModel {
   public private(set) var isLoading = false
   public private(set) var errorMessage: String?
 
+  /// Kinds currently shown in the grid. Every kind starts selected; toggling a
+  /// kind off hides that category from the library without affecting the others.
+  public var selectedKinds: Set<DesignLibraryItemKind> = Set(DesignLibraryItemKind.allCases)
+
+  /// `items` filtered by the active kind selection — this is what the grid renders.
+  public var visibleItems: [DesignLibraryItem] {
+    items.filter { selectedKinds.contains($0.kind) }
+  }
+
+  /// Number of loaded items for a given kind, used to label/dim the filter chips.
+  public func itemCount(for kind: DesignLibraryItemKind) -> Int {
+    items.reduce(into: 0) { partialResult, item in
+      if item.kind == kind { partialResult += 1 }
+    }
+  }
+
+  /// Toggles a kind in or out of the visible selection.
+  public func toggleKind(_ kind: DesignLibraryItemKind) {
+    if selectedKinds.contains(kind) {
+      selectedKinds.remove(kind)
+    } else {
+      selectedKinds.insert(kind)
+    }
+  }
+
+  /// Restores the default state where every kind is visible.
+  public func selectAllKinds() {
+    selectedKinds = Set(DesignLibraryItemKind.allCases)
+  }
+
   /// Called after a design system is deleted so the host can reconcile other
   /// surfaces (sidebar choices, an open canvas pointing at the removed folder).
   public var onDesignSystemDeleted: ((EaselDesignSystemProfile) -> Void)?
