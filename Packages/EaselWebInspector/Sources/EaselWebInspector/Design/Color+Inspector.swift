@@ -33,12 +33,43 @@ extension Color {
 
 extension View {
   func webPreviewPrimaryButtonStyle() -> some View {
-    buttonStyle(.borderedProminent)
-      .tint(.brandPrimary)
+    modifier(WebPreviewButtonStyle(prominence: .primary))
   }
 
   func webPreviewSecondaryButtonStyle() -> some View {
-    buttonStyle(.bordered)
-      .tint(.brandPrimary)
+    modifier(WebPreviewButtonStyle(prominence: .secondary))
+  }
+}
+
+/// Applies the inspector's button styling with a color-scheme-aware tint.
+///
+/// The brand accent (`#2E2F2F`) is a near-black charcoal tuned for light mode.
+/// On a `.bordered` button the tint colors the *label*, so using the raw accent
+/// in dark mode renders the icon and text dark-on-dark — making the control look
+/// disabled. `accentForeground(for:)` resolves to a legible light gray in dark
+/// mode and the dark accent in light mode, keeping contrast in both appearances.
+private struct WebPreviewButtonStyle: ViewModifier {
+  enum Prominence {
+    case primary
+    case secondary
+  }
+
+  @Environment(\.colorScheme) private var colorScheme
+  let prominence: Prominence
+
+  @ViewBuilder
+  func body(content: Content) -> some View {
+    switch prominence {
+    case .primary:
+      // Filled button: the accent is the background, foreground stays white.
+      content
+        .buttonStyle(.borderedProminent)
+        .tint(EaselDesignSystem.Palette.accent)
+    case .secondary:
+      // Bordered button: the tint is the label color, so it must adapt.
+      content
+        .buttonStyle(.bordered)
+        .tint(EaselDesignSystem.Palette.accentForeground(for: colorScheme))
+    }
   }
 }

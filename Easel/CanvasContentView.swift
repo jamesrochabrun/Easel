@@ -276,7 +276,7 @@ struct CanvasContentView: View {
         .foregroundStyle(.primary)
         .padding(.leading, 8)
 
-      if let itemCount = designLibraryViewModel?.items.count, itemCount > 0 {
+      if let itemCount = designLibraryViewModel?.visibleItems.count, itemCount > 0 {
         Text("\(itemCount)")
           .font(EaselDesignSystem.Typography.interface(size: 12, weight: .semibold))
           .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
@@ -286,6 +286,10 @@ struct CanvasContentView: View {
             EaselDesignSystem.Palette.subtleSurface(for: colorScheme),
             in: RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.control)
           )
+      }
+
+      if let viewModel = designLibraryViewModel, !viewModel.items.isEmpty {
+        designLibraryFilterChips(viewModel)
       }
 
       Spacer()
@@ -305,6 +309,23 @@ struct CanvasContentView: View {
     .padding(.trailing, 16)
     .frame(height: EaselDesignSystem.Spacing.toolbarHeight)
     .background(EaselDesignSystem.Palette.surface(for: colorScheme))
+  }
+
+  /// Kind filters shown beside the "Designs" title. Every kind starts selected;
+  /// toggling one off hides that category from the grid below.
+  @ViewBuilder
+  private func designLibraryFilterChips(_ viewModel: DesignLibraryViewModel) -> some View {
+    HStack(spacing: 6) {
+      ForEach(DesignLibraryItemKind.allCases) { kind in
+        DesignLibraryFilterChip(
+          kind: kind,
+          count: viewModel.itemCount(for: kind),
+          isSelected: viewModel.selectedKinds.contains(kind),
+          action: { viewModel.toggleKind(kind) }
+        )
+      }
+    }
+    .padding(.leading, 4)
   }
 
   private var leadingToolbarButtons: some View {
