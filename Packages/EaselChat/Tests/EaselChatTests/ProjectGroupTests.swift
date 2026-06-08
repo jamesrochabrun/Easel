@@ -148,4 +148,60 @@ struct ProjectGroupTests {
     #expect(deckGroup.subtitle.contains("High fidelity") == false)
     #expect(deckGroup.subtitle.contains("0 sessions"))
   }
+
+  @Test
+  func designSystemChipTitleUsesCustomDesignSystemNameForProjectRows() {
+    let designSystem = EaselDesignSystemProfile(
+      id: UUID(),
+      name: "Acme UI",
+      blurb: "Acme components",
+      notes: "",
+      sourceLinks: [],
+      workingDirectory: "/tmp/acme-ui",
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+    let project = EaselDesignProject(
+      id: UUID(),
+      name: "Checkout",
+      kind: .prototype,
+      designSystem: .custom(designSystem),
+      fidelity: .highFidelity,
+      workingDirectory: "/tmp/checkout",
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+    let group = ProjectGroup(
+      id: project.workingDirectory,
+      displayName: project.name,
+      project: project,
+      workingDirectory: project.workingDirectory,
+      sessions: []
+    )
+
+    #expect(group.designSystemChipTitle == "Acme UI")
+  }
+
+  @Test
+  func designSystemChipTitleSkipsProjectsWithoutDesignSystem() {
+    let project = EaselDesignProject(
+      id: UUID(),
+      name: "Roadmap",
+      kind: .slideDeck,
+      designSystem: .none,
+      fidelity: .highFidelity,
+      workingDirectory: "/tmp/roadmap",
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+    let group = ProjectGroup(
+      id: project.workingDirectory,
+      displayName: project.name,
+      project: project,
+      workingDirectory: project.workingDirectory,
+      sessions: []
+    )
+
+    #expect(group.designSystemChipTitle == nil)
+  }
 }
