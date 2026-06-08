@@ -19,15 +19,20 @@ enum EaselDesignSystemCatalogHTMLRenderer {
       <title>\(escapedTitle)</title>
       <style>
         :root {
-          color-scheme: light;
-          --ink: #24211f;
-          --muted: #706a63;
-          --soft: #8d867d;
-          --surface: #fbfaf8;
-          --panel: #ffffff;
-          --panel-soft: #f4f2ef;
-          --line: #dedbd5;
-          --accent: #2e2f2f;
+          color-scheme: dark;
+          --ink: #f1f3f0;
+          --muted: #aeb7b0;
+          --soft: #747c76;
+          --surface: #0d0f0e;
+          --panel: #151716;
+          --panel-soft: #1b1e1c;
+          --line: #2e332f;
+          --accent: #aeb7b0;
+          --warning: #d68e3a;
+          /* Thumbnails hold .fig schematics + exported art, which are authored for
+             a light canvas; render them on a neutral light surface so dark-on-light
+             content stays legible inside the dark cards. */
+          --thumb-bg: #f4f4f2;
         }
 
         * { box-sizing: border-box; }
@@ -46,22 +51,24 @@ enum EaselDesignSystemCatalogHTMLRenderer {
           padding: 64px 0;
         }
 
-        header { max-width: 760px; margin-bottom: 24px; }
+        header { max-width: 820px; margin-bottom: 30px; }
 
         h1 {
-          margin: 0 0 14px;
-          font-size: clamp(40px, 7vw, 76px);
-          line-height: 0.96;
+          margin: 0 0 12px;
+          font-size: clamp(30px, 4.5vw, 44px);
+          font-weight: 600;
+          letter-spacing: -0.015em;
+          line-height: 1.02;
         }
 
-        .blurb, .summary, .empty {
+        .blurb, .empty {
           margin: 0;
           color: var(--muted);
-          font-size: 18px;
+          font-size: 16px;
           line-height: 1.55;
         }
 
-        .summary { margin-top: 12px; }
+        .summary { margin: 10px 0 0; color: var(--soft); font-size: 14px; line-height: 1.5; }
 
         .disclaimer {
           margin: 18px 0 0;
@@ -76,12 +83,18 @@ enum EaselDesignSystemCatalogHTMLRenderer {
         }
 
         .diagnostics {
-          margin-top: 10px;
-          color: var(--soft);
+          margin-top: 16px;
+          padding: 13px 15px;
+          border: 1px solid var(--line);
+          border-radius: 10px;
+          background: var(--panel-soft);
+          color: var(--muted);
           font-size: 13px;
           line-height: 1.5;
         }
-        .diagnostics ul { margin: 6px 0 0; padding-left: 18px; }
+        .diagnostics ul { margin: 8px 0 0; padding: 0; list-style: none; }
+        .diagnostics li { position: relative; padding-left: 22px; margin-top: 6px; color: var(--soft); line-height: 1.45; }
+        .diagnostics li::before { content: "\\26A0"; position: absolute; left: 0; color: var(--warning); }
 
         section.block { margin-top: 44px; }
 
@@ -154,9 +167,9 @@ enum EaselDesignSystemCatalogHTMLRenderer {
           display: flex;
           flex-direction: column;
         }
-        .family .preview { aspect-ratio: 16 / 10; background: var(--panel-soft); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        .family .preview { aspect-ratio: 16 / 10; background: var(--thumb-bg); display: flex; align-items: center; justify-content: center; overflow: hidden; }
         .family .preview img { max-width: 100%; max-height: 100%; }
-        .family .preview .placeholder { color: var(--soft); font-size: 13px; }
+        .placeholder { width: 30px; height: 30px; border: 1.5px dashed var(--soft); border-radius: 7px; opacity: 0.7; }
         .scene { width: 100%; height: 100%; display: block; }
         .family .body { padding: 14px 16px; }
         .family h3 { margin: 0; font-size: 15px; }
@@ -169,7 +182,7 @@ enum EaselDesignSystemCatalogHTMLRenderer {
           gap: 12px;
         }
         .tile { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--panel); }
-        .tile .thumb { aspect-ratio: 4 / 3; background: var(--panel-soft); display: flex; align-items: center; justify-content: center; }
+        .tile .thumb { aspect-ratio: 4 / 3; background: var(--thumb-bg); display: flex; align-items: center; justify-content: center; }
         .tile .thumb img { max-width: 100%; max-height: 100%; }
         .tile .caption { padding: 8px 10px; font-size: 12px; }
         .tile .caption .src { color: var(--soft); }
@@ -355,7 +368,7 @@ enum EaselDesignSystemCatalogHTMLRenderer {
           if (scene && Array.isArray(scene.layers) && scene.layers.length) {
             container.append(buildScene(scene));
           } else {
-            container.append(el("span", { className: "placeholder", text: "No preview" }));
+            container.append(el("div", { className: "placeholder" }));
           }
         }
 
@@ -405,26 +418,37 @@ enum EaselDesignSystemCatalogHTMLRenderer {
           return s;
         }
 
+        function assetLabel(name) {
+          if (!name || /^[0-9a-f]{12,}$/i.test(name)) return "Image";
+          return name;
+        }
+
         function renderAssets(items) {
           if (!items || !items.length) return null;
-          const images = items.filter((item) => item.kind !== "thumbnail");
+          const images = items.filter((item) => item.kind !== "thumbnail" && item.relativePath);
           if (!images.length) return null;
           const s = section("Assets", String(images.length));
+          const countEl = s.querySelector(".count");
           const grid = el("div", { className: "gallery" });
+          let shown = images.length;
           for (const item of images) {
             const tile = el("div", { className: "tile" });
             const thumb = el("div", { className: "thumb" });
-            if (item.relativePath) {
-              const img = el("img");
-              img.src = item.relativePath;
-              img.alt = item.name || "";
-              img.loading = "lazy";
-              thumb.append(img);
-            } else {
-              thumb.append(el("span", { className: "placeholder", text: "No preview" }));
-            }
+            const img = el("img");
+            img.alt = assetLabel(item.name);
+            img.loading = "lazy";
+            // Some catalogs reference exported art that was not written to disk;
+            // drop those tiles instead of showing a broken-image glyph.
+            img.onerror = () => {
+              tile.remove();
+              shown -= 1;
+              if (shown <= 0) { s.remove(); return; }
+              if (countEl) countEl.textContent = String(shown);
+            };
+            img.src = item.relativePath;
+            thumb.append(img);
             const caption = el("div", { className: "caption" });
-            caption.append(el("div", { text: item.name || "Asset" }));
+            caption.append(el("div", { text: assetLabel(item.name) }));
             tile.append(thumb, caption);
             grid.append(tile);
           }
