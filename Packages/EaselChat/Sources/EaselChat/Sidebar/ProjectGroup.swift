@@ -55,6 +55,14 @@ struct ProjectGroup: Identifiable {
     return parts.joined(separator: " · ")
   }
 
+  var designSystemChipTitle: String? {
+    guard let project else { return nil }
+    guard project.designSystem != .preset(.none) else { return nil }
+
+    let displayName = project.designSystem.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+    return displayName.isEmpty ? nil : displayName
+  }
+
   static func groups(
     projects: [EaselDesignProject],
     designSystems: [EaselDesignSystemProfile] = [],

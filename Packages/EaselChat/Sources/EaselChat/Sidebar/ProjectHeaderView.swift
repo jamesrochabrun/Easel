@@ -43,23 +43,29 @@ struct ProjectHeaderView: View {
 
       Spacer()
 
-      HStack(spacing: 4) {
-        ProjectHeaderActionButton(
-          title: "New Codex session",
-          systemImage: "plus",
-          foregroundColor: EaselDesignSystem.Palette.secondaryText(for: colorScheme),
-          hoverColor: EaselDesignSystem.Palette.hoverSurface(for: colorScheme),
-          action: onNewChat
-        )
+      VStack(alignment: .trailing, spacing: 2) {
+        if let designSystemChipTitle = project.designSystemChipTitle {
+          designSystemChip(title: designSystemChipTitle)
+        }
 
-        ProjectHeaderActionButton(
-          title: project.designSystem != nil ? "Delete design system" : "Delete project",
-          systemImage: "trash",
-          role: .destructive,
-          foregroundColor: EaselDesignSystem.Palette.secondaryText(for: colorScheme),
-          hoverColor: EaselDesignSystem.Palette.hoverSurface(for: colorScheme),
-          action: onDelete
-        )
+        HStack(spacing: 4) {
+          ProjectHeaderActionButton(
+            title: "New Codex session",
+            systemImage: "plus",
+            foregroundColor: EaselDesignSystem.Palette.secondaryText(for: colorScheme),
+            hoverColor: EaselDesignSystem.Palette.hoverSurface(for: colorScheme),
+            action: onNewChat
+          )
+
+          ProjectHeaderActionButton(
+            title: project.designSystem != nil ? "Delete design system" : "Delete project",
+            systemImage: "trash",
+            role: .destructive,
+            foregroundColor: EaselDesignSystem.Palette.secondaryText(for: colorScheme),
+            hoverColor: EaselDesignSystem.Palette.hoverSurface(for: colorScheme),
+            action: onDelete
+          )
+        }
       }
       .opacity(isHovering ? 1 : 0.8)
     }
@@ -92,5 +98,25 @@ struct ProjectHeaderView: View {
     project.project == nil
       ? EaselDesignSystem.Palette.secondaryText(for: colorScheme)
       : EaselDesignSystem.Palette.accentForeground(for: colorScheme)
+  }
+
+  private func designSystemChip(title: String) -> some View {
+    Text(title)
+      .font(EaselDesignSystem.Typography.interface(size: 10, weight: .semibold))
+      .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
+      .lineLimit(1)
+      .truncationMode(.tail)
+      .padding(.horizontal, 6)
+      .frame(height: 18)
+      .frame(maxWidth: 118)
+      .overlay {
+        Capsule()
+          .stroke(
+            EaselDesignSystem.Palette.border(for: colorScheme),
+            style: StrokeStyle(lineWidth: 1, dash: [4, 3])
+          )
+      }
+      .accessibilityLabel("Design system \(title)")
+      .help("Design system: \(title)")
   }
 }
