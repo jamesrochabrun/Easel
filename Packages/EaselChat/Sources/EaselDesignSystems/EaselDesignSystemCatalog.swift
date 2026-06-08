@@ -12,6 +12,16 @@ public struct EaselDesignSystemCatalog: Codable, Equatable, Sendable {
   public static let localFigDisclaimer =
     "Parsed locally from .fig. Use as reference. Not a 1:1 imported design system."
 
+  /// Disclaimer for the `.extractCatalog` import mode — this IS the imported
+  /// design system; the caveat is only about fidelity (local, inferred parse).
+  public static let extractedFigDisclaimer =
+    "Imported from .fig and parsed locally. Tokens and components are inferred from the file's node styles (not a published token library), so treat values as a best-effort reference rather than a 1:1 mirror."
+
+  /// Disclaimer for the `.reference` import mode — the file is kept as
+  /// inspiration only; nothing was parsed into a usable design system.
+  public static let referenceFigDisclaimer =
+    "Kept as local inspiration — this .fig was not parsed into tokens or components."
+
   public let name: String
   public let summary: String
   public let generatedAt: Date?
