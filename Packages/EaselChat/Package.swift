@@ -29,6 +29,9 @@ let package = Package(
   targets: [
     .target(
       name: "EaselDesignSystems",
+      resources: [
+        .process("Resources")
+      ],
       swiftSettings: [
         .swiftLanguageMode(.v5)
       ]

@@ -10,6 +10,7 @@ public struct EaselDesignSystemCreateRequest: Equatable, Sendable {
   public let sourceLinks: [String]
   public let codeSourceURLs: [URL]
   public let figFileURLs: [URL]
+  public let figImportMode: EaselDesignSystemFigImportMode
   public let assetURLs: [URL]
   public let notes: String
 
@@ -18,6 +19,7 @@ public struct EaselDesignSystemCreateRequest: Equatable, Sendable {
     sourceLinks: [String],
     codeSourceURLs: [URL],
     figFileURLs: [URL],
+    figImportMode: EaselDesignSystemFigImportMode = .reference,
     assetURLs: [URL],
     notes: String
   ) {
@@ -25,6 +27,7 @@ public struct EaselDesignSystemCreateRequest: Equatable, Sendable {
     self.sourceLinks = sourceLinks
     self.codeSourceURLs = codeSourceURLs
     self.figFileURLs = figFileURLs
+    self.figImportMode = figImportMode
     self.assetURLs = assetURLs
     self.notes = notes
   }

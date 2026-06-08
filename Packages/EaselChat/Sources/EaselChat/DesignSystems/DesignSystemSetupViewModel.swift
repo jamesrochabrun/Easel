@@ -13,6 +13,7 @@ public final class DesignSystemSetupViewModel {
   public private(set) var sourceLinks: [String] = []
   public private(set) var codeSourceURLs: [URL] = []
   public private(set) var figFileURLs: [URL] = []
+  public var figImportMode: EaselDesignSystemFigImportMode = .reference
   public private(set) var assetURLs: [URL] = []
   public var notes = ""
   public private(set) var isCreating = false
@@ -44,7 +45,9 @@ public final class DesignSystemSetupViewModel {
   }
 
   public func addFigFiles(_ urls: [URL]) {
-    figFileURLs = Self.appendingUnique(urls, to: figFileURLs)
+    // Only accept .fig files so non-Figma files can't be added by accident.
+    let figURLs = urls.filter { $0.pathExtension.lowercased() == "fig" }
+    figFileURLs = Self.appendingUnique(figURLs, to: figFileURLs)
   }
 
   public func addAssets(_ urls: [URL]) {
@@ -76,6 +79,7 @@ public final class DesignSystemSetupViewModel {
         sourceLinks: sourceLinks,
         codeSourceURLs: codeSourceURLs,
         figFileURLs: figFileURLs,
+        figImportMode: figImportMode,
         assetURLs: assetURLs,
         notes: notes
       )
@@ -99,6 +103,7 @@ public final class DesignSystemSetupViewModel {
     sourceLinks = []
     codeSourceURLs = []
     figFileURLs = []
+    figImportMode = .reference
     assetURLs = []
     notes = ""
   }

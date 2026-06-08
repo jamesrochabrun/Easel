@@ -22,7 +22,7 @@ struct ProjectResourceManagerTests {
     let project = try await projectManager.createProject(from: EaselProjectCreateRequest(
       name: "Catalog Prototype",
       kind: .prototype,
-      designSystem: .apple,
+      designSystem: .none,
       fidelity: .highFidelity
     ))
 
@@ -61,7 +61,7 @@ struct ProjectResourceManagerTests {
     let project = try await projectManager.createProject(from: EaselProjectCreateRequest(
       name: "Duplicate Assets",
       kind: .slideDeck,
-      designSystem: .material,
+      designSystem: .none,
       fidelity: .wireframe
     ))
 
@@ -115,7 +115,7 @@ struct ProjectResourceManagerTests {
     let project = try await projectManager.createProject(from: EaselProjectCreateRequest(
       name: "Project Structure",
       kind: .prototype,
-      designSystem: .apple,
+      designSystem: .none,
       fidelity: .highFidelity
     ))
     let projectURL = URL(fileURLWithPath: project.workingDirectory)

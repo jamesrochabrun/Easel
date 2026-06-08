@@ -6,6 +6,7 @@
 import Foundation
 import Testing
 import ClaudeCodeCore
+import EaselDesignSystems
 @testable import EaselChat
 
 struct ProjectGroupTests {
@@ -35,7 +36,7 @@ struct ProjectGroupTests {
       id: UUID(),
       name: "Checkout",
       kind: .prototype,
-      designSystem: .airbnb,
+      designSystem: .none,
       fidelity: .highFidelity,
       workingDirectory: "/tmp/checkout",
       createdAt: Date(),
@@ -68,12 +69,47 @@ struct ProjectGroupTests {
   }
 
   @Test
+  func groupsSurfaceDesignSystemsAsRows() {
+    let designSystem = EaselDesignSystemProfile(
+      id: UUID(),
+      name: "Plus UI",
+      blurb: "Plus UI kit",
+      notes: "",
+      sourceLinks: [],
+      workingDirectory: "/tmp/plusui",
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+    let session = StoredSession(
+      id: "ds-session",
+      createdAt: Date(),
+      firstUserMessage: "Use Plus UI",
+      lastAccessedAt: Date(),
+      workingDirectory: "/tmp/plusui"
+    )
+
+    let groups = ProjectGroup.groups(
+      projects: [],
+      designSystems: [designSystem],
+      sessions: [session],
+      previousExpansion: [:]
+    )
+
+    #expect(groups.count == 1)
+    #expect(groups.first?.displayName == "Plus UI")
+    #expect(groups.first?.project == nil)
+    #expect(groups.first?.designSystem?.id == designSystem.id)
+    #expect(groups.first?.sessions.map(\.id) == ["ds-session"])
+    #expect(groups.first?.subtitle.contains("Design system") == true)
+  }
+
+  @Test
   func subtitleIncludesFidelityOnlyForPrototypes() {
     let prototype = EaselDesignProject(
       id: UUID(),
       name: "Checkout",
       kind: .prototype,
-      designSystem: .airbnb,
+      designSystem: .none,
       fidelity: .wireframe,
       workingDirectory: "/tmp/checkout",
       createdAt: Date(),
@@ -83,7 +119,7 @@ struct ProjectGroupTests {
       id: UUID(),
       name: "Roadmap",
       kind: .slideDeck,
-      designSystem: .apple,
+      designSystem: .none,
       fidelity: .highFidelity,
       workingDirectory: "/tmp/roadmap",
       createdAt: Date(),

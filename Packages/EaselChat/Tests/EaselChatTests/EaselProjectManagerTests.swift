@@ -19,7 +19,7 @@ struct EaselProjectManagerTests {
     let project = try await manager.createProject(from: EaselProjectCreateRequest(
       name: "Hotel Booking Flow",
       kind: .prototype,
-      designSystem: .airbnb,
+      designSystem: .none,
       fidelity: .highFidelity
     ))
 
@@ -62,7 +62,7 @@ struct EaselProjectManagerTests {
     let request = EaselProjectCreateRequest(
       name: "Roadmap Deck",
       kind: .slideDeck,
-      designSystem: .apple,
+      designSystem: .none,
       fidelity: .wireframe
     )
 
@@ -82,7 +82,7 @@ struct EaselProjectManagerTests {
     let project = try await manager.createProject(from: EaselProjectCreateRequest(
       name: "Roadmap Deck",
       kind: .slideDeck,
-      designSystem: .apple,
+      designSystem: .none,
       fidelity: .wireframe
     ))
 
@@ -103,7 +103,7 @@ struct EaselProjectManagerTests {
     let project = try await manager.createProject(from: EaselProjectCreateRequest(
       name: "Roadmap Deck",
       kind: .slideDeck,
-      designSystem: .apple,
+      designSystem: .none,
       fidelity: .highFidelity
     ))
 
@@ -128,7 +128,7 @@ struct EaselProjectManagerTests {
     let project = try await manager.createProject(from: EaselProjectCreateRequest(
       name: "Prototype",
       kind: .prototype,
-      designSystem: .apple,
+      designSystem: .none,
       fidelity: .highFidelity
     ))
 
@@ -146,7 +146,7 @@ struct EaselProjectManagerTests {
     let project = try await manager.createProject(from: EaselProjectCreateRequest(
       name: "Delete Me",
       kind: .prototype,
-      designSystem: .airbnb,
+      designSystem: .none,
       fidelity: .highFidelity
     ))
 
@@ -176,8 +176,74 @@ struct EaselProjectManagerTests {
 
     let project = try decoder.decode(EaselDesignProject.self, from: Data(json.utf8))
 
-    #expect(project.designSystem == .preset(.material))
-    #expect(project.designSystem.displayName == "Material Design")
+    // The "material" preset was removed; legacy values now decode to none.
+    #expect(project.designSystem == .preset(.none))
+    #expect(project.designSystem.displayName == "No design system")
+  }
+
+  @Test
+  func createProjectCopiesCustomDesignSystemBriefIntoProject() async throws {
+    let rootDirectory = temporaryRoot()
+    let designSystemDirectory = temporaryRoot()
+    defer {
+      try? FileManager.default.removeItem(at: rootDirectory)
+      try? FileManager.default.removeItem(at: designSystemDirectory)
+    }
+
+    // Stage a design system catalog on disk, as a real extraction would.
+    let easelDirectory = designSystemDirectory.appendingPathComponent(".easel", isDirectory: true)
+    try FileManager.default.createDirectory(at: easelDirectory, withIntermediateDirectories: true)
+    let catalog = EaselDesignSystemCatalog(
+      name: "Plus UI",
+      summary: "Local snapshot",
+      generatedAt: nil,
+      componentGroups: [],
+      disclaimer: "Parsed locally from .fig.",
+      tokens: EaselDesignSystemTokenSet(
+        colors: [EaselDesignSystemColorToken(id: "c1", name: "Primary", hex: "#0055FF", sourceNodeID: nil, sourceNodeName: nil, confidence: 0.8)],
+        typography: [],
+        spacing: [],
+        radii: [],
+        effects: []
+      ),
+      componentFamilies: [
+        EaselDesignSystemComponentFamily(id: "f1", title: "Button", category: "Buttons", summary: "", sourcePage: nil, variantCount: 2, variantProperties: [], confidence: 0.9)
+      ]
+    )
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+    try encoder.encode(catalog).write(to: easelDirectory.appendingPathComponent("catalog.json"))
+
+    let profile = EaselDesignSystemProfile(
+      id: UUID(),
+      name: "Plus UI",
+      blurb: "Plus UI kit",
+      notes: "Warm brand",
+      sourceLinks: [],
+      workingDirectory: designSystemDirectory.path,
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+
+    let manager = LocalEaselProjectManager(rootDirectory: rootDirectory)
+    let project = try await manager.createProject(from: EaselProjectCreateRequest(
+      name: "Landing Page",
+      kind: .prototype,
+      designSystem: .custom(profile),
+      fidelity: .highFidelity
+    ))
+
+    let projectURL = URL(fileURLWithPath: project.workingDirectory)
+    let briefURL = projectURL.appendingPathComponent("resources/design-system/DESIGN_SYSTEM.md")
+    #expect(FileManager.default.fileExists(atPath: briefURL.path))
+
+    let brief = try String(contentsOf: briefURL, encoding: .utf8)
+    #expect(brief.contains("# Design system: Plus UI"))
+    #expect(brief.contains("#0055FF"))
+    #expect(brief.contains("Button"))
+
+    let readme = try String(contentsOf: projectURL.appendingPathComponent("README.md"), encoding: .utf8)
+    #expect(readme.contains("resources/design-system/DESIGN_SYSTEM.md"))
   }
 
   private func temporaryRoot() -> URL {

@@ -5,6 +5,7 @@
 
 import Foundation
 import Testing
+import EaselDesignSystems
 @testable import EaselChat
 
 @MainActor
@@ -75,6 +76,40 @@ struct ProjectResourcesViewModelTests {
   }
 
   @Test
+  func refreshHonorsDesignSystemWorkspaceInsteadOfFallingBackToProject() async {
+    let project = makeProject(name: "Proto", path: "/tmp/proto")
+    let designSystemPath = "/tmp/design-systems/plusui"
+    let designSystem = EaselDesignSystemProfile(
+      id: UUID(),
+      name: "Plus UI",
+      blurb: "Plus UI kit",
+      notes: "",
+      sourceLinks: [],
+      workingDirectory: designSystemPath,
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+    let resource = makeResource(projectPath: designSystemPath, fileName: "tokens.json")
+    let page = makeProjectStructureItem(projectPath: designSystemPath, fileName: "index.html")
+    let viewModel = ProjectResourcesViewModel(
+      projectManager: StubProjectManager(projects: [project]),
+      resourceManager: StubProjectResourceManager(
+        resourcesByProject: [designSystemPath: [resource]],
+        projectStructureByProject: [designSystemPath: [ProjectStructureSection(role: .pages, items: [page])]]
+      ),
+      designSystemManager: StubDesignSystemManager(designSystems: [designSystem])
+    )
+
+    await viewModel.refresh(currentProjectPath: designSystemPath)
+
+    #expect(viewModel.selectedProjectPath == designSystemPath)
+    #expect(viewModel.selectedProject == nil)
+    #expect(viewModel.selectedDesignSystem?.id == designSystem.id)
+    #expect(viewModel.resources == [resource])
+    #expect(viewModel.hasProjectFiles)
+  }
+
+  @Test
   func clearSelectionReturnsToResourceLibrary() async {
     let project = makeProject(name: "Project", path: "/tmp/project")
     let resource = makeResource(projectPath: project.workingDirectory, fileName: "notes.txt")
@@ -127,7 +162,7 @@ struct ProjectResourcesViewModelTests {
       id: UUID(),
       name: name,
       kind: .prototype,
-      designSystem: .airbnb,
+      designSystem: .none,
       fidelity: .highFidelity,
       workingDirectory: path,
       createdAt: Date(),
@@ -216,5 +251,27 @@ private actor StubProjectResourceManager: ProjectResourceManaging {
   func importResources(from sourceURLs: [URL], intoProjectAt projectPath: String) async throws -> [ProjectResource] {
     resourcesByProject[projectPath] = importedResources
     return importedResources
+  }
+}
+
+private actor StubDesignSystemManager: EaselDesignSystemManaging {
+  private let designSystems: [EaselDesignSystemProfile]
+
+  init(designSystems: [EaselDesignSystemProfile] = []) {
+    self.designSystems = designSystems
+  }
+
+  func loadDesignSystems() async throws -> [EaselDesignSystemProfile] {
+    designSystems
+  }
+
+  func createDesignSystem(from request: EaselDesignSystemCreateRequest) async throws -> EaselDesignSystemProfile {
+    throw NSError(domain: "StubDesignSystemManager", code: 1)
+  }
+
+  func deleteDesignSystem(_ profile: EaselDesignSystemProfile) async throws {}
+
+  func loadCatalog(forDesignSystemAt path: String) async throws -> EaselDesignSystemCatalog? {
+    nil
   }
 }

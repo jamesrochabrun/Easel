@@ -3,6 +3,7 @@
 //  EaselChat
 //
 
+import EaselDesignSystems
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -70,8 +71,15 @@ public struct ProjectResourcesView: View {
           .padding(.horizontal, 8)
           .padding(.vertical, 5)
           .background(.thinMaterial, in: Capsule())
+      } else if let selectedDesignSystem = viewModel.selectedDesignSystem {
+        Label(selectedDesignSystem.name, systemImage: "paintpalette")
+          .font(.caption.weight(.medium))
+          .foregroundStyle(.secondary)
+          .padding(.horizontal, 8)
+          .padding(.vertical, 5)
+          .background(.thinMaterial, in: Capsule())
       } else {
-        Text("No active project")
+        Text("No active workspace")
           .font(.callout)
           .foregroundStyle(.secondary)
       }
@@ -113,11 +121,11 @@ public struct ProjectResourcesView: View {
     if viewModel.isLoading {
       ProgressView("Loading design files...")
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    } else if viewModel.projects.isEmpty {
+    } else if viewModel.selectedProjectPath == nil {
       ProjectResourcesEmptyState(
         systemImage: "folder.badge.plus",
-        title: "No projects yet",
-        message: "Create or open a project before adding resources."
+        title: "No active workspace",
+        message: "Open a project or design system to see its files."
       )
     } else if !viewModel.hasProjectFiles {
       ProjectResourcesEmptyState(

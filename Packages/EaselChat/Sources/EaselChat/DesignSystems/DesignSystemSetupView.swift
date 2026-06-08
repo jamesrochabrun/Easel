@@ -118,11 +118,19 @@ public struct DesignSystemSetupView: View {
 
             Divider()
 
-            Text("Parsed locally by Codex from this design-system folder.")
-              .font(.title3)
-              .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .padding(20)
+            VStack(alignment: .leading, spacing: 10) {
+              Picker("Figma import mode", selection: $viewModel.figImportMode) {
+                ForEach(EaselDesignSystemFigImportMode.allCases) { mode in
+                  Text(mode.displayName).tag(mode)
+                }
+              }
+              .pickerStyle(.segmented)
+
+              Text(viewModel.figImportMode.detail)
+                .font(.title3)
+                .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
+            }
+            .padding(20)
 
             Divider()
 

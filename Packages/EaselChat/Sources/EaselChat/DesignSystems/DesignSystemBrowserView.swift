@@ -3,6 +3,9 @@
 //  EaselChat
 //
 
+#if canImport(AppKit)
+import AppKit
+#endif
 import EaselKit
 import EaselDesignSystems
 import SwiftUI
@@ -157,7 +160,7 @@ public struct DesignSystemBrowserView: View {
 
             if let workingDirectory = selectedChoice.workingDirectory {
               Button("Open Folder", systemImage: "folder") {
-                openURL(URL(fileURLWithPath: workingDirectory))
+                openFolder(at: workingDirectory)
               }
               .buttonStyle(.bordered)
             }
@@ -168,6 +171,11 @@ public struct DesignSystemBrowserView: View {
               .frame(maxWidth: .infinity, minHeight: 180)
           } else if let errorMessage = viewModel.errorMessage {
             ProjectResourceErrorBanner(message: errorMessage)
+          } else if let catalog = viewModel.selectedCatalog, catalog.hasReferenceContent {
+            DesignSystemReferenceView(
+              catalog: catalog,
+              workingDirectory: selectedChoice.workingDirectory
+            )
           } else if let catalog = viewModel.selectedCatalog, !catalog.componentGroups.isEmpty {
             VStack(spacing: 0) {
               ForEach(catalog.componentGroups) { group in
@@ -215,6 +223,8 @@ public struct DesignSystemBrowserView: View {
               RoundedRectangle(cornerRadius: 8)
                 .stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1)
             }
+          } else if let catalog = viewModel.selectedCatalog, catalog.generatedAt != nil {
+            emptyGeneratedCatalogState(for: catalog)
           } else if selectedChoice.preset == EaselDesignSystemPreset.none {
             VStack(alignment: .leading, spacing: 10) {
               Label("No design system selected", systemImage: "square.dashed")
@@ -251,5 +261,46 @@ public struct DesignSystemBrowserView: View {
       .padding(28)
       .frame(maxWidth: .infinity, alignment: .leading)
     }
+  }
+
+  private func emptyGeneratedCatalogState(for catalog: EaselDesignSystemCatalog) -> some View {
+    VStack(alignment: .leading, spacing: 10) {
+      Label(emptyGeneratedCatalogTitle(for: catalog), systemImage: emptyGeneratedCatalogSystemImage(for: catalog))
+        .font(.title3.weight(.semibold))
+      Text(catalog.summary)
+        .font(.callout)
+        .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
+    }
+    .padding(22)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(EaselDesignSystem.Palette.surface(for: colorScheme), in: RoundedRectangle(cornerRadius: 8))
+    .overlay {
+      RoundedRectangle(cornerRadius: 8)
+        .stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1)
+    }
+  }
+
+  private func emptyGeneratedCatalogTitle(for catalog: EaselDesignSystemCatalog) -> String {
+    if catalog.summary.localizedCaseInsensitiveContains("could not be parsed") {
+      return "Catalog import failed"
+    }
+    return "No component catalog extracted"
+  }
+
+  private func emptyGeneratedCatalogSystemImage(for catalog: EaselDesignSystemCatalog) -> String {
+    if catalog.summary.localizedCaseInsensitiveContains("could not be parsed") {
+      return "exclamationmark.triangle"
+    }
+    return "doc.text.magnifyingglass"
+  }
+
+  private func openFolder(at path: String) {
+    let folderURL = URL(fileURLWithPath: path, isDirectory: true)
+#if canImport(AppKit)
+    if NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: folderURL.path) {
+      return
+    }
+#endif
+    openURL(folderURL)
   }
 }

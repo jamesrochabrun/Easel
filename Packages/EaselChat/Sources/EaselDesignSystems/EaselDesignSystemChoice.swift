@@ -71,8 +71,11 @@ public struct EaselDesignSystemChoice: Codable, Hashable, Identifiable, Sendable
   }
 
   public init(from decoder: Decoder) throws {
-    if let legacyPreset = try? decoder.singleValueContainer().decode(EaselDesignSystemPreset.self) {
-      self = .preset(legacyPreset)
+    // Legacy projects stored the design system as a bare preset string. Map any
+    // value — including removed presets like "airbnb"/"apple"/"material" — to a
+    // known preset, defaulting to none, so older projects still decode.
+    if let legacyValue = try? decoder.singleValueContainer().decode(String.self) {
+      self = .preset(EaselDesignSystemPreset(rawValue: legacyValue) ?? .none)
       return
     }
 

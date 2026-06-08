@@ -503,7 +503,7 @@ public struct SidebarView: View {
       }
 
       if sidebarViewModel.projectGroups.isEmpty {
-        Text("No projects yet")
+        Text("No projects or design systems yet")
           .font(.callout)
           .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
           .fixedSize(horizontal: false, vertical: true)
@@ -516,6 +516,7 @@ public struct SidebarView: View {
               ProjectHeaderView(
                 project: project,
                 onToggle: {
+                  sidebarViewModel.openWorkspace(project)
                   withAnimation(projectListAnimation) {
                     sidebarViewModel.toggleProject(project.id)
                   }
@@ -524,8 +525,12 @@ public struct SidebarView: View {
                   sidebarViewModel.requestNewChat(workingDirectory: project.workingDirectory)
                 },
                 onDelete: {
-                  projectToDelete = project
-                  showDeleteProjectConfirmation = true
+                  if let designSystem = project.designSystem {
+                    requestDeleteDesignSystem(designSystem)
+                  } else {
+                    projectToDelete = project
+                    showDeleteProjectConfirmation = true
+                  }
                 }
               )
 

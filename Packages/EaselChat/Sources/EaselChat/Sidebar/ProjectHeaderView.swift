@@ -20,7 +20,7 @@ struct ProjectHeaderView: View {
     HStack(alignment: .center, spacing: 8) {
       Button(action: onToggle) {
         HStack(spacing: 8) {
-          Image(systemName: project.kind?.systemImage ?? (project.isExpanded ? "folder.fill" : "folder"))
+          Image(systemName: headerIconName)
             .font(.system(size: 14, weight: .medium))
             .foregroundStyle(projectIconColor)
             .frame(width: 20)
@@ -53,7 +53,7 @@ struct ProjectHeaderView: View {
         )
 
         ProjectHeaderActionButton(
-          title: "Delete project",
+          title: project.designSystem != nil ? "Delete design system" : "Delete project",
           systemImage: "trash",
           role: .destructive,
           foregroundColor: EaselDesignSystem.Palette.secondaryText(for: colorScheme),
@@ -79,6 +79,13 @@ struct ProjectHeaderView: View {
     .onHover { hovering in
       isHovering = hovering
     }
+  }
+
+  private var headerIconName: String {
+    if project.designSystem != nil {
+      return "paintpalette"
+    }
+    return project.kind?.systemImage ?? (project.isExpanded ? "folder.fill" : "folder")
   }
 
   private var projectIconColor: Color {
