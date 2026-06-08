@@ -92,7 +92,8 @@ public actor LocalEaselDesignSystemImporter: EaselDesignSystemImporting {
       let catalog = EaselDesignSystemManifestNormalizer.makeCatalog(
         profile: request.profile,
         manifest: manifest,
-        records: records
+        records: records,
+        directoryURL: request.directoryURL
       )
 
       try write(manifest, to: Self.manifestURL(for: request.directoryURL))
@@ -693,10 +694,15 @@ enum EaselDesignSystemManifestNormalizer {
   static func makeCatalog(
     profile: EaselDesignSystemProfile,
     manifest: EaselDesignSystemManifest,
-    records: [EaselFigImportRecord] = []
+    records: [EaselFigImportRecord] = [],
+    directoryURL: URL? = nil
   ) -> EaselDesignSystemCatalog {
     let diagnostics = makeSourceDiagnostics(from: manifest)
     let isExtract = manifest.importMode == .extractCatalog
+    // The parser lists every referenced image fill, but only a subset are
+    // actually written to `.easel/assets/`. Resolve the real files once so the
+    // catalog never points at art that was never exported.
+    let existingAssets = directoryURL.map(existingAssetPaths(in:)) ?? []
 
     guard isExtract else {
       // Reference mode keeps the .fig as inspiration without parsing it into
@@ -708,7 +714,7 @@ enum EaselDesignSystemManifestNormalizer {
         componentGroups: [],
         title: "\(profile.name) — local reference",
         isReference: true,
-        disclaimer: EaselDesignSystemCatalog.localFigDisclaimer,
+        disclaimer: EaselDesignSystemCatalog.referenceFigDisclaimer,
         sourceDiagnostics: diagnostics
       )
     }
@@ -731,7 +737,8 @@ enum EaselDesignSystemManifestNormalizer {
         preview: makeScene(
           forNodeID: component.sourceNodeID,
           fileName: component.sourceFileName,
-          indexes: sceneIndexes
+          indexes: sceneIndexes,
+          existingAssets: existingAssets
         ),
         confidence: component.confidence
       )
@@ -745,16 +752,18 @@ enum EaselDesignSystemManifestNormalizer {
         preview: makeScene(
           forNodeID: reference.sourceNodeID,
           fileName: reference.sourceFileName,
-          indexes: sceneIndexes
+          indexes: sceneIndexes,
+          existingAssets: existingAssets
         )
       )
     }
 
-    let assets = makeAssets(from: records)
+    let assets = makeAssets(from: records, existingAssets: existingAssets)
     let heroThumbnailPath = records
       .compactMap { $0.document?.document.thumbnailPath }
       .first
       .map { assetsRelativePrefix + $0 }
+      .flatMap { existingAssets.isEmpty || existingAssets.contains($0) ? $0 : nil }
 
     return EaselDesignSystemCatalog(
       name: profile.name,
@@ -763,7 +772,7 @@ enum EaselDesignSystemManifestNormalizer {
       componentGroups: makeComponentGroups(from: manifest.components),
       title: "\(profile.name) — local reference",
       isReference: true,
-      disclaimer: EaselDesignSystemCatalog.localFigDisclaimer,
+      disclaimer: EaselDesignSystemCatalog.extractedFigDisclaimer,
       tokens: hasTokens ? tokens : nil,
       componentFamilies: families.isEmpty ? nil : families,
       examples: examples.isEmpty ? nil : Array(examples),
@@ -806,15 +815,19 @@ enum EaselDesignSystemManifestNormalizer {
   }
 
   private static func makeAssets(
-    from records: [EaselFigImportRecord]
+    from records: [EaselFigImportRecord],
+    existingAssets: Set<String>
   ) -> [EaselDesignSystemAsset] {
+    // When we know which files were actually written, only surface those. (An
+    // empty set means we couldn't resolve the folder — keep the old behavior.)
+    func exists(_ path: String) -> Bool { existingAssets.isEmpty || existingAssets.contains(path) }
     var assets: [EaselDesignSystemAsset] = []
     var seen: Set<String> = []
     for record in records {
       guard let document = record.document else { continue }
       if let thumbnailPath = document.document.thumbnailPath {
         let relativePath = assetsRelativePrefix + thumbnailPath
-        if seen.insert(relativePath).inserted {
+        if exists(relativePath), seen.insert(relativePath).inserted {
           assets.append(EaselDesignSystemAsset(
             id: "asset-thumbnail-\(slug(for: record.source.fileName))",
             name: "Document thumbnail",
@@ -823,9 +836,10 @@ enum EaselDesignSystemManifestNormalizer {
           ))
         }
       }
-      for image in document.document.imageAssets.prefix(60) {
+      for image in document.document.imageAssets {
+        if assets.count >= 60 { break }
         let relativePath = assetsRelativePrefix + image.path
-        guard seen.insert(relativePath).inserted else { continue }
+        guard exists(relativePath), seen.insert(relativePath).inserted else { continue }
         assets.append(EaselDesignSystemAsset(
           id: "asset-\(slug(for: image.path))",
           name: image.name,
@@ -838,12 +852,34 @@ enum EaselDesignSystemManifestNormalizer {
     return Array(assets.prefix(60))
   }
 
+  /// Relative paths (from the design system root) of every asset file actually
+  /// written under `.easel/assets/`. Used to drop catalog references to image
+  /// fills the parser listed but never exported.
+  private static func existingAssetPaths(in directoryURL: URL) -> Set<String> {
+    let assetsURL = directoryURL.appendingPathComponent(assetsRelativePrefix, isDirectory: true)
+    guard let enumerator = FileManager.default.enumerator(
+      at: assetsURL,
+      includingPropertiesForKeys: [.isRegularFileKey]
+    ) else {
+      return []
+    }
+    let basePath = directoryURL.standardizedFileURL.path
+    var paths: Set<String> = []
+    for case let url as URL in enumerator {
+      let filePath = url.standardizedFileURL.path
+      guard filePath.hasPrefix(basePath + "/") else { continue }
+      paths.insert(String(filePath.dropFirst(basePath.count + 1)))
+    }
+    return paths
+  }
+
   /// Builds a capped schematic preview scene for a representative node by walking
   /// its descendant subtree and emitting positioned rect/text/image/path layers.
   private static func makeScene(
     forNodeID nodeID: String,
     fileName: String,
-    indexes: [String: FigSceneIndex]
+    indexes: [String: FigSceneIndex],
+    existingAssets: Set<String>
   ) -> EaselDesignSystemPreviewScene? {
     guard let index = indexes[fileName],
           let root = index.nodesByID[nodeID],
@@ -857,7 +893,8 @@ enum EaselDesignSystemManifestNormalizer {
     var layers: [EaselDesignSystemPreviewLayer] = []
 
     func appendLayer(for node: EaselParsedFigNode, x: Double, y: Double, w: Double, h: Double) {
-      if let imageRef = node.imageRef {
+      if let imageRef = node.imageRef,
+         existingAssets.isEmpty || existingAssets.contains(assetsRelativePrefix + imageRef) {
         layers.append(EaselDesignSystemPreviewLayer(
           id: node.id, kind: .image, x: x, y: y, width: w, height: h,
           opacity: node.opacity, imagePath: assetsRelativePrefix + imageRef

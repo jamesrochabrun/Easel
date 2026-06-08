@@ -278,7 +278,7 @@ struct EaselDesignSystemManagerTests {
     #expect(catalog.componentGroups.first?.title == "Buttons")
     #expect(catalog.componentGroups.first?.items.first?.title == "Button / Primary")
     #expect(catalog.isReference)
-    #expect(catalog.disclaimer == EaselDesignSystemCatalog.localFigDisclaimer)
+    #expect(catalog.disclaimer == EaselDesignSystemCatalog.extractedFigDisclaimer)
     #expect(catalog.hasReferenceContent)
     #expect(catalog.tokens?.colors.map(\.hex).contains("#0055FF") == true)
     #expect(catalog.tokens?.typography.map(\.fontFamily).contains("Inter") == true)
