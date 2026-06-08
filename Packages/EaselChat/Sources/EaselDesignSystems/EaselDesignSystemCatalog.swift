@@ -6,21 +6,18 @@
 import Foundation
 
 public struct EaselDesignSystemCatalog: Codable, Equatable, Sendable {
-  /// Shared disclaimer for catalogs parsed locally from a `.fig` file. Surfaced
-  /// in the native browser, the generated `index.html`, and the manifest summary
-  /// so the lossy nature of local parsing is never hidden.
+  /// Shared note for catalogs parsed locally from a `.fig` file. Surfaced
+  /// in the native browser, the generated `index.html`, and the manifest summary.
   public static let localFigDisclaimer =
-    "Parsed locally from .fig. Use as reference. Not a 1:1 imported design system."
+    "Parsed locally from .fig."
 
-  /// Disclaimer for the `.extractCatalog` import mode — this IS the imported
-  /// design system; the caveat is only about fidelity (local, inferred parse).
+  /// Note for the `.extractCatalog` import mode.
   public static let extractedFigDisclaimer =
-    "Imported from .fig and parsed locally. Tokens and components are inferred from the file's node styles (not a published token library), so treat values as a best-effort reference rather than a 1:1 mirror."
+    "Imported from .fig and parsed locally."
 
-  /// Disclaimer for the `.reference` import mode — the file is kept as
-  /// inspiration only; nothing was parsed into a usable design system.
+  /// Note for the `.reference` import mode.
   public static let referenceFigDisclaimer =
-    "Kept as local inspiration — this .fig was not parsed into tokens or components."
+    "Attached .fig source file."
 
   public let name: String
   public let summary: String
