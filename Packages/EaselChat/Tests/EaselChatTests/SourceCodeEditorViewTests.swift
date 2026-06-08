@@ -1,4 +1,5 @@
 import AppKit
+import EaselKit
 import SwiftUI
 import Testing
 
@@ -18,6 +19,14 @@ private func withCurrentDrawingAppearance<T>(_ name: NSAppearance.Name, _ body: 
 
 private func brightness(of color: NSColor) -> CGFloat {
   (color.usingColorSpace(.sRGB) ?? color).brightnessComponent
+}
+
+private func hexString(of color: Color) -> String {
+  let resolvedColor = NSColor(color).usingColorSpace(.sRGB) ?? NSColor(color)
+  let red = Int(round(resolvedColor.redComponent * 255))
+  let green = Int(round(resolvedColor.greenComponent * 255))
+  let blue = Int(round(resolvedColor.blueComponent * 255))
+  return String(format: "#%02X%02X%02X", red, green, blue)
 }
 
 @Suite("SourceCodeEditorView")
@@ -92,6 +101,20 @@ struct SourceCodeEditorViewTests {
     #expect(brightness(of: lightThemeCreatedInDarkAppearance.text.color) < 0.3)
     #expect(brightness(of: darkThemeCreatedInLightAppearance.background) < 0.3)
     #expect(brightness(of: darkThemeCreatedInLightAppearance.text.color) > 0.7)
+  }
+
+  @Test
+  func textPreviewHeaderStyleResolvesColorsFromRequestedColorScheme() {
+    let lightStyle = ProjectResourceTextPreviewStyle(colorScheme: .light)
+    let darkStyle = ProjectResourceTextPreviewStyle(colorScheme: .dark)
+
+    #expect(hexString(of: lightStyle.editorBackground) == EaselDesignSystem.Palette.surfaceLightHex)
+    #expect(hexString(of: lightStyle.headerBackground) == EaselDesignSystem.Palette.surfaceElevatedLightHex)
+    #expect(hexString(of: lightStyle.headerSecondaryText) == EaselDesignSystem.Palette.textSecondaryLightHex)
+    #expect(hexString(of: lightStyle.headerBorder) == EaselDesignSystem.Palette.borderLightHex)
+    #expect(hexString(of: darkStyle.editorBackground) == "#12171C")
+    #expect(hexString(of: darkStyle.headerBackground) == "#171C21")
+    #expect(hexString(of: darkStyle.headerSecondaryText) == EaselDesignSystem.Palette.textSecondaryDarkHex)
   }
 
   @Test

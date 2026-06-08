@@ -18,6 +18,7 @@ enum SlideDeckPreviewScript {
       const runtimeName = "__easelSlideDeckRuntime";
       const slideAttribute = "data-easel-runtime-slide";
       const selectedAttribute = "data-easel-runtime-selected";
+      const deckSelector = "[data-easel-deck]";
 
       function slideElements() {
         const selectors = ["[data-easel-slide]", ".easel-slide", ".slide", "section"];
@@ -64,11 +65,27 @@ enum SlideDeckPreviewScript {
 
           body.__easel-slide-preview-active {
             min-height: 100% !important;
+            display: block !important;
+            padding: 0 !important;
+          }
+
+          ${deckSelector} {
+            position: relative !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
           }
 
           [${slideAttribute}] {
             opacity: 0 !important;
             pointer-events: none !important;
+            width: 100% !important;
+            height: 100% !important;
           }
 
           [${slideAttribute}][${selectedAttribute}="true"] {
