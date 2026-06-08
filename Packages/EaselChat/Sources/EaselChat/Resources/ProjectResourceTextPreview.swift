@@ -31,11 +31,12 @@ struct ProjectResourceTextPreview: View {
   @State private var displayMode: EditorDisplayMode
   @State private var editorDocumentID = UUID()
   @State private var hasUnsavedChanges = false
+  @Environment(\.colorScheme) private var colorScheme
 
   var body: some View {
     codePreview
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(editorBackground)
+    .background(previewStyle.editorBackground)
     .onChange(of: item.id) { _, _ in
       resetEditor(with: text)
     }
@@ -65,17 +66,17 @@ struct ProjectResourceTextPreview: View {
     HStack(spacing: 8) {
       Text(languageDisplayName.uppercased())
         .font(.system(size: 11, weight: .medium, design: .monospaced))
-        .foregroundStyle(.secondary)
+        .foregroundStyle(previewStyle.headerSecondaryText)
 
       if let badgeLabel = displayMode.badgeLabel {
         Text(badgeLabel)
           .font(.system(size: 10, weight: .medium))
-          .foregroundStyle(.secondary)
+          .foregroundStyle(previewStyle.headerSecondaryText)
           .padding(.horizontal, 5)
           .padding(.vertical, 1)
           .background(
             Capsule()
-              .fill(Color.secondary.opacity(0.14))
+              .fill(previewStyle.badgeBackground)
           )
       }
 
@@ -105,10 +106,10 @@ struct ProjectResourceTextPreview: View {
     }
     .frame(height: 32)
     .padding(.horizontal, 14)
-    .background(editorHeaderBackground)
+    .background(previewStyle.headerBackground)
     .overlay(alignment: .bottom) {
       Rectangle()
-        .fill(Color.white.opacity(0.08))
+        .fill(previewStyle.headerBorder)
         .frame(height: 1)
     }
   }
@@ -121,12 +122,8 @@ struct ProjectResourceTextPreview: View {
     )
   }
 
-  private var editorBackground: Color {
-    Color(red: 0.07, green: 0.09, blue: 0.11)
-  }
-
-  private var editorHeaderBackground: Color {
-    Color(red: 0.09, green: 0.11, blue: 0.13)
+  private var previewStyle: ProjectResourceTextPreviewStyle {
+    ProjectResourceTextPreviewStyle(colorScheme: colorScheme)
   }
 
   private func editorTextChanged(_ updatedText: String) {
