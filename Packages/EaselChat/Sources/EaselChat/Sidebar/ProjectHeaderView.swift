@@ -26,18 +26,10 @@ struct ProjectHeaderView: View {
             .frame(width: 20)
 
           VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 6) {
-              Text(project.displayName)
-                .font(.callout.weight(.medium))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .layoutPriority(0)
-
-              if let designSystemChipTitle = project.designSystemChipTitle {
-                designSystemChip(title: designSystemChipTitle)
-                  .layoutPriority(1)
-              }
-            }
+            Text(project.displayName)
+              .font(.callout.weight(.medium))
+              .foregroundStyle(.primary)
+              .lineLimit(1)
 
             Text(project.subtitle)
               .font(.caption)
@@ -51,23 +43,29 @@ struct ProjectHeaderView: View {
 
       Spacer()
 
-      HStack(spacing: 4) {
-        ProjectHeaderActionButton(
-          title: "New Codex session",
-          systemImage: "plus",
-          foregroundColor: EaselDesignSystem.Palette.secondaryText(for: colorScheme),
-          hoverColor: EaselDesignSystem.Palette.hoverSurface(for: colorScheme),
-          action: onNewChat
-        )
+      VStack(alignment: .trailing, spacing: 2) {
+        if let designSystemChipTitle = project.designSystemChipTitle {
+          designSystemChip(title: designSystemChipTitle)
+        }
 
-        ProjectHeaderActionButton(
-          title: project.designSystem != nil ? "Delete design system" : "Delete project",
-          systemImage: "trash",
-          role: .destructive,
-          foregroundColor: EaselDesignSystem.Palette.secondaryText(for: colorScheme),
-          hoverColor: EaselDesignSystem.Palette.hoverSurface(for: colorScheme),
-          action: onDelete
-        )
+        HStack(spacing: 4) {
+          ProjectHeaderActionButton(
+            title: "New Codex session",
+            systemImage: "plus",
+            foregroundColor: EaselDesignSystem.Palette.secondaryText(for: colorScheme),
+            hoverColor: EaselDesignSystem.Palette.hoverSurface(for: colorScheme),
+            action: onNewChat
+          )
+
+          ProjectHeaderActionButton(
+            title: project.designSystem != nil ? "Delete design system" : "Delete project",
+            systemImage: "trash",
+            role: .destructive,
+            foregroundColor: EaselDesignSystem.Palette.secondaryText(for: colorScheme),
+            hoverColor: EaselDesignSystem.Palette.hoverSurface(for: colorScheme),
+            action: onDelete
+          )
+        }
       }
       .opacity(isHovering ? 1 : 0.8)
     }
