@@ -66,6 +66,8 @@ struct EaselAgentInstructionsTests {
     #expect(context.contains("section[data-easel-slide]"))
     #expect(context.contains("data-easel-deck"))
     #expect(context.contains("16:9"))
+    #expect(context.contains("full-bleed"))
+    #expect(context.contains("no body padding"))
     #expect(context.contains("Current prototype fidelity") == false)
     #expect(context.contains("Prototype fidelity guidance") == false)
   }

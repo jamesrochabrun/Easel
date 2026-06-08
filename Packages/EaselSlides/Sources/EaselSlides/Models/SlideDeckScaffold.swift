@@ -10,7 +10,7 @@ public enum SlideDeckContract {
   public static let slideAttribute = "data-easel-slide"
   public static let titleAttribute = "data-title"
 
-  public static let authoringSummary = "Keep slides as `section[data-easel-slide]` elements inside a `data-easel-deck` stage, preserve a 16:9 slide canvas, and set `data-title` for thumbnail labels when needed."
+  public static let authoringSummary = "Keep slides as `section[data-easel-slide]` elements inside one `data-easel-deck` stage. The deck stage must be full-bleed in Easel's 16:9 preview: `html`, `body`, and `[data-easel-deck]` fill the viewport with no body padding, centered card frame, rounded outer deck, border, or box shadow. Put spacing inside each `section[data-easel-slide]`, not around the deck, and set `data-title` for thumbnail labels when needed."
 }
 
 public enum SlideDeckScaffold {
@@ -45,25 +45,30 @@ public enum SlideDeckScaffold {
         html,
         body {
           margin: 0;
-          min-height: 100%;
+          width: 100%;
+          height: 100%;
+          overflow: hidden;
           background: #111111;
           color: var(--ink);
           font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         }
 
         body {
-          min-height: 100vh;
-          display: grid;
-          place-items: center;
+          width: 100vw;
+          height: 100vh;
+          display: block;
         }
 
+        /* Easel slide decks are full-bleed. Put spacing inside slides, not around the deck stage. */
         [data-easel-deck] {
           position: relative;
-          width: min(100vw, calc(100vh * 16 / 9));
-          aspect-ratio: 16 / 9;
+          width: 100vw;
+          height: 100vh;
           overflow: hidden;
           background: var(--surface);
-          box-shadow: 0 30px 90px rgb(0 0 0 / 0.30);
+          border: 0;
+          border-radius: 0;
+          box-shadow: none;
         }
 
         [data-easel-slide] {
@@ -180,7 +185,50 @@ public enum SlideDeckScaffold {
 
     let selectedIndex = Math.max(0, slides.findIndex((slide) => slide.dataset.active === "true"));
 
+    function ensureStageStyle() {
+      let style = document.getElementById("easel-slide-deck-stage-style");
+      if (!style) {
+        style = document.createElement("style");
+        style.id = "easel-slide-deck-stage-style";
+        document.head.appendChild(style);
+      }
+
+      style.textContent = `
+        html,
+        body {
+          width: 100% !important;
+          height: 100% !important;
+          margin: 0 !important;
+          overflow: hidden !important;
+        }
+
+        body {
+          min-height: 100vh !important;
+          display: block !important;
+          padding: 0 !important;
+        }
+
+        [data-easel-deck] {
+          position: relative !important;
+          width: 100vw !important;
+          height: 100vh !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          overflow: hidden !important;
+          border: 0 !important;
+          border-radius: 0 !important;
+          box-shadow: none !important;
+        }
+
+        [data-easel-slide] {
+          width: 100% !important;
+          height: 100% !important;
+        }
+      `;
+    }
+
     function selectSlide(index) {
+      ensureStageStyle();
       selectedIndex = Math.max(0, Math.min(index, slides.length - 1));
       slides.forEach((slide, slideIndex) => {
         if (slideIndex === selectedIndex) {

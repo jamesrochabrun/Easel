@@ -305,6 +305,10 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
       ? "\nThis project uses the **\(project.designSystem.displayName)** design system. Follow `resources/design-system/DESIGN.md` for its colors, type, spacing, and component families, and reuse them throughout the UI.\n"
       : ""
 
+    let slideDeckGuidance = project.kind == .slideDeck
+      ? "\nSlide deck layout: \(SlideDeckContract.authoringSummary)\n"
+      : ""
+
     return """
     # \(project.name)
 
@@ -312,6 +316,7 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
 
     \(metadataLines.joined(separator: "\n"))
     \(designSystemGuidance)
+    \(slideDeckGuidance)
     Add project assets to `resources/` so Codex can inspect and use them while designing.
 
     Run `npm run dev` to preview this folder in Codex Design.

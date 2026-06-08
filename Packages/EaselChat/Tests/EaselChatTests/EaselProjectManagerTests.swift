@@ -92,6 +92,9 @@ struct EaselProjectManagerTests {
     #expect(project.fidelity == .highFidelity)
     #expect(readme.contains("- Type: Slide deck"))
     #expect(readme.contains("- Fidelity:") == false)
+    #expect(readme.contains("Slide deck layout:"))
+    #expect(readme.contains("full-bleed"))
+    #expect(readme.contains("no body padding"))
   }
 
   @Test
