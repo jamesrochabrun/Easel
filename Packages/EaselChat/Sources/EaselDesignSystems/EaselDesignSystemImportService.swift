@@ -705,14 +705,14 @@ enum EaselDesignSystemManifestNormalizer {
     let existingAssets = directoryURL.map(existingAssetPaths(in:)) ?? []
 
     guard isExtract else {
-      // Reference mode keeps the .fig as inspiration without parsing it into
-      // tokens/components — still surface the disclaimer + diagnostics.
+      // Attach-only mode keeps the .fig with the design system without parsing
+      // it into tokens/components.
       return EaselDesignSystemCatalog(
         name: profile.name,
         summary: manifest.summary,
         generatedAt: manifest.generatedAt,
         componentGroups: [],
-        title: "\(profile.name) — local reference",
+        title: "\(profile.name) — local design",
         isReference: true,
         disclaimer: EaselDesignSystemCatalog.referenceFigDisclaimer,
         sourceDiagnostics: diagnostics
@@ -770,7 +770,7 @@ enum EaselDesignSystemManifestNormalizer {
       summary: manifest.summary,
       generatedAt: manifest.generatedAt,
       componentGroups: makeComponentGroups(from: manifest.components),
-      title: "\(profile.name) — local reference",
+      title: "\(profile.name) — local design",
       isReference: true,
       disclaimer: EaselDesignSystemCatalog.extractedFigDisclaimer,
       tokens: hasTokens ? tokens : nil,
@@ -1400,7 +1400,7 @@ enum EaselDesignSystemManifestNormalizer {
     referenceCount: Int
   ) -> String {
     if importMode == .reference {
-      return "\(sourceCount) local .fig source file(s) attached as design references."
+      return "\(sourceCount) local .fig source file(s) attached to this design system."
     }
 
     guard parsedCount > 0 else {
@@ -1593,9 +1593,9 @@ enum EaselDesignSystemManifestNormalizer {
   ) -> String {
     switch importMode {
     case .reference:
-      return "Reference frame for visual direction and product examples."
+      return "Source frame for visual direction and product examples."
     case .extractCatalog:
-      return "Source frame used while extracting reusable design-system signals."
+      return "Source frame used while extracting reusable design system details."
     }
   }
 

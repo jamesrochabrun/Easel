@@ -205,7 +205,7 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
       .appendingPathComponent("design-system", isDirectory: true)
     try? fileManager.createDirectory(at: briefDirectory, withIntermediateDirectories: true)
     try? Data(markdown.utf8).write(
-      to: briefDirectory.appendingPathComponent("DESIGN_SYSTEM.md"),
+      to: briefDirectory.appendingPathComponent("DESIGN.md"),
       options: .atomic
     )
   }
@@ -302,7 +302,7 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
     metadataLines.append("- Design system: \(project.designSystem.displayName)")
 
     let designSystemGuidance = project.designSystem.kind == .custom
-      ? "\nThis project uses the **\(project.designSystem.displayName)** design system. Follow `resources/design-system/DESIGN_SYSTEM.md` for its colors, type, spacing, and component families, and reuse them throughout the UI.\n"
+      ? "\nThis project uses the **\(project.designSystem.displayName)** design system. Follow `resources/design-system/DESIGN.md` for its colors, type, spacing, and component families, and reuse them throughout the UI.\n"
       : ""
 
     return """

@@ -234,7 +234,7 @@ struct EaselProjectManagerTests {
     ))
 
     let projectURL = URL(fileURLWithPath: project.workingDirectory)
-    let briefURL = projectURL.appendingPathComponent("resources/design-system/DESIGN_SYSTEM.md")
+    let briefURL = projectURL.appendingPathComponent("resources/design-system/DESIGN.md")
     #expect(FileManager.default.fileExists(atPath: briefURL.path))
 
     let brief = try String(contentsOf: briefURL, encoding: .utf8)
@@ -243,7 +243,7 @@ struct EaselProjectManagerTests {
     #expect(brief.contains("Button"))
 
     let readme = try String(contentsOf: projectURL.appendingPathComponent("README.md"), encoding: .utf8)
-    #expect(readme.contains("resources/design-system/DESIGN_SYSTEM.md"))
+    #expect(readme.contains("resources/design-system/DESIGN.md"))
   }
 
   private func temporaryRoot() -> URL {

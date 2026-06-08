@@ -473,7 +473,7 @@ enum EaselDesignSystemCatalogHTMLRenderer {
         }
 
         function renderCatalog(catalog) {
-          summaryEl.textContent = catalog.summary || "Local design-system reference.";
+          summaryEl.textContent = catalog.summary || "Local design system.";
           if (catalog.disclaimer) {
             disclaimerEl.textContent = catalog.disclaimer;
             disclaimerEl.hidden = false;
