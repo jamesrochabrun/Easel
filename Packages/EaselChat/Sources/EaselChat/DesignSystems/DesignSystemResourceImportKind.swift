@@ -17,13 +17,17 @@ enum DesignSystemResourceImportKind: String, Identifiable {
     case .code:
       return [.folder]
     case .fig:
-      return [Self.figType, .data, .item]
+      // Restrict to .fig only so other files can't be selected by accident.
+      return [Self.figType]
     case .assets:
       return [.item]
     }
   }
 
   private static var figType: UTType {
-    UTType(filenameExtension: "fig") ?? .data
+    // A dynamic UTType derived from the extension still filters the picker to
+    // `.fig` files. Fall back to a restrictive type rather than `.data`/`.item`,
+    // which would re-allow every file.
+    UTType(filenameExtension: "fig") ?? .json
   }
 }

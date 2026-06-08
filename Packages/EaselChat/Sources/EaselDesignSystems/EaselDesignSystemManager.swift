@@ -12,6 +12,11 @@ public protocol EaselDesignSystemManaging: Sendable {
   func loadCatalog(forDesignSystemAt path: String) async throws -> EaselDesignSystemCatalog?
 }
 
+public enum EaselDesignSystemImportScheduling: Sendable {
+  case background
+  case immediate
+}
+
 public enum EaselDesignSystemManagerError: LocalizedError, Equatable, Sendable {
   case missingDesignSystemDirectory(String)
   case emptyDesignSystemDescription
@@ -34,6 +39,8 @@ public actor LocalEaselDesignSystemManager: EaselDesignSystemManaging {
   private let fileManager: FileManager
   private let encoder: JSONEncoder
   private let decoder: JSONDecoder
+  private let designSystemImporter: any EaselDesignSystemImporting
+  private let importScheduling: EaselDesignSystemImportScheduling
 
   private static let metadataDirectoryName = ".easel"
   private static let metadataFileName = "design-system.json"
@@ -41,10 +48,14 @@ public actor LocalEaselDesignSystemManager: EaselDesignSystemManaging {
 
   public init(
     rootDirectory: URL? = nil,
-    fileManager: FileManager = .default
+    fileManager: FileManager = .default,
+    designSystemImporter: any EaselDesignSystemImporting = LocalEaselDesignSystemImporter(),
+    importScheduling: EaselDesignSystemImportScheduling = .background
   ) {
     self.fileManager = fileManager
     self.rootDirectory = rootDirectory ?? Self.defaultRootDirectory(fileManager: fileManager)
+    self.designSystemImporter = designSystemImporter
+    self.importScheduling = importScheduling
 
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -107,8 +118,14 @@ public actor LocalEaselDesignSystemManager: EaselDesignSystemManaging {
     )
 
     try writeScaffold(for: profile, at: directoryURL)
-    try importResources(from: request, into: directoryURL)
+    let importedResources = try importResources(from: request, into: directoryURL)
     try writeMetadata(profile, in: directoryURL)
+    await scheduleImportIfNeeded(
+      profile: profile,
+      directoryURL: directoryURL,
+      figFileURLs: importedResources.figFileURLs,
+      importMode: request.figImportMode
+    )
     return profile
   }
 
@@ -223,7 +240,7 @@ public actor LocalEaselDesignSystemManager: EaselDesignSystemManaging {
     try write(indexHTML(for: profile), to: directoryURL.appendingPathComponent("index.html"))
   }
 
-  private func importResources(from request: EaselDesignSystemCreateRequest, into directoryURL: URL) throws {
+  private func importResources(from request: EaselDesignSystemCreateRequest, into directoryURL: URL) throws -> ImportedDesignSystemResourceURLs {
     let resourcesURL = directoryURL.appendingPathComponent("resources", isDirectory: true)
 
     try copySources(
@@ -231,7 +248,7 @@ public actor LocalEaselDesignSystemManager: EaselDesignSystemManaging {
       to: resourcesURL.appendingPathComponent("code", isDirectory: true),
       skipsGeneratedFolders: true
     )
-    try copySources(
+    let figFileURLs = try copySources(
       request.figFileURLs,
       to: resourcesURL.appendingPathComponent("figma", isDirectory: true),
       skipsGeneratedFolders: false
@@ -241,11 +258,15 @@ public actor LocalEaselDesignSystemManager: EaselDesignSystemManaging {
       to: resourcesURL.appendingPathComponent("assets", isDirectory: true),
       skipsGeneratedFolders: true
     )
+
+    return ImportedDesignSystemResourceURLs(figFileURLs: figFileURLs)
   }
 
-  private func copySources(_ sourceURLs: [URL], to destinationDirectory: URL, skipsGeneratedFolders: Bool) throws {
-    guard !sourceURLs.isEmpty else { return }
+  @discardableResult
+  private func copySources(_ sourceURLs: [URL], to destinationDirectory: URL, skipsGeneratedFolders: Bool) throws -> [URL] {
+    guard !sourceURLs.isEmpty else { return [] }
     try fileManager.createDirectory(at: destinationDirectory, withIntermediateDirectories: true)
+    var copiedURLs: [URL] = []
 
     for sourceURL in sourceURLs {
       let isAccessing = sourceURL.startAccessingSecurityScopedResource()
@@ -275,6 +296,35 @@ public actor LocalEaselDesignSystemManager: EaselDesignSystemManaging {
       } else {
         try fileManager.copyItem(at: source, to: destination)
       }
+      copiedURLs.append(destination)
+    }
+
+    return copiedURLs
+  }
+
+  private func scheduleImportIfNeeded(
+    profile: EaselDesignSystemProfile,
+    directoryURL: URL,
+    figFileURLs: [URL],
+    importMode: EaselDesignSystemFigImportMode
+  ) async {
+    guard !figFileURLs.isEmpty else { return }
+
+    let request = EaselDesignSystemImportRequest(
+      profile: profile,
+      directoryURL: directoryURL,
+      figFileURLs: figFileURLs,
+      importMode: importMode
+    )
+
+    switch importScheduling {
+    case .background:
+      let importer = designSystemImporter
+      Task.detached(priority: .utility) {
+        _ = await importer.importDesignSystemResources(request)
+      }
+    case .immediate:
+      _ = await designSystemImporter.importDesignSystemResources(request)
     }
   }
 
@@ -431,90 +481,14 @@ public actor LocalEaselDesignSystemManager: EaselDesignSystemManaging {
   }
 
   private func indexHTML(for profile: EaselDesignSystemProfile) -> String {
-    let title = escapedHTML(profile.name)
-    let blurb = escapedHTML(profile.blurb)
-
-    return """
-    <!doctype html>
-    <html lang="en">
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <title>\(title)</title>
-      <style>
-        :root {
-          color-scheme: light;
-          --ink: #22201d;
-          --muted: #6f6a63;
-          --surface: #fbfaf8;
-          --line: #dedbd5;
-        }
-
-        * {
-          box-sizing: border-box;
-        }
-
-        body {
-          margin: 0;
-          min-height: 100vh;
-          font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-          color: var(--ink);
-          background: var(--surface);
-        }
-
-        main {
-          width: min(920px, calc(100vw - 40px));
-          margin: 0 auto;
-          padding: 72px 0;
-        }
-
-        h1 {
-          margin: 0 0 16px;
-          font-size: clamp(40px, 8vw, 84px);
-          line-height: 0.95;
-          letter-spacing: 0;
-        }
-
-        p {
-          max-width: 680px;
-          margin: 0;
-          color: var(--muted);
-          font-size: 18px;
-          line-height: 1.55;
-        }
-
-        .panel {
-          margin-top: 40px;
-          border: 1px solid var(--line);
-          border-radius: 8px;
-          padding: 24px;
-          background: white;
-        }
-      </style>
-    </head>
-    <body>
-      <main>
-        <h1>\(title)</h1>
-        <p>\(blurb)</p>
-        <div class="panel">
-          <p>Codex will replace this scaffold with a browsable component catalog and write metadata to <code>.easel/catalog.json</code>.</p>
-        </div>
-      </main>
-    </body>
-    </html>
-    """
-  }
-
-  private func escapedHTML(_ value: String) -> String {
-    value
-      .replacingOccurrences(of: "&", with: "&amp;")
-      .replacingOccurrences(of: "<", with: "&lt;")
-      .replacingOccurrences(of: ">", with: "&gt;")
-      .replacingOccurrences(of: "\"", with: "&quot;")
-      .replacingOccurrences(of: "'", with: "&#39;")
+    EaselDesignSystemCatalogHTMLRenderer.html(title: profile.name, blurb: profile.blurb)
   }
 
   private func write(_ contents: String, to url: URL) throws {
     try contents.data(using: .utf8)?.write(to: url, options: .atomic)
   }
+}
+
+private struct ImportedDesignSystemResourceURLs {
+  let figFileURLs: [URL]
 }

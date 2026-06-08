@@ -3,6 +3,7 @@
 //  EaselChat
 //
 
+import EaselDesignSystems
 import EaselSlides
 import Foundation
 
@@ -178,6 +179,46 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
     if project.kind == .slideDeck {
       try write(SlideDeckScaffold.deckStageJavaScript, to: directoryURL.appendingPathComponent("deck-stage.js"))
     }
+
+    writeDesignSystemBrief(for: project, at: directoryURL)
+  }
+
+  /// Copies a compact spec of a custom design system into the project so the
+  /// agent can reuse its tokens/components. Best-effort: a missing or
+  /// not-yet-extracted catalog still produces a name-only brief.
+  private func writeDesignSystemBrief(for project: EaselDesignProject, at directoryURL: URL) {
+    let choice = project.designSystem
+    guard choice.kind == .custom, let designSystemDirectory = choice.workingDirectory else {
+      return
+    }
+
+    let catalog = loadDesignSystemCatalog(atDesignSystemDirectory: designSystemDirectory)
+    let markdown = DesignSystemBriefBuilder.markdown(
+      displayName: choice.displayName,
+      detail: choice.detail,
+      notes: choice.notes,
+      catalog: catalog
+    )
+
+    let briefDirectory = directoryURL
+      .appendingPathComponent(ProjectResource.resourcesDirectoryName, isDirectory: true)
+      .appendingPathComponent("design-system", isDirectory: true)
+    try? fileManager.createDirectory(at: briefDirectory, withIntermediateDirectories: true)
+    try? Data(markdown.utf8).write(
+      to: briefDirectory.appendingPathComponent("DESIGN_SYSTEM.md"),
+      options: .atomic
+    )
+  }
+
+  private func loadDesignSystemCatalog(atDesignSystemDirectory directory: String) -> EaselDesignSystemCatalog? {
+    let catalogURL = URL(fileURLWithPath: directory, isDirectory: true)
+      .appendingPathComponent(".easel", isDirectory: true)
+      .appendingPathComponent("catalog.json")
+    guard let data = try? Data(contentsOf: catalogURL) else { return nil }
+
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    return try? decoder.decode(EaselDesignSystemCatalog.self, from: data)
   }
 
   private func write(_ contents: String, to url: URL) throws {
@@ -260,13 +301,17 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
 
     metadataLines.append("- Design system: \(project.designSystem.displayName)")
 
+    let designSystemGuidance = project.designSystem.kind == .custom
+      ? "\nThis project uses the **\(project.designSystem.displayName)** design system. Follow `resources/design-system/DESIGN_SYSTEM.md` for its colors, type, spacing, and component families, and reuse them throughout the UI.\n"
+      : ""
+
     return """
     # \(project.name)
 
     Created by Codex Design.
 
     \(metadataLines.joined(separator: "\n"))
-
+    \(designSystemGuidance)
     Add project assets to `resources/` so Codex can inspect and use them while designing.
 
     Run `npm run dev` to preview this folder in Codex Design.

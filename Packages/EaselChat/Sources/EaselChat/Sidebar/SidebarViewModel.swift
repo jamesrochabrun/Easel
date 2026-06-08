@@ -30,6 +30,10 @@ public final class SidebarViewModel {
 
   public var onSessionSelected: ((StoredSession) -> Void)?
   public var onNewChatRequested: ((String?) -> Void)?
+  /// Activate a workspace (project or design system) as the current one.
+  /// Passes the working directory and the most recent session in that
+  /// workspace, if any. The working directory drives project metadata lookup.
+  public var onOpenWorkspace: ((String?, StoredSession?) -> Void)?
   public var onProjectLaunchRequested: ((EaselProjectLaunch) -> Void)?
   public var onCreateDesignSystemRequested: (() -> Void)?
   public var onBrowseDesignSystemsRequested: (() -> Void)?
@@ -95,6 +99,7 @@ public final class SidebarViewModel {
       let projects = (try? await projectManager.loadProjects()) ?? []
       projectGroups = ProjectGroup.groups(
         projects: projects,
+        designSystems: customDesignSystems,
         sessions: sessions,
         previousExpansion: previousExpansion
       )
@@ -141,6 +146,11 @@ public final class SidebarViewModel {
   func selectSession(_ session: StoredSession) {
     selectedSessionId = session.id
     onSessionSelected?(session)
+  }
+
+  func openWorkspace(_ group: ProjectGroup) {
+    selectedSessionId = group.sessions.first?.id
+    onOpenWorkspace?(group.workingDirectory, group.sessions.first)
   }
 
   func requestNewChat(workingDirectory: String?) {

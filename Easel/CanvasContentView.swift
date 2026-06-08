@@ -143,6 +143,25 @@ struct CanvasContentView: View {
           await libraryVM.refresh()
         }
       }
+      vm.onOpenWorkspace = { workingDirectory, latestSession in
+        guard chatService.currentWorkingDirectory != workingDirectory else { return }
+        enterWorkspace()
+        Task {
+          await chatService.initialize()
+          // Switching/starting a session sets the working directory, which
+          // auto-resolves currentProject (nil for a design system folder).
+          if let latestSession {
+            await chatService.switchToSession(latestSession)
+          } else if let workingDirectory {
+            await chatService.startNewSession(workingDirectory: workingDirectory)
+          }
+          if let dir = workingDirectory {
+            await startDevServer(for: dir)
+          }
+          await vm.loadSessions()
+          await libraryVM.refresh()
+        }
+      }
       vm.onCreateDesignSystemRequested = {
         isDesignSystemSetupPresented = true
       }

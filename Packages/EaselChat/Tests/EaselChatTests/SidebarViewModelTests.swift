@@ -158,7 +158,7 @@ struct SidebarViewModelTests {
       id: UUID(),
       name: "Archive",
       kind: .prototype,
-      designSystem: .airbnb,
+      designSystem: .none,
       fidelity: .highFidelity,
       workingDirectory: "/tmp/archive",
       createdAt: Date(),
@@ -305,7 +305,7 @@ private actor SidebarProjectManagerStub: EaselProjectManaging {
 
   func createProject(from request: EaselProjectCreateRequest) async throws -> EaselDesignProject {
     createRequests.append(request)
-    projects[0]
+    return projects[0]
   }
 
   func deleteProject(_ project: EaselDesignProject) async throws {

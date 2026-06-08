@@ -3,11 +3,13 @@
 //  EaselChat
 //
 
+import EaselDesignSystems
 import Foundation
 
 @Observable @MainActor
 public final class ProjectResourcesViewModel {
   public private(set) var projects: [EaselDesignProject] = []
+  public private(set) var designSystems: [EaselDesignSystemProfile] = []
   public private(set) var resources: [ProjectResource] = []
   public private(set) var projectStructureSections: [ProjectStructureSection] = []
   public private(set) var selectedItem: ProjectResourcePanelItem?
@@ -21,18 +23,26 @@ public final class ProjectResourcesViewModel {
 
   private let projectManager: any EaselProjectManaging
   private let resourceManager: any ProjectResourceManaging
+  private let designSystemManager: any EaselDesignSystemManaging
 
   public init(
     projectManager: any EaselProjectManaging = LocalEaselProjectManager(),
-    resourceManager: any ProjectResourceManaging = LocalProjectResourceManager()
+    resourceManager: any ProjectResourceManaging = LocalProjectResourceManager(),
+    designSystemManager: any EaselDesignSystemManaging = LocalEaselDesignSystemManager()
   ) {
     self.projectManager = projectManager
     self.resourceManager = resourceManager
+    self.designSystemManager = designSystemManager
   }
 
   public var selectedProject: EaselDesignProject? {
     guard let selectedProjectPath else { return nil }
     return projects.first { $0.workingDirectory == selectedProjectPath }
+  }
+
+  public var selectedDesignSystem: EaselDesignSystemProfile? {
+    guard let selectedProjectPath else { return nil }
+    return designSystems.first { $0.workingDirectory == selectedProjectPath }
   }
 
   public var hasProjectFiles: Bool {
@@ -46,6 +56,7 @@ public final class ProjectResourcesViewModel {
     do {
       let loadedProjects = try await projectManager.loadProjects()
       projects = loadedProjects
+      designSystems = (try? await designSystemManager.loadDesignSystems()) ?? []
       selectedProjectPath = Self.preferredSelection(
         currentProjectPath: currentProjectPath,
         existingSelection: selectedProjectPath,
@@ -55,6 +66,7 @@ public final class ProjectResourcesViewModel {
       errorMessage = nil
     } catch {
       projects = []
+      designSystems = []
       resources = []
       projectStructureSections = []
       selectedItem = nil
@@ -188,11 +200,14 @@ public final class ProjectResourcesViewModel {
     existingSelection: String?,
     projects: [EaselDesignProject]
   ) -> String? {
-    if let currentProjectPath, projects.contains(where: { $0.workingDirectory == currentProjectPath }) {
+    // Honor the active working directory directly — it may be a managed project
+    // or a design system, both of which hold resources loadable by path. Only
+    // fall back to the first project when no workspace is active.
+    if let currentProjectPath, !currentProjectPath.isEmpty {
       return currentProjectPath
     }
 
-    if let existingSelection, projects.contains(where: { $0.workingDirectory == existingSelection }) {
+    if let existingSelection, !existingSelection.isEmpty {
       return existingSelection
     }
 
