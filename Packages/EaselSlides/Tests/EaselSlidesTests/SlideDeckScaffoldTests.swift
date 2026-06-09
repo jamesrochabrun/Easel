@@ -19,6 +19,9 @@ struct SlideDeckScaffoldTests {
     #expect(html.contains("data-easel-deck"))
     #expect(html.contains("data-easel-slide"))
     #expect(html.contains("data-title=\"Opening\""))
+    #expect(html.contains("easel-slide-safe"))
+    #expect(html.contains("data-layout=\"hero\""))
+    #expect(html.contains("data-layout=\"content\""))
     #expect(html.contains("<script src=\"./deck-stage.js\"></script>"))
   }
 
@@ -49,6 +52,21 @@ struct SlideDeckScaffoldTests {
   }
 
   @Test
+  func layoutTemplateProvidesReusableSafeSlideClasses() {
+    let css = SlideDeckScaffold.layoutTemplateCSS
+    let markdown = SlideDeckScaffold.layoutTemplateMarkdown
+
+    #expect(css.contains(".easel-slide-safe"))
+    #expect(css.contains("grid-template-rows: auto minmax(0, 1fr) auto"))
+    #expect(css.contains("data-density=\"dense\""))
+    #expect(css.contains("overflow: hidden"))
+    #expect(markdown.contains("# Easel Slide Template"))
+    #expect(markdown.contains("1280x720"))
+    #expect(markdown.contains("Put all visible slide content inside `.easel-slide-safe`"))
+    #expect(markdown.contains("<section data-easel-slide"))
+  }
+
+  @Test
   func deckStageJavaScriptEnforcesFullBleedStage() {
     let script = SlideDeckScaffold.deckStageJavaScript
 
@@ -74,6 +92,7 @@ struct SlideDeckScaffoldTests {
     #expect(SlideDeckContract.authoringSummary.contains("box shadow"))
     #expect(SlideDeckContract.authoringSummary.contains("clip to the square 16:9 slide bounds"))
     #expect(SlideDeckContract.authoringSummary.contains("inner rounded card"))
+    #expect(SlideDeckContract.authoringSummary.contains("resources/SLIDE_TEMPLATE.md"))
     #expect(SlideDeckContract.authoringSummary.contains("1280x720"))
     #expect(SlideDeckContract.authoringSummary.contains("without vertical or horizontal overflow"))
     #expect(SlideDeckContract.authoringSummary.contains("minmax(0, 1fr)"))

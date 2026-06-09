@@ -68,6 +68,8 @@ struct EaselAgentInstructionsTests {
     #expect(context.contains("16:9"))
     #expect(context.contains("full-bleed"))
     #expect(context.contains("no body padding"))
+    #expect(context.contains("resources/SLIDE_TEMPLATE.md"))
+    #expect(context.contains("1280x720"))
     #expect(context.contains("Current prototype fidelity") == false)
     #expect(context.contains("Prototype fidelity guidance") == false)
   }

@@ -178,6 +178,10 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
 
     if project.kind == .slideDeck {
       try write(SlideDeckScaffold.deckStageJavaScript, to: directoryURL.appendingPathComponent("deck-stage.js"))
+      try write(
+        SlideDeckScaffold.layoutTemplateMarkdown,
+        to: directoryURL.appendingPathComponent(SlideDeckContract.templateResourcePath)
+      )
     }
 
     writeDesignSystemBrief(for: project, at: directoryURL)
@@ -306,7 +310,7 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
       : ""
 
     let slideDeckGuidance = project.kind == .slideDeck
-      ? "\nSlide deck layout: \(SlideDeckContract.authoringSummary)\n"
+      ? "\nSlide deck layout: \(SlideDeckContract.authoringSummary)\n\nReusable slide template: `\(SlideDeckContract.templateResourcePath)`\n"
       : ""
 
     return """
