@@ -158,11 +158,32 @@ public struct DesignSystemBrowserView: View {
 
             Spacer()
 
-            if let workingDirectory = selectedChoice.workingDirectory {
-              Button("Open Folder", systemImage: "folder") {
-                openFolder(at: workingDirectory)
+            HStack(spacing: 10) {
+              if viewModel.canRegenerate {
+                Button {
+                  Task { await viewModel.regenerate() }
+                } label: {
+                  if viewModel.isRegenerating {
+                    HStack(spacing: 6) {
+                      ProgressView()
+                        .controlSize(.small)
+                      Text("Regenerating…")
+                    }
+                  } else {
+                    Label("Regenerate", systemImage: "arrow.clockwise")
+                  }
+                }
+                .buttonStyle(.bordered)
+                .disabled(viewModel.isRegenerating)
+                .help("Re-import the stored Figma file using the latest catalog logic")
               }
-              .buttonStyle(.bordered)
+
+              if let workingDirectory = selectedChoice.workingDirectory {
+                Button("Open Folder", systemImage: "folder") {
+                  openFolder(at: workingDirectory)
+                }
+                .buttonStyle(.bordered)
+              }
             }
           }
 

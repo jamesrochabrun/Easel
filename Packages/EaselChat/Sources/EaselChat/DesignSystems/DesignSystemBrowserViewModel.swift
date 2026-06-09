@@ -11,7 +11,13 @@ public final class DesignSystemBrowserViewModel {
   public private(set) var selectedChoice: EaselDesignSystemChoice?
   public private(set) var selectedCatalog: EaselDesignSystemCatalog?
   public private(set) var isLoadingCatalog = false
+  public private(set) var isRegenerating = false
   public private(set) var errorMessage: String?
+
+  /// Whether the selected design system has a local folder that can be re-imported.
+  public var canRegenerate: Bool {
+    selectedChoice?.kind == .custom && selectedChoice?.workingDirectory != nil
+  }
 
   private let designSystemManager: any EaselDesignSystemManaging
 
@@ -51,6 +57,28 @@ public final class DesignSystemBrowserViewModel {
         )
     } catch {
       selectedCatalog = nil
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  /// Re-runs the import pipeline for the selected local design system and shows
+  /// the freshly generated catalog. The parser's cached output is reused, so an
+  /// unchanged source skips re-parsing.
+  public func regenerate() async {
+    guard let workingDirectory = selectedChoice?.workingDirectory else { return }
+
+    isRegenerating = true
+    defer { isRegenerating = false }
+    errorMessage = nil
+
+    do {
+      let result = try await designSystemManager.regenerateDesignSystem(forDesignSystemAt: workingDirectory)
+      if let catalog = result.catalog {
+        selectedCatalog = catalog
+      } else if let reloaded = try await designSystemManager.loadCatalog(forDesignSystemAt: workingDirectory) {
+        selectedCatalog = reloaded
+      }
+    } catch {
       errorMessage = error.localizedDescription
     }
   }

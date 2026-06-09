@@ -100,6 +100,79 @@ struct EaselDesignSystemManagerTests {
   }
 
   @Test
+  func regenerateDesignSystemReimportsStoredFigSources() async throws {
+    let rootDirectory = temporaryRoot(named: "DesignSystemRegenerateTests")
+    let sourceDirectory = temporaryRoot(named: "DesignSystemRegenerateSourceTests")
+    defer {
+      try? FileManager.default.removeItem(at: rootDirectory)
+      try? FileManager.default.removeItem(at: sourceDirectory)
+    }
+
+    try FileManager.default.createDirectory(at: sourceDirectory, withIntermediateDirectories: true)
+    let figURL = sourceDirectory.appendingPathComponent("System.fig")
+    try Data([0, 1, 2]).write(to: figURL)
+
+    let importer = RecordingDesignSystemImporter()
+    let manager = LocalEaselDesignSystemManager(
+      rootDirectory: rootDirectory,
+      designSystemImporter: importer,
+      importScheduling: .immediate
+    )
+
+    let profile = try await manager.createDesignSystem(from: EaselDesignSystemCreateRequest(
+      blurb: "AgentHub Design System",
+      sourceLinks: [],
+      codeSourceURLs: [],
+      figFileURLs: [figURL],
+      figImportMode: .extractCatalog,
+      assetURLs: [],
+      notes: ""
+    ))
+
+    // Regeneration should re-run the import against the .fig copied into the
+    // design system folder — without needing the original source again.
+    try? FileManager.default.removeItem(at: sourceDirectory)
+    _ = try await manager.regenerateDesignSystem(forDesignSystemAt: profile.workingDirectory)
+
+    let requests = await importer.requests
+    #expect(requests.count == 2)
+    let regenerated = try #require(requests.last)
+    #expect(regenerated.profile.id == profile.id)
+    #expect(regenerated.importMode == .extractCatalog)
+    #expect(regenerated.figFileURLs.map(\.lastPathComponent) == ["System.fig"])
+    // The source comes from the design system's own retained resources (path is
+    // symlink-resolved on macOS, so match the stored-resources suffix).
+    #expect(regenerated.figFileURLs.first?.path.hasSuffix("resources/figma/System.fig") == true)
+  }
+
+  @Test
+  func regenerateDesignSystemWithoutFigSourcesThrows() async throws {
+    let rootDirectory = temporaryRoot(named: "DesignSystemRegenerateNoFigTests")
+    defer { try? FileManager.default.removeItem(at: rootDirectory) }
+
+    let importer = RecordingDesignSystemImporter()
+    let manager = LocalEaselDesignSystemManager(
+      rootDirectory: rootDirectory,
+      designSystemImporter: importer,
+      importScheduling: .immediate
+    )
+
+    let profile = try await manager.createDesignSystem(from: EaselDesignSystemCreateRequest(
+      blurb: "No Sources Design System",
+      sourceLinks: [],
+      codeSourceURLs: [],
+      figFileURLs: [],
+      figImportMode: .extractCatalog,
+      assetURLs: [],
+      notes: ""
+    ))
+
+    await #expect(throws: EaselDesignSystemManagerError.noFigSourcesToRegenerate) {
+      _ = try await manager.regenerateDesignSystem(forDesignSystemAt: profile.workingDirectory)
+    }
+  }
+
+  @Test
   func createDesignSystemUsesUniqueFoldersForDuplicateNames() async throws {
     let rootDirectory = temporaryRoot(named: "DesignSystemDuplicateTests")
     defer { try? FileManager.default.removeItem(at: rootDirectory) }
@@ -622,6 +695,113 @@ struct EaselDesignSystemManagerTests {
 
     let example = try #require(catalog.examples?.first { $0.title == "Dashboard Screen" })
     #expect(example.preview?.layers.isEmpty == false)
+  }
+
+  // Files organized as one Figma page per component (e.g. PlusPlus) surface
+  // page-level CANVAS nodes as examples. A CANVAS has no width/height of its
+  // own, so without resolving a framed descendant every example preview comes
+  // back nil and renders as an empty placeholder in the catalog viewer.
+  @Test
+  func extractImportRendersPreviewForPageLevelCanvasExamples() async throws {
+    let rootDirectory = temporaryRoot(named: "DesignSystemCanvasExampleTests")
+    defer { try? FileManager.default.removeItem(at: rootDirectory) }
+
+    let figURL = rootDirectory.appendingPathComponent("System.fig")
+    try FileManager.default.createDirectory(at: rootDirectory, withIntermediateDirectories: true)
+    try Data([16, 17, 18]).write(to: figURL)
+
+    let document = EaselParsedFigDocument(
+      parser: EaselParsedFigParser(name: "fixture-parser", version: "1.0"),
+      document: EaselParsedFigDocumentInfo(nodeCount: 3, pageCount: 1),
+      nodes: [
+        // A Figma page: a reference candidate, but with no bounding box of its own.
+        EaselParsedFigNode(
+          id: "30:1", type: "CANVAS", name: "Accordion", parentID: nil, pageName: "Accordion",
+          depth: 1, x: 0, y: 0, width: nil, height: nil, childCount: 1,
+          fillColors: [], strokeColors: [], fontFamily: nil, fontStyle: nil,
+          fontSize: nil, text: nil, cornerRadius: nil, effectTypes: []
+        ),
+        // The representative framed child the preview should resolve to.
+        EaselParsedFigNode(
+          id: "30:2", type: "FRAME", name: "Accordion Example", parentID: "30:1", pageName: "Accordion",
+          depth: 2, x: 120, y: -80, width: 360, height: 200, childCount: 1,
+          fillColors: ["#FFFFFF"], strokeColors: [], fontFamily: nil, fontStyle: nil,
+          fontSize: nil, text: nil, cornerRadius: 8, effectTypes: []
+        ),
+        EaselParsedFigNode(
+          id: "30:3", type: "TEXT", name: "Title", parentID: "30:2", pageName: "Accordion",
+          depth: 3, x: 16, y: 16, width: 200, height: 24, childCount: 0,
+          fillColors: ["#111111"], strokeColors: [], fontFamily: "Inter", fontStyle: "Semi Bold",
+          fontSize: 18, text: "Accordion", cornerRadius: nil, effectTypes: []
+        ),
+      ]
+    )
+
+    let importer = LocalEaselDesignSystemImporter(parser: FixtureFigFileParser(document: document))
+    let result = await importer.importDesignSystemResources(EaselDesignSystemImportRequest(
+      profile: makeProfile(workingDirectory: rootDirectory.path),
+      directoryURL: rootDirectory,
+      figFileURLs: [figURL],
+      importMode: .extractCatalog
+    ))
+
+    let catalog = try #require(result.catalog)
+    let example = try #require(catalog.examples?.first { $0.title == "Accordion" })
+    let scene = try #require(example.preview, "page-level CANVAS example should resolve a framed preview")
+    // Scene dimensions come from the resolved child frame, not the box-less page.
+    #expect(scene.width == 360)
+    #expect(scene.height == 200)
+    #expect(scene.layers.contains { $0.kind == .text && $0.text == "Accordion" })
+  }
+
+  // Pages that resolve to oversized documentation boards (e.g. a 1536x6192 spec
+  // page) would shrink to an illegible sliver in the gallery, so they are gated
+  // out — and with no qualifying examples the section hides itself entirely.
+  @Test
+  func extractImportDropsOversizedDocumentationExamples() async throws {
+    let rootDirectory = temporaryRoot(named: "DesignSystemOversizedExampleTests")
+    defer { try? FileManager.default.removeItem(at: rootDirectory) }
+
+    let figURL = rootDirectory.appendingPathComponent("System.fig")
+    try FileManager.default.createDirectory(at: rootDirectory, withIntermediateDirectories: true)
+    try Data([19, 20, 21]).write(to: figURL)
+
+    let document = EaselParsedFigDocument(
+      parser: EaselParsedFigParser(name: "fixture-parser", version: "1.0"),
+      document: EaselParsedFigDocumentInfo(nodeCount: 3, pageCount: 1),
+      nodes: [
+        EaselParsedFigNode(
+          id: "40:1", type: "CANVAS", name: "Documentation", parentID: nil, pageName: "Documentation",
+          depth: 1, x: 0, y: 0, width: nil, height: nil, childCount: 1,
+          fillColors: [], strokeColors: [], fontFamily: nil, fontStyle: nil,
+          fontSize: nil, text: nil, cornerRadius: nil, effectTypes: []
+        ),
+        // A tall spec board — too large to read as a screen thumbnail.
+        EaselParsedFigNode(
+          id: "40:2", type: "SECTION", name: "Spec Board", parentID: "40:1", pageName: "Documentation",
+          depth: 2, x: 0, y: 0, width: 1536, height: 6192, childCount: 1,
+          fillColors: ["#FFFFFF"], strokeColors: [], fontFamily: nil, fontStyle: nil,
+          fontSize: nil, text: nil, cornerRadius: nil, effectTypes: []
+        ),
+        EaselParsedFigNode(
+          id: "40:3", type: "TEXT", name: "Spec", parentID: "40:2", pageName: "Documentation",
+          depth: 3, x: 16, y: 16, width: 400, height: 24, childCount: 0,
+          fillColors: ["#111111"], strokeColors: [], fontFamily: "Inter", fontStyle: "Regular",
+          fontSize: 14, text: "Spec", cornerRadius: nil, effectTypes: []
+        ),
+      ]
+    )
+
+    let importer = LocalEaselDesignSystemImporter(parser: FixtureFigFileParser(document: document))
+    let result = await importer.importDesignSystemResources(EaselDesignSystemImportRequest(
+      profile: makeProfile(workingDirectory: rootDirectory.path),
+      directoryURL: rootDirectory,
+      figFileURLs: [figURL],
+      importMode: .extractCatalog
+    ))
+
+    let catalog = try #require(result.catalog)
+    #expect(catalog.examples == nil, "oversized documentation boards should be gated out, hiding the section")
   }
 
   @Test
