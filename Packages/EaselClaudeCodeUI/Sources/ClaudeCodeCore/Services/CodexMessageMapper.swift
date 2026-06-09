@@ -116,12 +116,7 @@ enum CodexMessageMapper {
   static func todoToolUse(items: [CodexTodoItem]?, itemID: String?) -> ChatMessage? {
     guard let items, !items.isEmpty else { return nil }
 
-    let lines = items.map { item in
-      let status = item.status ?? "pending"
-      let content = item.content ?? item.id ?? "Todo"
-      return "[\(status)] \(content)"
-    }
-    let input = lines.joined(separator: "\n")
+    let input = todoChecklistMarkdown(from: items)
 
     return MessageFactory.toolUseMessage(
       toolName: "TodoWrite",
@@ -129,6 +124,33 @@ enum CodexMessageMapper {
       toolInputData: ToolInputData(parameters: ["todos": input]),
       toolUseID: itemID
     )
+  }
+
+  /// Codex emits the plan as a single `todo_list` item with no follow-up result.
+  /// Pair the tool use with a result so the card settles instead of showing a
+  /// perpetual "Working" spinner once the turn's plan snapshot is in.
+  static func todoToolResult(items: [CodexTodoItem]?, itemID: String?) -> ChatMessage? {
+    guard let items, !items.isEmpty else { return nil }
+
+    let done = items.filter { $0.completed == true }.count
+    return ChatMessage(
+      role: .toolResult,
+      content: "Plan updated · \(done)/\(items.count) done",
+      messageType: .toolResult,
+      toolName: "TodoWrite",
+      toolUseID: itemID
+    )
+  }
+
+  /// Renders todos as a markdown checklist (`- [x]` / `- [ ]`) so the shared todo
+  /// renderer shows real checkboxes and labels rather than raw status tags.
+  private static func todoChecklistMarkdown(from items: [CodexTodoItem]) -> String {
+    items.map { item in
+      let checkbox = item.completed == true ? "- [x]" : "- [ ]"
+      let label = item.text?.trimmingCharacters(in: .whitespacesAndNewlines)
+      return "\(checkbox) \(label?.isEmpty == false ? label! : "Todo")"
+    }
+    .joined(separator: "\n")
   }
 
   static func stringParameters(from arguments: [String: AnyCodable]?) -> [String: String] {
