@@ -194,8 +194,8 @@ public struct SlideDeckPreviewView: View {
             selectedIndex: selectedIndex,
             reloadToken: reloadToken,
             onMetadataChange: handleMetadataChange,
-            onLoadingChange: { isLoading = $0 },
-            onError: { errorMessage = $0 }
+            onLoadingChange: handleLoadingChange,
+            onError: handleError
           )
           .frame(
             width: SlideDeckRenderMetrics.renderSize.width,
@@ -284,6 +284,20 @@ public struct SlideDeckPreviewView: View {
     let width = min(availableWidth, availableHeight * SlideDeckRenderMetrics.aspectRatio)
     let height = width / SlideDeckRenderMetrics.aspectRatio
     return CGSize(width: width, height: height)
+  }
+
+  @MainActor
+  private func handleLoadingChange(_ nextIsLoading: Bool) {
+    Task { @MainActor in
+      isLoading = nextIsLoading
+    }
+  }
+
+  @MainActor
+  private func handleError(_ message: String) {
+    Task { @MainActor in
+      errorMessage = message
+    }
   }
 
   @MainActor

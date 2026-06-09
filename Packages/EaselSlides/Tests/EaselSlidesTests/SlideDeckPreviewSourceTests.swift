@@ -19,12 +19,38 @@ struct SlideDeckPreviewSourceTests {
   }
 
   @Test
+  func previewDefersRepresentableCallbackStateUpdates() throws {
+    let source = try sourceContents(
+      "Sources/EaselSlides/Views/SlideDeckPreviewView.swift"
+    )
+
+    #expect(source.contains("onLoadingChange: handleLoadingChange"))
+    #expect(source.contains("onError: handleError"))
+    #expect(source.contains("Task { @MainActor in"))
+    #expect(source.contains("onLoadingChange: { isLoading = $0 }") == false)
+    #expect(source.contains("onError: { errorMessage = $0 }") == false)
+  }
+
+  @Test
   func presentationFramesUseSquareClipping() throws {
     let source = try sourceContents(
       "Sources/EaselSlides/Views/SlideDeckPresentationView.swift"
     )
 
     #expect(source.contains(".clipped()"))
+  }
+
+  @Test
+  func presentationDefersRepresentableCallbackStateUpdates() throws {
+    let source = try sourceContents(
+      "Sources/EaselSlides/Views/SlideDeckPresentationView.swift"
+    )
+
+    #expect(source.contains("onLoadingChange: handleLoadingChange"))
+    #expect(source.contains("onError: handleError"))
+    #expect(source.contains("Task { @MainActor in"))
+    #expect(source.contains("onLoadingChange: { isLoading = $0 }") == false)
+    #expect(source.contains("onError: { errorMessage = $0 }") == false)
   }
 
   private func sourceContents(_ relativePath: String) throws -> String {
