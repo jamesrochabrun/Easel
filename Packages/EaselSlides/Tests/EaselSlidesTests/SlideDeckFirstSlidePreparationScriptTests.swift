@@ -16,6 +16,15 @@ struct SlideDeckFirstSlidePreparationScriptTests {
   }
 
   @Test
+  func scriptFastForwardsMotionForThumbnails() {
+    let script = SlideDeckFirstSlidePreparationScript.script
+
+    #expect(script.contains("const fastForwardMotion = true"))
+    #expect(script.contains("__easel-slide-preview-fast-motion"))
+    #expect(script.contains("animation-duration: 1ms !important"))
+  }
+
+  @Test
   func scriptEnforcesFullBleedDeckStage() {
     let script = SlideDeckFirstSlidePreparationScript.script
 

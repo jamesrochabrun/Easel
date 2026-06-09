@@ -193,6 +193,7 @@ public struct SlideDeckPreviewView: View {
             url: url,
             selectedIndex: selectedIndex,
             reloadToken: reloadToken,
+            fastForwardMotion: true,
             onMetadataChange: handleMetadataChange,
             onLoadingChange: handleLoadingChange,
             onError: handleError

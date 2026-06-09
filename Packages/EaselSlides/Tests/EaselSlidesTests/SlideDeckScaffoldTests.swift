@@ -74,5 +74,9 @@ struct SlideDeckScaffoldTests {
     #expect(SlideDeckContract.authoringSummary.contains("box shadow"))
     #expect(SlideDeckContract.authoringSummary.contains("clip to the square 16:9 slide bounds"))
     #expect(SlideDeckContract.authoringSummary.contains("inner rounded card"))
+    #expect(SlideDeckContract.authoringSummary.contains("1280x720"))
+    #expect(SlideDeckContract.authoringSummary.contains("without vertical or horizontal overflow"))
+    #expect(SlideDeckContract.authoringSummary.contains("minmax(0, 1fr)"))
+    #expect(SlideDeckContract.authoringSummary.contains("visible immediately in thumbnails"))
   }
 }

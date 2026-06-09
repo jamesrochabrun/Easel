@@ -19,6 +19,15 @@ struct SlideDeckPreviewSourceTests {
   }
 
   @Test
+  func editorPreviewFastForwardsSlideMotion() throws {
+    let source = try sourceContents(
+      "Sources/EaselSlides/Views/SlideDeckPreviewView.swift"
+    )
+
+    #expect(source.contains("fastForwardMotion: true"))
+  }
+
+  @Test
   func previewDefersRepresentableCallbackStateUpdates() throws {
     let source = try sourceContents(
       "Sources/EaselSlides/Views/SlideDeckPreviewView.swift"
@@ -41,6 +50,15 @@ struct SlideDeckPreviewSourceTests {
   }
 
   @Test
+  func presentationPreservesSlideMotion() throws {
+    let source = try sourceContents(
+      "Sources/EaselSlides/Views/SlideDeckPresentationView.swift"
+    )
+
+    #expect(source.contains("fastForwardMotion: false"))
+  }
+
+  @Test
   func presentationDefersRepresentableCallbackStateUpdates() throws {
     let source = try sourceContents(
       "Sources/EaselSlides/Views/SlideDeckPresentationView.swift"
@@ -51,6 +69,15 @@ struct SlideDeckPreviewSourceTests {
     #expect(source.contains("Task { @MainActor in"))
     #expect(source.contains("onLoadingChange: { isLoading = $0 }") == false)
     #expect(source.contains("onError: { errorMessage = $0 }") == false)
+  }
+
+  @Test
+  func thumbnailRendererFastForwardsSlideMotion() throws {
+    let source = try sourceContents(
+      "Sources/EaselSlides/Views/SlideDeckThumbnailRenderer.swift"
+    )
+
+    #expect(source.contains("fastForwardMotion: true"))
   }
 
   private func sourceContents(_ relativePath: String) throws -> String {

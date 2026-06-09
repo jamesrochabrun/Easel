@@ -11,6 +11,7 @@ struct SlideDeckWebView: NSViewRepresentable {
   let url: URL
   let selectedIndex: Int
   let reloadToken: UUID
+  let fastForwardMotion: Bool
   let onMetadataChange: @MainActor (SlideDeckMetadata) -> Void
   let onLoadingChange: @MainActor (Bool) -> Void
   let onError: @MainActor (String) -> Void
@@ -147,7 +148,10 @@ struct SlideDeckWebView: NSViewRepresentable {
 
         do {
           let result = try await evaluateJavaScript(
-            SlideDeckPreviewScript.installAndSelectScript(selectedIndex: index),
+            SlideDeckPreviewScript.installAndSelectScript(
+              selectedIndex: index,
+              fastForwardMotion: parent.fastForwardMotion
+            ),
             in: webView
           )
           self.parent.onMetadataChange(SlideDeckMetadataParser.metadata(from: result))

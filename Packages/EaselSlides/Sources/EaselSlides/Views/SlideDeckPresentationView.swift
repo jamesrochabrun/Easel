@@ -44,6 +44,7 @@ struct SlideDeckPresentationView: View {
           url: url,
           selectedIndex: selectedIndex,
           reloadToken: reloadToken,
+          fastForwardMotion: false,
           onMetadataChange: handleMetadataChange,
           onLoadingChange: handleLoadingChange,
           onError: handleError

@@ -10,7 +10,7 @@ public enum SlideDeckContract {
   public static let slideAttribute = "data-easel-slide"
   public static let titleAttribute = "data-title"
 
-  public static let authoringSummary = "Keep slides as `section[data-easel-slide]` elements inside one `data-easel-deck` stage. The deck stage must be full-bleed in Easel's 16:9 preview: `html`, `body`, and `[data-easel-deck]` fill the viewport with no body padding, centered card frame, rounded outer deck, border, or box shadow. Each `section[data-easel-slide]` is the slide canvas and must clip to the square 16:9 slide bounds with `overflow: hidden`; do not create an inner rounded card/frame/canvas that represents the slide itself. Put spacing inside each slide section, and set `data-title` for thumbnail labels when needed."
+  public static let authoringSummary = "Keep slides as `section[data-easel-slide]` elements inside one `data-easel-deck` stage. The deck stage must be full-bleed in Easel's 16:9 preview: `html`, `body`, and `[data-easel-deck]` fill the viewport with no body padding, centered card frame, rounded outer deck, border, or box shadow. Each `section[data-easel-slide]` is the slide canvas and must clip to the square 16:9 slide bounds with `overflow: hidden`; do not create an inner rounded card/frame/canvas that represents the slide itself. Design every slide against a fixed 1280x720 canvas: all text, charts, footer notes, and controls must fit inside that frame without vertical or horizontal overflow. Keep a safe inset around the content, avoid poster-scale type on dense slides, use `minmax(0, 1fr)` for grid rows/columns that can shrink, and split dense material into another slide instead of letting it clip. Slide content must be visible immediately in thumbnails even if decorative motion is present. Put spacing inside each slide section, and set `data-title` for thumbnail labels when needed."
 }
 
 public enum SlideDeckScaffold {
@@ -79,7 +79,7 @@ public enum SlideDeckScaffold {
           display: grid;
           align-content: center;
           gap: 24px;
-          padding: clamp(48px, 7vw, 92px);
+          padding: clamp(42px, 5vw, 64px);
           background: var(--surface);
           overflow: hidden;
           border: 0;
@@ -108,7 +108,7 @@ public enum SlideDeckScaffold {
         h1 {
           max-width: 820px;
           margin: 0;
-          font-size: clamp(56px, 8vw, 112px);
+          font-size: clamp(48px, 7vw, 92px);
           line-height: 0.95;
           letter-spacing: 0;
         }
@@ -117,7 +117,7 @@ public enum SlideDeckScaffold {
           max-width: 760px;
           margin: 0;
           color: var(--muted);
-          font-size: clamp(22px, 2.4vw, 34px);
+          font-size: clamp(18px, 2vw, 26px);
           line-height: 1.32;
         }
 
