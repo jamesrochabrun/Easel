@@ -744,19 +744,28 @@ enum EaselDesignSystemManifestNormalizer {
       )
     }
 
-    let examples = manifest.references.prefix(12).map { reference in
-      EaselDesignSystemExample(
+    // Examples are only surfaced when their schematic preview reads like a
+    // screen/frame thumbnail. Box-less pages resolve to a framed child (see
+    // `renderRoot`), but documentation boards still produce oversized or
+    // extreme-aspect scenes that shrink to an illegible sliver in the gallery —
+    // drop those so the section shows real screens or hides itself entirely.
+    let examples = manifest.references.compactMap { reference -> EaselDesignSystemExample? in
+      guard let preview = makeScene(
+        forNodeID: reference.sourceNodeID,
+        fileName: reference.sourceFileName,
+        indexes: sceneIndexes,
+        existingAssets: existingAssets
+      ), isPresentableExampleScene(preview) else {
+        return nil
+      }
+      return EaselDesignSystemExample(
         id: reference.id,
         title: reference.title,
         sourcePage: reference.sourcePageName,
-        preview: makeScene(
-          forNodeID: reference.sourceNodeID,
-          fileName: reference.sourceFileName,
-          indexes: sceneIndexes,
-          existingAssets: existingAssets
-        )
+        preview: preview
       )
     }
+    .prefix(12)
 
     let assets = makeAssets(from: records, existingAssets: existingAssets)
     let heroThumbnailPath = records
@@ -882,7 +891,8 @@ enum EaselDesignSystemManifestNormalizer {
     existingAssets: Set<String>
   ) -> EaselDesignSystemPreviewScene? {
     guard let index = indexes[fileName],
-          let root = index.nodesByID[nodeID],
+          let requestedNode = index.nodesByID[nodeID],
+          let root = renderRoot(for: requestedNode, in: index),
           let width = root.width, let height = root.height,
           width > 1, height > 1, width <= 8000, height <= 8000 else {
       return nil
@@ -940,7 +950,7 @@ enum EaselDesignSystemManifestNormalizer {
 
     if let background = root.fillColors.first {
       layers.append(EaselDesignSystemPreviewLayer(
-        id: "\(nodeID)-bg", kind: .rect, x: 0, y: 0, width: width, height: height,
+        id: "\(root.id)-bg", kind: .rect, x: 0, y: 0, width: width, height: height,
         cornerRadius: root.cornerRadius, fill: background
       ))
     }
@@ -953,6 +963,76 @@ enum EaselDesignSystemManifestNormalizer {
       background: root.fillColors.first,
       layers: layers
     )
+  }
+
+  /// Resolves the node to actually render for a preview scene.
+  ///
+  /// Most representative nodes (`COMPONENT`/`FRAME`) carry their own bounding
+  /// box, so they render as-is. But page-level `CANVAS` nodes — and any
+  /// container Figma never gives a frame box — have no width/height. Files
+  /// organized as one page per component (e.g. an "Accordion" page, an "Alert"
+  /// page) surface those pages as examples, and without this resolution every
+  /// one would fail `makeScene`'s dimension guard and show an empty placeholder.
+  /// In that case we descend a shallow window of descendants and render the
+  /// largest framed node as a representative single-frame preview.
+  private static func renderRoot(
+    for node: EaselParsedFigNode,
+    in index: FigSceneIndex
+  ) -> EaselParsedFigNode? {
+    func hasUsableBox(_ candidate: EaselParsedFigNode) -> Bool {
+      guard let width = candidate.width, let height = candidate.height else { return false }
+      return width > 1 && height > 1 && width <= 8000 && height <= 8000
+    }
+
+    if hasUsableBox(node) { return node }
+
+    // No bounding box of its own: search the shallowest level of descendants
+    // that contains framed nodes and return the largest one found there.
+    var frontier = index.childrenByParent[node.id] ?? []
+    var remainingDepth = 2
+    while !frontier.isEmpty, remainingDepth > 0 {
+      var deeper: [EaselParsedFigNode] = []
+      var best: EaselParsedFigNode?
+      var bestArea = 0.0
+      for child in frontier {
+        if hasUsableBox(child) {
+          let area = (child.width ?? 0) * (child.height ?? 0)
+          if area > bestArea {
+            bestArea = area
+            best = child
+          }
+        } else {
+          deeper.append(contentsOf: index.childrenByParent[child.id] ?? [])
+        }
+      }
+      if let best { return best }
+      frontier = deeper
+      remainingDepth -= 1
+    }
+
+    return nil
+  }
+
+  /// Largest dimension (px) a preview may have before it reads as a board or
+  /// documentation page rather than a single screen. A 4K-ish screen still fits;
+  /// tall spec pages (commonly 4000–6000px) do not.
+  private static let maxPresentableExampleSide: Double = 2600
+  /// Widest long-to-short ratio a preview may have before it renders as a sliver.
+  private static let maxPresentableExampleAspect: Double = 6
+
+  /// Whether a schematic preview is worth surfacing in the Examples gallery.
+  ///
+  /// The gallery scales each scene to fit a small tile (`preserveAspectRatio`),
+  /// so oversized or extreme-aspect scenes — typically documentation boards
+  /// rather than screens — collapse into an unreadable strip. Gating on size and
+  /// aspect lets files made of real app screens keep their examples while files
+  /// organized as spec pages drop them, and the section hides itself when none
+  /// qualify.
+  private static func isPresentableExampleScene(_ scene: EaselDesignSystemPreviewScene) -> Bool {
+    let longSide = max(scene.width, scene.height)
+    let shortSide = min(scene.width, scene.height)
+    guard shortSide >= 24, longSide <= maxPresentableExampleSide else { return false }
+    return longSide / shortSide <= maxPresentableExampleAspect
   }
 
   /// Keeps the legacy text-only `componentGroups` populated for back-compat with

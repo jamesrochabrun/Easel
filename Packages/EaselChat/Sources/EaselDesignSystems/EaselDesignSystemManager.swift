@@ -10,6 +10,21 @@ public protocol EaselDesignSystemManaging: Sendable {
   func createDesignSystem(from request: EaselDesignSystemCreateRequest) async throws -> EaselDesignSystemProfile
   func deleteDesignSystem(_ profile: EaselDesignSystemProfile) async throws
   func loadCatalog(forDesignSystemAt path: String) async throws -> EaselDesignSystemCatalog?
+  /// Re-runs the import pipeline for an existing design system using the `.fig`
+  /// sources already stored under `resources/figma`, reusing the parser's cached
+  /// output. Use this to pick up improvements to the import/catalog logic
+  /// without re-selecting files or re-parsing the source.
+  @discardableResult
+  func regenerateDesignSystem(forDesignSystemAt path: String) async throws -> EaselDesignSystemImportResult
+}
+
+public extension EaselDesignSystemManaging {
+  // Default no-op so managers that don't manage local sources (e.g. test stubs)
+  // need not implement regeneration.
+  @discardableResult
+  func regenerateDesignSystem(forDesignSystemAt path: String) async throws -> EaselDesignSystemImportResult {
+    EaselDesignSystemImportResult(manifest: nil, catalog: nil)
+  }
 }
 
 public enum EaselDesignSystemImportScheduling: Sendable {
@@ -21,6 +36,7 @@ public enum EaselDesignSystemManagerError: LocalizedError, Equatable, Sendable {
   case missingDesignSystemDirectory(String)
   case emptyDesignSystemDescription
   case designSystemNotFound
+  case noFigSourcesToRegenerate
 
   public var errorDescription: String? {
     switch self {
@@ -30,6 +46,8 @@ public enum EaselDesignSystemManagerError: LocalizedError, Equatable, Sendable {
       return "Add a company or design system description before creating a design system."
     case .designSystemNotFound:
       return "The design system could not be found."
+    case .noFigSourcesToRegenerate:
+      return "This design system has no stored Figma files to regenerate from."
     }
   }
 }
@@ -45,6 +63,7 @@ public actor LocalEaselDesignSystemManager: EaselDesignSystemManaging {
   private static let metadataDirectoryName = ".easel"
   private static let metadataFileName = "design-system.json"
   private static let catalogFileName = "catalog.json"
+  private static let manifestFileName = "design-system-manifest.json"
 
   public init(
     rootDirectory: URL? = nil,
@@ -151,6 +170,36 @@ public actor LocalEaselDesignSystemManager: EaselDesignSystemManaging {
     return try decoder.decode(EaselDesignSystemCatalog.self, from: data)
   }
 
+  @discardableResult
+  public func regenerateDesignSystem(forDesignSystemAt path: String) async throws -> EaselDesignSystemImportResult {
+    let directoryURL = try validatedDesignSystemURL(for: path)
+
+    let metadataURL = Self.metadataURL(for: directoryURL)
+    guard fileManager.fileExists(atPath: metadataURL.path) else {
+      throw EaselDesignSystemManagerError.designSystemNotFound
+    }
+    let profile = try decoder.decode(
+      EaselDesignSystemProfile.self,
+      from: try Data(contentsOf: metadataURL)
+    )
+
+    let figFileURLs = try storedFigFileURLs(in: directoryURL)
+    guard !figFileURLs.isEmpty else {
+      throw EaselDesignSystemManagerError.noFigSourcesToRegenerate
+    }
+
+    // Re-run the import against the retained sources. The parser caches its
+    // output by file hash under `.easel/imports`, so an unchanged `.fig` skips
+    // the expensive parse and only the manifest/catalog are rebuilt.
+    let request = EaselDesignSystemImportRequest(
+      profile: profile,
+      directoryURL: directoryURL,
+      figFileURLs: figFileURLs,
+      importMode: storedImportMode(in: directoryURL)
+    )
+    return await designSystemImporter.importDesignSystemResources(request)
+  }
+
   private static func defaultRootDirectory(fileManager: FileManager) -> URL {
     if let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first {
       return documentsURL.appendingPathComponent("Easel Design Systems", isDirectory: true)
@@ -174,6 +223,34 @@ public actor LocalEaselDesignSystemManager: EaselDesignSystemManaging {
 
   private func ensureRootDirectoryExists() throws {
     try fileManager.createDirectory(at: rootDirectory, withIntermediateDirectories: true)
+  }
+
+  /// `.fig` sources retained under `resources/figma` for an imported design system.
+  private func storedFigFileURLs(in directoryURL: URL) throws -> [URL] {
+    let figmaURL = directoryURL
+      .appendingPathComponent("resources", isDirectory: true)
+      .appendingPathComponent("figma", isDirectory: true)
+    guard fileManager.fileExists(atPath: figmaURL.path) else { return [] }
+    return try fileManager.contentsOfDirectory(
+      at: figmaURL,
+      includingPropertiesForKeys: [.isRegularFileKey],
+      options: [.skipsHiddenFiles]
+    )
+    .filter { $0.pathExtension.lowercased() == "fig" }
+    .sorted { $0.lastPathComponent.localizedCaseInsensitiveCompare($1.lastPathComponent) == .orderedAscending }
+  }
+
+  /// Import mode recorded in the existing manifest, so regeneration preserves how
+  /// the design system was originally imported (extract vs. reference).
+  private func storedImportMode(in directoryURL: URL) -> EaselDesignSystemFigImportMode {
+    let manifestURL = directoryURL
+      .appendingPathComponent(Self.metadataDirectoryName, isDirectory: true)
+      .appendingPathComponent(Self.manifestFileName)
+    guard let data = try? Data(contentsOf: manifestURL),
+          let manifest = try? decoder.decode(EaselDesignSystemManifest.self, from: data) else {
+      return .extractCatalog
+    }
+    return manifest.importMode
   }
 
   private func designSystemDirectoryURLs() throws -> [URL] {
