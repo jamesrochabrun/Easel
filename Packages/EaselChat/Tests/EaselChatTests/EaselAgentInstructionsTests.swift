@@ -3,6 +3,7 @@
 //  EaselChatTests
 //
 
+import EaselDesignSystems
 import Foundation
 import Testing
 @testable import EaselChat
@@ -21,6 +22,52 @@ struct EaselAgentInstructionsTests {
     #expect(prefix.contains("Never run `npm run dev`"))
     #expect(prefix.contains("no browser, preview-control, or screenshot tool"))
     #expect(prefix.contains("Codex Design"))
+    // The agent must treat a bundled design system as the source of truth.
+    #expect(prefix.contains("resources/design-system/DESIGN.md"))
+    #expect(prefix.contains("source of truth"))
+    #expect(prefix.contains("component families"))
+  }
+
+  @Test
+  func hiddenContextIncludesCustomDesignSystemGuidance() {
+    let designSystem = EaselDesignSystemChoice(
+      kind: .custom,
+      referenceID: "ds-1",
+      displayName: "PlusPlus",
+      detail: "",
+      workingDirectory: "/tmp/design-systems/plusplus",
+      notes: nil,
+      sourceLinks: []
+    )
+
+    let context = EaselAgentInstructions.hiddenContext(
+      projectPath: "/tmp/deck",
+      projectKind: .slideDeck,
+      designSystem: designSystem,
+      previewURL: nil
+    )
+
+    #expect(context.contains("Active design system: PlusPlus"))
+    #expect(context.contains("resources/design-system/DESIGN.md"))
+    #expect(context.contains("do not improvise a different palette"))
+  }
+
+  @Test
+  func hiddenContextOmitsDesignSystemGuidanceWithoutCustomSystem() {
+    let presetContext = EaselAgentInstructions.hiddenContext(
+      projectPath: "/tmp/deck",
+      projectKind: .slideDeck,
+      designSystem: .preset(.none),
+      previewURL: nil
+    )
+    #expect(presetContext.contains("Active design system:") == false)
+
+    let nilContext = EaselAgentInstructions.hiddenContext(
+      projectPath: "/tmp/deck",
+      projectKind: .slideDeck,
+      previewURL: nil
+    )
+    #expect(nilContext.contains("Active design system:") == false)
   }
 
   @Test
