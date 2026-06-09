@@ -76,9 +76,13 @@ public enum EaselProjectFidelity: String, CaseIterable, Codable, Identifiable, S
   var agentGuidance: String {
     switch self {
     case .wireframe:
-      return "Prioritize structure, screen flow, hierarchy, navigation, grayscale placeholders, and minimal styling. Avoid final polish, heavy imagery, and decorative motion unless requested."
+      return """
+      Build a low-fidelity product wireframe, not a finished UI. This overrides polished frontend defaults. Use grayscale only, simple typography, boxes, dashed outlines, placeholder labels, and simple icons. Do not use photos, gradients, decorative shadows, brand color palettes, custom illustration, or motion unless explicitly requested by the user. Prioritize information architecture, screen flow, layout, hierarchy, navigation, and interaction states.
+      """
     case .highFidelity:
-      return "Prioritize polished UI, design-system usage, refined spacing, typography, color, realistic local assets, responsive states, and restrained motion."
+      return """
+      Build a polished product prototype. Use refined typography, spacing, color, realistic content, local assets, responsive behavior, meaningful UI states, and restrained motion. Follow the selected design system where available.
+      """
     }
   }
 

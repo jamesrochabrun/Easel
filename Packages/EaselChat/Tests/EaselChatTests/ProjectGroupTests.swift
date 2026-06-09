@@ -204,4 +204,77 @@ struct ProjectGroupTests {
 
     #expect(group.designSystemChipTitle == nil)
   }
+
+  @Test
+  func searchMatchesProjectNameOnly() {
+    let designSystem = EaselDesignSystemProfile(
+      id: UUID(),
+      name: "Acme UI",
+      blurb: "Acme components",
+      notes: "",
+      sourceLinks: [],
+      workingDirectory: "/tmp/acme-ui",
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+    let project = EaselDesignProject(
+      id: UUID(),
+      name: "Checkout",
+      kind: .prototype,
+      designSystem: .custom(designSystem),
+      fidelity: .highFidelity,
+      workingDirectory: "/tmp/checkout",
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+    let session = StoredSession(
+      id: "payment-session",
+      createdAt: Date(),
+      firstUserMessage: "Review payment states",
+      lastAccessedAt: Date(),
+      workingDirectory: project.workingDirectory
+    )
+    let group = ProjectGroup(
+      id: project.workingDirectory,
+      displayName: project.name,
+      project: project,
+      workingDirectory: project.workingDirectory,
+      sessions: [session]
+    )
+
+    #expect(group.matchesSearchText("checkout"))
+    #expect(group.matchesSearchText("CHECK"))
+    #expect(group.matchesSearchText("prototype") == false)
+    #expect(group.matchesSearchText("high fidelity") == false)
+    #expect(group.matchesSearchText("acme") == false)
+    #expect(group.matchesSearchText("payment states") == false)
+    #expect(group.matchesSearchText("missing") == false)
+  }
+
+  @Test
+  func searchMatchesDesignSystemRowNameOnly() {
+    let designSystem = EaselDesignSystemProfile(
+      id: UUID(),
+      name: "Apple",
+      blurb: "Spatial interface kit",
+      notes: "Vision layouts",
+      sourceLinks: ["https://developer.apple.com/design"],
+      workingDirectory: "/tmp/apple-design-system",
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+    let group = ProjectGroup(
+      id: designSystem.workingDirectory,
+      displayName: designSystem.name,
+      project: nil,
+      designSystem: designSystem,
+      workingDirectory: designSystem.workingDirectory,
+      sessions: []
+    )
+
+    #expect(group.matchesSearchText("apple"))
+    #expect(group.matchesSearchText("spatial") == false)
+    #expect(group.matchesSearchText("developer.apple") == false)
+    #expect(group.matchesSearchText("checkout") == false)
+  }
 }

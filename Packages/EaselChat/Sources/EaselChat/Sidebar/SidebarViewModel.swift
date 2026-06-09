@@ -17,6 +17,7 @@ public final class SidebarViewModel {
   public var isSidebarVisible: Bool = true
   public private(set) var customDesignSystems: [EaselDesignSystemProfile] = []
   private(set) var projectHeaderScrollRequest: ProjectHeaderScrollRequest?
+  var projectSearchText: String = ""
   var selectedProjectKind: EaselProjectKind = .prototype
   var projectName: String = ""
   var selectedDesignSystem: EaselDesignSystemChoice = .preset(.none)
@@ -73,6 +74,16 @@ public final class SidebarViewModel {
 
   var shouldShowFidelityPicker: Bool {
     selectedProjectKind == .prototype
+  }
+
+  var filteredProjectGroups: [ProjectGroup] {
+    projectGroups.filter { group in
+      group.matchesSearchText(projectSearchText)
+    }
+  }
+
+  var isFilteringProjects: Bool {
+    !projectSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   var selectedCustomDesignSystem: EaselDesignSystemProfile? {
