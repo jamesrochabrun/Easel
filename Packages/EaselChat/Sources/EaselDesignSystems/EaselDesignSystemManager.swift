@@ -306,11 +306,7 @@ public actor LocalEaselDesignSystemManager: EaselDesignSystemManaging {
       at: directoryURL,
       extraWarnings: repair.notes
     )
-    return EaselDesignSystemImportResult(
-      manifest: nil,
-      catalog: catalog,
-      lintFindings: DesignMarkdownLinter.lint(document)
-    )
+    return EaselDesignSystemImportResult(manifest: nil, catalog: catalog)
   }
 
   private static func defaultRootDirectory(fileManager: FileManager) -> URL {

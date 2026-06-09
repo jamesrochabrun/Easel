@@ -97,12 +97,6 @@ extension DesignMarkdown {
       self.fontVariation = fontVariation
       self.unknownKeys = unknownKeys
     }
-
-    /// Known typography sub-keys, in canonical emit order.
-    public static let knownKeys = [
-      "fontFamily", "fontSize", "fontWeight",
-      "lineHeight", "letterSpacing", "fontFeature", "fontVariation",
-    ]
   }
 
   /// A `rounded` / `spacing` scale entry (scale level → dimension).
@@ -128,14 +122,6 @@ extension DesignMarkdown {
   }
 
   public struct ComponentProperty: Equatable, Sendable {
-    /// Valid component properties per the spec, plus `description` — a common,
-    /// benign documentation field we accept without warning.
-    public static let knownKeys: Set<String> = [
-      "backgroundColor", "textColor", "typography",
-      "rounded", "padding", "size", "height", "width",
-      "description",
-    ]
-
     public var key: String
     public var value: DesignTokenValue
 
@@ -143,8 +129,6 @@ extension DesignMarkdown {
       self.key = key
       self.value = value
     }
-
-    public var isKnownKey: Bool { Self.knownKeys.contains(key) }
   }
 }
 

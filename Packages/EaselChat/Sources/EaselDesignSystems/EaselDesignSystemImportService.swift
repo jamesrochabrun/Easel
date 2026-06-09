@@ -32,17 +32,13 @@ public struct EaselDesignSystemImportRequest: Sendable {
 public struct EaselDesignSystemImportResult: Sendable {
   public let manifest: EaselDesignSystemManifest?
   public let catalog: EaselDesignSystemCatalog?
-  /// Findings from linting the emitted `DESIGN.md`, surfaced to the UI.
-  public let lintFindings: [DesignMarkdownLintFinding]
 
   public init(
     manifest: EaselDesignSystemManifest?,
-    catalog: EaselDesignSystemCatalog?,
-    lintFindings: [DesignMarkdownLintFinding] = []
+    catalog: EaselDesignSystemCatalog?
   ) {
     self.manifest = manifest
     self.catalog = catalog
-    self.lintFindings = lintFindings
   }
 }
 
@@ -122,7 +118,7 @@ public actor LocalEaselDesignSystemImporter: EaselDesignSystemImporting {
       try write(DesignMarkdownEmitter.emit(document), to: Self.designMarkdownURL(for: request.directoryURL))
       try write(derivedCatalog, to: Self.catalogURL(for: request.directoryURL))
 
-      return EaselDesignSystemImportResult(manifest: manifest, catalog: derivedCatalog, lintFindings: findings)
+      return EaselDesignSystemImportResult(manifest: manifest, catalog: derivedCatalog)
     } catch {
       return EaselDesignSystemImportResult(manifest: nil, catalog: nil)
     }
