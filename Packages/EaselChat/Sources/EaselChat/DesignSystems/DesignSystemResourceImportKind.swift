@@ -9,6 +9,7 @@ enum DesignSystemResourceImportKind: String, Identifiable {
   case code
   case fig
   case assets
+  case designMarkdown
 
   var id: String { rawValue }
 
@@ -21,6 +22,8 @@ enum DesignSystemResourceImportKind: String, Identifiable {
       return [Self.figType]
     case .assets:
       return [.item]
+    case .designMarkdown:
+      return [Self.markdownType]
     }
   }
 
@@ -29,5 +32,9 @@ enum DesignSystemResourceImportKind: String, Identifiable {
     // `.fig` files. Fall back to a restrictive type rather than `.data`/`.item`,
     // which would re-allow every file.
     UTType(filenameExtension: "fig") ?? .json
+  }
+
+  private static var markdownType: UTType {
+    UTType(filenameExtension: "md") ?? .plainText
   }
 }

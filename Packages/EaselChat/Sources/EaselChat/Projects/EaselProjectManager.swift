@@ -183,12 +183,26 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
     writeDesignSystemBrief(for: project, at: directoryURL)
   }
 
-  /// Copies a compact spec of a custom design system into the project so the
-  /// agent can reuse its tokens/components. Best-effort: a missing or
-  /// not-yet-extracted catalog still produces a name-only brief.
+  /// Provides the custom design system's spec to the project so the agent can
+  /// reuse its tokens/components. Prefers the canonical, spec-compliant
+  /// `DESIGN.md` authored by the design system; falls back to a derived brief
+  /// only for legacy systems that predate it.
   private func writeDesignSystemBrief(for project: EaselDesignProject, at directoryURL: URL) {
     let choice = project.designSystem
     guard choice.kind == .custom, let designSystemDirectory = choice.workingDirectory else {
+      return
+    }
+
+    let briefDirectory = directoryURL
+      .appendingPathComponent(ProjectResource.resourcesDirectoryName, isDirectory: true)
+      .appendingPathComponent("design-system", isDirectory: true)
+    try? fileManager.createDirectory(at: briefDirectory, withIntermediateDirectories: true)
+    let destination = briefDirectory.appendingPathComponent("DESIGN.md")
+
+    let canonicalURL = URL(fileURLWithPath: designSystemDirectory, isDirectory: true)
+      .appendingPathComponent("DESIGN.md")
+    if let canonical = try? Data(contentsOf: canonicalURL), !canonical.isEmpty {
+      try? canonical.write(to: destination, options: .atomic)
       return
     }
 
@@ -199,15 +213,7 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
       notes: choice.notes,
       catalog: catalog
     )
-
-    let briefDirectory = directoryURL
-      .appendingPathComponent(ProjectResource.resourcesDirectoryName, isDirectory: true)
-      .appendingPathComponent("design-system", isDirectory: true)
-    try? fileManager.createDirectory(at: briefDirectory, withIntermediateDirectories: true)
-    try? Data(markdown.utf8).write(
-      to: briefDirectory.appendingPathComponent("DESIGN.md"),
-      options: .atomic
-    )
+    try? Data(markdown.utf8).write(to: destination, options: .atomic)
   }
 
   private func loadDesignSystemCatalog(atDesignSystemDirectory directory: String) -> EaselDesignSystemCatalog? {

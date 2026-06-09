@@ -146,8 +146,8 @@ struct EaselDesignSystemManagerTests {
   }
 
   @Test
-  func regenerateDesignSystemWithoutFigSourcesThrows() async throws {
-    let rootDirectory = temporaryRoot(named: "DesignSystemRegenerateNoFigTests")
+  func regenerateDesignSystemWithoutFigRebuildsFromDesignMarkdown() async throws {
+    let rootDirectory = temporaryRoot(named: "DesignSystemRegenerateMarkdownTests")
     defer { try? FileManager.default.removeItem(at: rootDirectory) }
 
     let importer = RecordingDesignSystemImporter()
@@ -158,7 +158,7 @@ struct EaselDesignSystemManagerTests {
     )
 
     let profile = try await manager.createDesignSystem(from: EaselDesignSystemCreateRequest(
-      blurb: "No Sources Design System",
+      blurb: "No Fig Design System",
       sourceLinks: [],
       codeSourceURLs: [],
       figFileURLs: [],
@@ -167,9 +167,11 @@ struct EaselDesignSystemManagerTests {
       notes: ""
     ))
 
-    await #expect(throws: EaselDesignSystemManagerError.noFigSourcesToRegenerate) {
-      _ = try await manager.regenerateDesignSystem(forDesignSystemAt: profile.workingDirectory)
-    }
+    // Even without .fig sources, regenerate rebuilds from the canonical DESIGN.md
+    // rather than failing — and does not invoke the Figma importer.
+    let result = try await manager.regenerateDesignSystem(forDesignSystemAt: profile.workingDirectory)
+    #expect(result.catalog?.name == profile.name)
+    #expect(await importer.requests.isEmpty)
   }
 
   @Test

@@ -8,6 +8,31 @@ import EaselDesignSystems
 
 @Observable @MainActor
 public final class DesignSystemSetupViewModel {
+  /// How the canonical `DESIGN.md` is sourced. Every mode produces a
+  /// spec-compliant `DESIGN.md` plus the derived `catalog.json`.
+  public enum CreationMode: String, CaseIterable, Identifiable, Sendable {
+    /// Describe + attach resources (code/.fig/assets). `.fig` extract upgrades
+    /// the DESIGN.md during import.
+    case describe
+    /// Import and normalize an existing `DESIGN.md`.
+    case importMarkdown
+    /// Generate a DESIGN.md from the description via an LLM.
+    case generate
+
+    public var id: String { rawValue }
+
+    public var title: String {
+      switch self {
+      case .describe: return "Describe & attach"
+      case .importMarkdown: return "Import DESIGN.md"
+      case .generate: return "Generate with AI"
+      }
+    }
+  }
+
+  public var creationMode: CreationMode = .describe
+  /// Optional explicit name for the Import / Generate modes.
+  public var nameDraft = ""
   public var blurb = ""
   public var sourceLinkDraft = ""
   public private(set) var sourceLinks: [String] = []
@@ -15,18 +40,31 @@ public final class DesignSystemSetupViewModel {
   public private(set) var figFileURLs: [URL] = []
   public var figImportMode: EaselDesignSystemFigImportMode = .reference
   public private(set) var assetURLs: [URL] = []
+  public private(set) var designMarkdownURL: URL?
+  /// Raw DESIGN.md pasted directly into the form (takes priority over a file).
+  public var designMarkdownText = ""
   public var notes = ""
   public private(set) var isCreating = false
   public private(set) var errorMessage: String?
 
   private let designSystemManager: any EaselDesignSystemManaging
 
-  public init(designSystemManager: any EaselDesignSystemManaging = LocalEaselDesignSystemManager()) {
+  public init(
+    designSystemManager: any EaselDesignSystemManaging = LocalEaselDesignSystemManager(
+      designMarkdownGenerator: ClaudeDesignMarkdownGenerator()
+    )
+  ) {
     self.designSystemManager = designSystemManager
   }
 
   public var canCreate: Bool {
-    !blurb.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isCreating
+    guard !isCreating else { return false }
+    switch creationMode {
+    case .describe, .generate:
+      return !blurb.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    case .importMarkdown:
+      return designMarkdownURL != nil || !designMarkdownText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
   }
 
   public func addSourceLink() {
@@ -52,6 +90,15 @@ public final class DesignSystemSetupViewModel {
 
   public func addAssets(_ urls: [URL]) {
     assetURLs = Self.appendingUnique(urls, to: assetURLs)
+  }
+
+  public func addDesignMarkdown(_ urls: [URL]) {
+    // Accept only Markdown so other files can't be selected by accident.
+    designMarkdownURL = urls.first { $0.pathExtension.lowercased() == "md" } ?? designMarkdownURL
+  }
+
+  public func removeDesignMarkdown() {
+    designMarkdownURL = nil
   }
 
   public func removeCodeSource(_ url: URL) {
@@ -81,7 +128,9 @@ public final class DesignSystemSetupViewModel {
         figFileURLs: figFileURLs,
         figImportMode: figImportMode,
         assetURLs: assetURLs,
-        notes: notes
+        notes: notes,
+        source: makeSource(),
+        nameHint: nameDraft
       )
       let profile = try await designSystemManager.createDesignSystem(from: request)
       errorMessage = nil
@@ -93,11 +142,28 @@ public final class DesignSystemSetupViewModel {
     }
   }
 
+  private func makeSource() -> EaselDesignSystemCreateRequest.Source {
+    switch creationMode {
+    case .describe:
+      return .resources
+    case .generate:
+      return .prompt(blurb)
+    case .importMarkdown:
+      let pasted = designMarkdownText.trimmingCharacters(in: .whitespacesAndNewlines)
+      if !pasted.isEmpty {
+        return .designMarkdownText(pasted)
+      }
+      return designMarkdownURL.map { .designMarkdown($0) } ?? .resources
+    }
+  }
+
   public func reportImportFailure(_ error: Error) {
     errorMessage = error.localizedDescription
   }
 
   private func reset() {
+    creationMode = .describe
+    nameDraft = ""
     blurb = ""
     sourceLinkDraft = ""
     sourceLinks = []
@@ -105,6 +171,8 @@ public final class DesignSystemSetupViewModel {
     figFileURLs = []
     figImportMode = .reference
     assetURLs = []
+    designMarkdownURL = nil
+    designMarkdownText = ""
     notes = ""
   }
 
