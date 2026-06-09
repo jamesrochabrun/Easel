@@ -25,6 +25,17 @@ struct SlideDeckFirstSlidePreparationScriptTests {
   }
 
   @Test
+  func scriptDrivesDeckActiveSlideSignal() {
+    let script = SlideDeckFirstSlidePreparationScript.script
+
+    // The selected slide must also carry the deck's own `data-active` flag so
+    // entrance reveals gated on `[data-active="true"]` settle to a visible state
+    // instead of rendering a blank slide with only decorative layers.
+    #expect(script.contains("element.setAttribute(\"data-active\", \"true\")"))
+    #expect(script.contains("element.removeAttribute(\"data-active\")"))
+  }
+
+  @Test
   func scriptEnforcesFullBleedDeckStage() {
     let script = SlideDeckFirstSlidePreparationScript.script
 

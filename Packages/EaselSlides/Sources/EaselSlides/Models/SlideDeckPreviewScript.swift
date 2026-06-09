@@ -131,6 +131,7 @@ enum SlideDeckPreviewScript {
           if (!activeSet.has(element)) {
             element.removeAttribute(slideAttribute);
             element.removeAttribute(selectedAttribute);
+            element.removeAttribute("data-active");
             element.style.removeProperty("display");
             element.style.removeProperty("position");
             element.style.removeProperty("inset");
@@ -173,6 +174,12 @@ enum SlideDeckPreviewScript {
 
           if (slideIndex === selectedIndex) {
             element.setAttribute(selectedAttribute, "true");
+            // Drive the deck's own active-slide signal too. Generated decks gate
+            // their entrance reveals on `[data-active="true"]` (e.g. content that
+            // starts at opacity:0 and only becomes visible through a keyframe).
+            // Without this the selected slide section is shown but its content
+            // stays hidden, rendering a blank slide with only decorative layers.
+            element.setAttribute("data-active", "true");
             element.style.setProperty("display", element.dataset.easelRuntimeDisplay || "block", "important");
             element.style.setProperty("position", "fixed", "important");
             element.style.setProperty("inset", "0", "important");
@@ -188,6 +195,7 @@ enum SlideDeckPreviewScript {
             element.style.setProperty("contain", "paint", "important");
           } else {
             element.removeAttribute(selectedAttribute);
+            element.removeAttribute("data-active");
             element.style.setProperty("display", "none", "important");
           }
         });
