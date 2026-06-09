@@ -152,6 +152,7 @@ public struct SidebarView: View {
       )
       .textFieldStyle(.plain)
       .font(EaselDesignSystem.Typography.interface(size: 14))
+      .tint(EaselDesignSystem.Palette.selectionAccent(for: colorScheme))
       .padding(.horizontal, 12)
       .frame(height: 42)
       .background(EaselDesignSystem.Palette.subtleSurface(for: colorScheme), in: RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.card))

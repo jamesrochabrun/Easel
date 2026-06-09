@@ -75,6 +75,10 @@ enum EaselChatRuntimeStyle {
     EaselDesignSystem.Palette.tertiaryText(for: colorScheme)
   }
 
+  static func inputTint(for colorScheme: ColorScheme, themeColors: ThemeColors = .current) -> Color {
+    EaselDesignSystem.Palette.selectionAccent(for: colorScheme)
+  }
+
   static func userBubble(for colorScheme: ColorScheme, themeColors: ThemeColors = .current) -> Color {
     EaselDesignSystem.Palette.primaryAction(for: colorScheme)
   }
