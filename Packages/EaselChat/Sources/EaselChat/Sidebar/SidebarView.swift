@@ -502,6 +502,10 @@ public struct SidebarView: View {
         .help("Refresh designs")
       }
 
+      if !sidebarViewModel.projectGroups.isEmpty || sidebarViewModel.isFilteringProjects {
+        projectSearchField
+      }
+
       if sidebarViewModel.projectGroups.isEmpty {
         Text("No projects or design systems yet")
           .font(.callout)
@@ -509,9 +513,16 @@ public struct SidebarView: View {
           .fixedSize(horizontal: false, vertical: true)
           .frame(maxWidth: .infinity, alignment: .leading)
           .padding(.vertical, 8)
+      } else if sidebarViewModel.filteredProjectGroups.isEmpty {
+        Text(projectSearchEmptyMessage)
+          .font(.callout)
+          .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
+          .fixedSize(horizontal: false, vertical: true)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(.vertical, 8)
       } else {
         LazyVStack(alignment: .leading, spacing: 6) {
-          ForEach(sidebarViewModel.projectGroups) { project in
+          ForEach(sidebarViewModel.filteredProjectGroups) { project in
             VStack(alignment: .leading, spacing: 6) {
               ProjectHeaderView(
                 project: project,
@@ -579,6 +590,44 @@ public struct SidebarView: View {
     }
   }
 
+  private var projectSearchField: some View {
+    HStack(spacing: 8) {
+      Image(systemName: "magnifyingglass")
+        .font(.system(size: 12, weight: .medium))
+        .foregroundStyle(EaselDesignSystem.Palette.tertiaryText(for: colorScheme))
+        .frame(width: 14)
+
+      TextField("Filter by name", text: $sidebarViewModel.projectSearchText)
+        .textFieldStyle(.plain)
+        .font(EaselDesignSystem.Typography.interface(size: 13))
+        .foregroundStyle(.primary)
+        .accessibilityLabel("Filter designs by name")
+
+      if sidebarViewModel.isFilteringProjects {
+        Button {
+          sidebarViewModel.projectSearchText = ""
+        } label: {
+          Image(systemName: "xmark.circle.fill")
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(EaselDesignSystem.Palette.tertiaryText(for: colorScheme))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Clear search")
+        .help("Clear search")
+      }
+    }
+    .padding(.horizontal, 10)
+    .frame(height: 32)
+    .background(
+      EaselDesignSystem.Palette.subtleSurface(for: colorScheme),
+      in: RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.control)
+    )
+    .overlay {
+      RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.control)
+        .stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1)
+    }
+  }
+
   private var canCreateProject: Bool {
     !sidebarViewModel.projectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
@@ -638,14 +687,19 @@ public struct SidebarView: View {
   }
 
   private var projectListAnimationValue: [String] {
-    sidebarViewModel.projectGroups.map { project in
+    sidebarViewModel.filteredProjectGroups.map { project in
       let sessionIDs = project.sessions.map(\.id).joined(separator: ",")
       return "\(project.id):\(project.isExpanded):\(sessionIDs)"
     }
   }
 
   private var projectGroupIDs: [String] {
-    sidebarViewModel.projectGroups.map(\.id)
+    sidebarViewModel.filteredProjectGroups.map(\.id)
+  }
+
+  private var projectSearchEmptyMessage: String {
+    let searchText = sidebarViewModel.projectSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    return "No designs match \"\(searchText)\""
   }
 
   private func fulfillProjectHeaderScrollRequest(with scrollProxy: ScrollViewProxy) {

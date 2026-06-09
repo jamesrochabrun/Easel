@@ -246,7 +246,7 @@ enum EaselAgentInstructions {
 
       if projectKind == .prototype, let projectFidelity {
         lines.append("Current prototype fidelity: \(projectFidelity.displayName)")
-        lines.append("Prototype fidelity guidance: \(projectFidelity.agentGuidance)")
+        lines.append("Prototype fidelity contract: \(projectFidelity.agentGuidance)")
       }
     }
 

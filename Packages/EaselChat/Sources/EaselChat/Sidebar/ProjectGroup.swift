@@ -63,6 +63,13 @@ struct ProjectGroup: Identifiable {
     return displayName.isEmpty ? nil : displayName
   }
 
+  func matchesSearchText(_ searchText: String) -> Bool {
+    let query = Self.normalizedSearchText(searchText)
+    guard !query.isEmpty else { return true }
+
+    return Self.normalizedSearchText(displayName).contains(query)
+  }
+
   static func groups(
     projects: [EaselDesignProject],
     designSystems: [EaselDesignSystemProfile] = [],
@@ -117,5 +124,12 @@ struct ProjectGroup: Identifiable {
 
   private static func sortedSessions(_ sessions: [StoredSession]) -> [StoredSession] {
     sessions.sorted { $0.lastAccessedAt > $1.lastAccessedAt }
+  }
+
+  private static func normalizedSearchText(_ value: String) -> String {
+    value
+      .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .lowercased()
   }
 }

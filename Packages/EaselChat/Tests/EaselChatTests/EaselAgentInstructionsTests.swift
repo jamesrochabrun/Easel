@@ -50,8 +50,28 @@ struct EaselAgentInstructionsTests {
 
     #expect(context.contains("Current project type: Prototype"))
     #expect(context.contains("Current prototype fidelity: Wireframe"))
-    #expect(context.contains("Prioritize structure"))
-    #expect(context.contains("grayscale placeholders"))
+    #expect(context.contains("Prototype fidelity contract"))
+    #expect(context.contains("low-fidelity product wireframe"))
+    #expect(context.contains("overrides polished frontend defaults"))
+    #expect(context.contains("Use grayscale only"))
+    #expect(context.contains("Do not use photos"))
+  }
+
+  @Test
+  func hiddenContextIncludesHighFidelityPrototypeContract() {
+    let context = EaselAgentInstructions.hiddenContext(
+      projectPath: "/tmp/prototype",
+      projectKind: .prototype,
+      projectFidelity: .highFidelity,
+      previewURL: nil
+    )
+
+    #expect(context.contains("Current project type: Prototype"))
+    #expect(context.contains("Current prototype fidelity: High fidelity"))
+    #expect(context.contains("Prototype fidelity contract"))
+    #expect(context.contains("polished product prototype"))
+    #expect(context.contains("realistic content"))
+    #expect(context.contains("meaningful UI states"))
   }
 
   @Test
@@ -69,7 +89,7 @@ struct EaselAgentInstructionsTests {
     #expect(context.contains("full-bleed"))
     #expect(context.contains("no body padding"))
     #expect(context.contains("Current prototype fidelity") == false)
-    #expect(context.contains("Prototype fidelity guidance") == false)
+    #expect(context.contains("Prototype fidelity contract") == false)
   }
 
   @Test

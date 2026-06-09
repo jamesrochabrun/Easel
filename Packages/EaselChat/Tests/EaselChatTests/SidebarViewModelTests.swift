@@ -114,6 +114,63 @@ struct SidebarViewModelTests {
   }
 
   @Test
+  func filteredProjectGroupsMatchesProjectNamesOnly() async {
+    let checkout = EaselDesignProject(
+      id: UUID(),
+      name: "Checkout Flow",
+      kind: .prototype,
+      designSystem: .none,
+      fidelity: .highFidelity,
+      workingDirectory: "/tmp/checkout-flow",
+      createdAt: Date(timeIntervalSince1970: 1),
+      updatedAt: Date(timeIntervalSince1970: 1)
+    )
+    let roadmap = EaselDesignProject(
+      id: UUID(),
+      name: "Roadmap Deck",
+      kind: .slideDeck,
+      designSystem: .none,
+      fidelity: .highFidelity,
+      workingDirectory: "/tmp/roadmap-deck",
+      createdAt: Date(timeIntervalSince1970: 2),
+      updatedAt: Date(timeIntervalSince1970: 2)
+    )
+    let session = StoredSession(
+      id: "checkout-session",
+      createdAt: Date(timeIntervalSince1970: 3),
+      firstUserMessage: "Review payment states",
+      lastAccessedAt: Date(timeIntervalSince1970: 3),
+      workingDirectory: checkout.workingDirectory
+    )
+    let viewModel = SidebarViewModel(
+      sessionStorage: RecordingSessionStorage(sessions: [session]),
+      projectManager: SidebarProjectManagerStub(projects: [checkout, roadmap]),
+      designSystemManager: SidebarDesignSystemManagerStub()
+    )
+
+    await viewModel.loadSessions()
+    #expect(viewModel.filteredProjectGroups.map(\.displayName).sorted() == [
+      "Checkout Flow",
+      "Roadmap Deck",
+    ])
+
+    viewModel.projectSearchText = "payment states"
+    #expect(viewModel.filteredProjectGroups.isEmpty)
+
+    viewModel.projectSearchText = "checkout"
+    #expect(viewModel.filteredProjectGroups.map(\.displayName) == ["Checkout Flow"])
+
+    viewModel.projectSearchText = "slide deck"
+    #expect(viewModel.filteredProjectGroups.isEmpty)
+
+    viewModel.projectSearchText = "roadmap"
+    #expect(viewModel.filteredProjectGroups.map(\.displayName) == ["Roadmap Deck"])
+
+    viewModel.projectSearchText = "missing"
+    #expect(viewModel.filteredProjectGroups.isEmpty)
+  }
+
+  @Test
   func requestingProjectHeaderScrollCreatesFreshRequestEachTime() throws {
     let viewModel = SidebarViewModel(
       sessionStorage: NoOpSessionStorage(),
