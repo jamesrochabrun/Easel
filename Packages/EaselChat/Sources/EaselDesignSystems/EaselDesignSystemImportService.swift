@@ -97,13 +97,28 @@ public actor LocalEaselDesignSystemImporter: EaselDesignSystemImporting {
       )
 
       try write(manifest, to: Self.manifestURL(for: request.directoryURL))
-      try write(catalog, to: Self.catalogURL(for: request.directoryURL))
       try write(
         EaselDesignSystemCatalogHTMLRenderer.html(title: request.profile.name, blurb: request.profile.blurb),
         to: Self.indexURL(for: request.directoryURL)
       )
 
-      return EaselDesignSystemImportResult(manifest: manifest, catalog: catalog)
+      // Make DESIGN.md the source of truth even for `.fig` imports: upgrade the
+      // extracted catalog into a spec-compliant document, then re-derive
+      // `catalog.json` from it while preserving Figma-only richness (preview
+      // scenes, examples, assets, diagnostics).
+      let document = DesignMarkdownEmitter.makeDocument(fromCatalog: catalog, profile: request.profile)
+      let findings = DesignMarkdownLinter.lint(document)
+      let derivedCatalog = DesignMarkdownCatalogMapper.makeCatalog(
+        from: document,
+        profile: request.profile,
+        preservingFrom: catalog,
+        generatedAt: catalog.generatedAt,
+        lintWarnings: findings.filter { $0.severity != .error }.map { "\($0.rule): \($0.message)" }
+      )
+      try write(DesignMarkdownEmitter.emit(document), to: Self.designMarkdownURL(for: request.directoryURL))
+      try write(derivedCatalog, to: Self.catalogURL(for: request.directoryURL))
+
+      return EaselDesignSystemImportResult(manifest: manifest, catalog: derivedCatalog)
     } catch {
       return EaselDesignSystemImportResult(manifest: nil, catalog: nil)
     }
@@ -224,6 +239,10 @@ public actor LocalEaselDesignSystemImporter: EaselDesignSystemImporting {
 
   private static func indexURL(for directoryURL: URL) -> URL {
     directoryURL.appendingPathComponent("index.html")
+  }
+
+  private static func designMarkdownURL(for directoryURL: URL) -> URL {
+    directoryURL.appendingPathComponent("DESIGN.md")
   }
 
   private static func sha256Hex(for url: URL) throws -> String {

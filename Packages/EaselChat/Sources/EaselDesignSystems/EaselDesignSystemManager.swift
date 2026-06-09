@@ -37,6 +37,7 @@ public enum EaselDesignSystemManagerError: LocalizedError, Equatable, Sendable {
   case emptyDesignSystemDescription
   case designSystemNotFound
   case noFigSourcesToRegenerate
+  case designMarkdownGenerationUnavailable
 
   public var errorDescription: String? {
     switch self {
@@ -47,7 +48,9 @@ public enum EaselDesignSystemManagerError: LocalizedError, Equatable, Sendable {
     case .designSystemNotFound:
       return "The design system could not be found."
     case .noFigSourcesToRegenerate:
-      return "This design system has no stored Figma files to regenerate from."
+      return "This design system has no Figma files or DESIGN.md to regenerate from."
+    case .designMarkdownGenerationUnavailable:
+      return "Generating a design system from a prompt is not available in this context."
     }
   }
 }
@@ -59,22 +62,26 @@ public actor LocalEaselDesignSystemManager: EaselDesignSystemManaging {
   private let decoder: JSONDecoder
   private let designSystemImporter: any EaselDesignSystemImporting
   private let importScheduling: EaselDesignSystemImportScheduling
+  private let designMarkdownGenerator: (any DesignMarkdownGenerating)?
 
   private static let metadataDirectoryName = ".easel"
   private static let metadataFileName = "design-system.json"
   private static let catalogFileName = "catalog.json"
   private static let manifestFileName = "design-system-manifest.json"
+  private static let designMarkdownFileName = "DESIGN.md"
 
   public init(
     rootDirectory: URL? = nil,
     fileManager: FileManager = .default,
     designSystemImporter: any EaselDesignSystemImporting = LocalEaselDesignSystemImporter(),
-    importScheduling: EaselDesignSystemImportScheduling = .background
+    importScheduling: EaselDesignSystemImportScheduling = .background,
+    designMarkdownGenerator: (any DesignMarkdownGenerating)? = nil
   ) {
     self.fileManager = fileManager
     self.rootDirectory = rootDirectory ?? Self.defaultRootDirectory(fileManager: fileManager)
     self.designSystemImporter = designSystemImporter
     self.importScheduling = importScheduling
+    self.designMarkdownGenerator = designMarkdownGenerator
 
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -115,36 +122,113 @@ public actor LocalEaselDesignSystemManager: EaselDesignSystemManaging {
   public func createDesignSystem(from request: EaselDesignSystemCreateRequest) async throws -> EaselDesignSystemProfile {
     try ensureRootDirectoryExists()
 
+    switch request.source {
+    case .resources:
+      return try await createFromResources(request)
+    case .designMarkdown(let url):
+      let text = try readDesignMarkdownText(at: url)
+      return try await createFromDesignMarkdown(request, markdownText: text, originalURL: url)
+    case .designMarkdownText(let text):
+      return try await createFromDesignMarkdown(request, markdownText: text, originalURL: nil)
+    case .prompt(let prompt):
+      return try await createFromPrompt(request, prompt: prompt)
+    }
+  }
+
+  /// Existing path: scaffold from a blurb + optional code/.fig/assets. Always
+  /// writes a starter `DESIGN.md`; a `.fig` extract upgrades it during import.
+  private func createFromResources(_ request: EaselDesignSystemCreateRequest) async throws -> EaselDesignSystemProfile {
     let blurb = request.blurb.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !blurb.isEmpty else {
       throw EaselDesignSystemManagerError.emptyDesignSystemDescription
     }
 
-    let name = designSystemName(from: blurb)
+    let name = explicitName(request.nameHint) ?? designSystemName(from: blurb)
     let directoryURL = uniqueDirectoryURL(for: name)
     try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-
-    let now = Date()
-    let profile = EaselDesignSystemProfile(
-      id: UUID(),
-      name: name,
-      blurb: blurb,
-      notes: request.notes.trimmingCharacters(in: .whitespacesAndNewlines),
-      sourceLinks: normalizedLinks(request.sourceLinks),
-      workingDirectory: directoryURL.path,
-      createdAt: now,
-      updatedAt: now
-    )
+    let profile = makeProfile(name: name, blurb: blurb, request: request, directoryURL: directoryURL)
 
     try writeScaffold(for: profile, at: directoryURL)
     let importedResources = try importResources(from: request, into: directoryURL)
     try writeMetadata(profile, in: directoryURL)
+    try writeDesignArtifacts(document: starterDocument(for: profile), profile: profile, at: directoryURL)
     await scheduleImportIfNeeded(
       profile: profile,
       directoryURL: directoryURL,
       figFileURLs: importedResources.figFileURLs,
       importMode: request.figImportMode
     )
+    return profile
+  }
+
+  /// Import path: parse and normalize an existing `DESIGN.md` (from a file or
+  /// pasted text). Blocking errors (missing front matter, broken refs) reject
+  /// the input before any folder is created; quality warnings are non-blocking.
+  private func createFromDesignMarkdown(
+    _ request: EaselDesignSystemCreateRequest,
+    markdownText: String,
+    originalURL: URL?
+  ) async throws -> EaselDesignSystemProfile {
+    // Programmatically recover prose-only / unnamed input rather than hard-failing.
+    let repair = try DesignMarkdownRepair.parse(markdownText, fallbackName: explicitName(request.nameHint))
+    var document = repair.document
+    try DesignMarkdownLinter.validate(document) // broken refs still block
+
+    // An explicit name overrides the imported document's `name:` and is written
+    // back so the canonical DESIGN.md stays consistent with the design system.
+    if let explicit = explicitName(request.nameHint) {
+      document.name = explicit
+    }
+    let name = designSystemName(from: document.name)
+    let directoryURL = uniqueDirectoryURL(for: name)
+    try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+
+    let blurb = document.detail ?? request.blurb.trimmingCharacters(in: .whitespacesAndNewlines)
+    let profile = makeProfile(name: name, blurb: blurb.isEmpty ? name : blurb, request: request, directoryURL: directoryURL)
+
+    try writeScaffold(for: profile, at: directoryURL)
+    // Keep the original input for provenance.
+    let provenanceDirectory = directoryURL
+      .appendingPathComponent("resources", isDirectory: true)
+      .appendingPathComponent("design-system", isDirectory: true)
+    if let originalURL {
+      try copySources([originalURL], to: provenanceDirectory, skipsGeneratedFolders: false)
+    } else {
+      try fileManager.createDirectory(at: provenanceDirectory, withIntermediateDirectories: true)
+      try write(markdownText, to: provenanceDirectory.appendingPathComponent("DESIGN.md"))
+    }
+    try writeMetadata(profile, in: directoryURL)
+    try writeDesignArtifacts(document: document, profile: profile, at: directoryURL, extraWarnings: repair.notes)
+    return profile
+  }
+
+  /// Prompt path: generate a spec-compliant `DESIGN.md` via the injected LLM
+  /// seam, repairing once if the first attempt fails to parse/validate.
+  private func createFromPrompt(
+    _ request: EaselDesignSystemCreateRequest,
+    prompt: String
+  ) async throws -> EaselDesignSystemProfile {
+    let prompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !prompt.isEmpty else { throw EaselDesignSystemManagerError.emptyDesignSystemDescription }
+    guard let generator = designMarkdownGenerator else {
+      throw EaselDesignSystemManagerError.designMarkdownGenerationUnavailable
+    }
+
+    let hint = explicitName(request.nameHint)
+    var document = try await generateValidatedDocument(prompt: prompt, name: hint, generator: generator)
+
+    // Force the chosen name even if the model named it differently.
+    if let hint { document.name = hint }
+    let name = designSystemName(from: document.name)
+    let directoryURL = uniqueDirectoryURL(for: name)
+    try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+
+    let blurb = document.detail ?? prompt
+    let profile = makeProfile(name: name, blurb: blurb, request: request, directoryURL: directoryURL)
+
+    try writeScaffold(for: profile, at: directoryURL)
+    try writeMetadata(profile, in: directoryURL)
+    try writeDesignArtifacts(document: document, profile: profile, at: directoryURL)
     return profile
   }
 
@@ -184,20 +268,45 @@ public actor LocalEaselDesignSystemManager: EaselDesignSystemManaging {
     )
 
     let figFileURLs = try storedFigFileURLs(in: directoryURL)
-    guard !figFileURLs.isEmpty else {
+    if !figFileURLs.isEmpty {
+      // Re-run the import against the retained sources. The parser caches its
+      // output by file hash under `.easel/imports`, so an unchanged `.fig` skips
+      // the expensive parse and only the manifest/catalog are rebuilt.
+      let request = EaselDesignSystemImportRequest(
+        profile: profile,
+        directoryURL: directoryURL,
+        figFileURLs: figFileURLs,
+        importMode: storedImportMode(in: directoryURL)
+      )
+      return await designSystemImporter.importDesignSystemResources(request)
+    }
+
+    // No Figma sources — rebuild from the canonical DESIGN.md at the root, so
+    // imported / AI-generated systems can refresh in place (and pick up linter
+    // and preview improvements) without re-importing.
+    return try regenerateFromDesignMarkdown(profile: profile, directoryURL: directoryURL)
+  }
+
+  private func regenerateFromDesignMarkdown(
+    profile: EaselDesignSystemProfile,
+    directoryURL: URL
+  ) throws -> EaselDesignSystemImportResult {
+    let markdownURL = Self.designMarkdownURL(for: directoryURL)
+    guard let text = try? String(contentsOf: markdownURL, encoding: .utf8),
+          !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
       throw EaselDesignSystemManagerError.noFigSourcesToRegenerate
     }
 
-    // Re-run the import against the retained sources. The parser caches its
-    // output by file hash under `.easel/imports`, so an unchanged `.fig` skips
-    // the expensive parse and only the manifest/catalog are rebuilt.
-    let request = EaselDesignSystemImportRequest(
+    let repair = try DesignMarkdownRepair.parse(text, fallbackName: profile.name)
+    let document = repair.document
+    try DesignMarkdownLinter.validate(document)
+    let catalog = try writeDesignArtifacts(
+      document: document,
       profile: profile,
-      directoryURL: directoryURL,
-      figFileURLs: figFileURLs,
-      importMode: storedImportMode(in: directoryURL)
+      at: directoryURL,
+      extraWarnings: repair.notes
     )
-    return await designSystemImporter.importDesignSystemResources(request)
+    return EaselDesignSystemImportResult(manifest: nil, catalog: catalog)
   }
 
   private static func defaultRootDirectory(fileManager: FileManager) -> URL {
@@ -219,6 +328,11 @@ public actor LocalEaselDesignSystemManager: EaselDesignSystemManaging {
     directoryURL
       .appendingPathComponent(metadataDirectoryName, isDirectory: true)
       .appendingPathComponent(catalogFileName)
+  }
+
+  /// The canonical `DESIGN.md`, at the design system root (sibling of README).
+  private static func designMarkdownURL(for directoryURL: URL) -> URL {
+    directoryURL.appendingPathComponent(designMarkdownFileName)
   }
 
   private func ensureRootDirectoryExists() throws {
@@ -304,6 +418,127 @@ public actor LocalEaselDesignSystemManager: EaselDesignSystemManaging {
     try fileManager.createDirectory(at: metadataDirectory, withIntermediateDirectories: true)
     let data = try encoder.encode(profile)
     try data.write(to: Self.metadataURL(for: directoryURL), options: .atomic)
+  }
+
+  private func makeProfile(
+    name: String,
+    blurb: String,
+    request: EaselDesignSystemCreateRequest,
+    directoryURL: URL
+  ) -> EaselDesignSystemProfile {
+    let now = Date()
+    return EaselDesignSystemProfile(
+      id: UUID(),
+      name: name,
+      blurb: blurb,
+      notes: request.notes.trimmingCharacters(in: .whitespacesAndNewlines),
+      sourceLinks: normalizedLinks(request.sourceLinks),
+      workingDirectory: directoryURL.path,
+      createdAt: now,
+      updatedAt: now
+    )
+  }
+
+  /// Writes the canonical `DESIGN.md` (normalized via the emitter) and the
+  /// derived `catalog.json` that powers `index.html`, keeping them consistent.
+  @discardableResult
+  private func writeDesignArtifacts(
+    document: DesignMarkdown,
+    profile: EaselDesignSystemProfile,
+    at directoryURL: URL,
+    extraWarnings: [String] = []
+  ) throws -> EaselDesignSystemCatalog {
+    try write(DesignMarkdownEmitter.emit(document), to: Self.designMarkdownURL(for: directoryURL))
+
+    let warnings = extraWarnings + DesignMarkdownLinter.lint(document)
+      .filter { $0.severity != .error }
+      .map { "\($0.rule): \($0.message)" }
+    let catalog = DesignMarkdownCatalogMapper.makeCatalog(
+      from: document,
+      profile: profile,
+      generatedAt: Date(),
+      lintWarnings: warnings
+    )
+    let metadataDirectory = directoryURL.appendingPathComponent(Self.metadataDirectoryName, isDirectory: true)
+    try fileManager.createDirectory(at: metadataDirectory, withIntermediateDirectories: true)
+    let data = try encoder.encode(catalog)
+    try data.write(to: Self.catalogURL(for: directoryURL), options: .atomic)
+    return catalog
+  }
+
+  /// A minimal but valid DESIGN.md for resource-based creation (no tokens yet);
+  /// a `.fig` extract later replaces this with a rich, spec-compliant document.
+  private func starterDocument(for profile: EaselDesignSystemProfile) -> DesignMarkdown {
+    let blurb = profile.blurb.trimmingCharacters(in: .whitespacesAndNewlines)
+    var sections: [DesignSection] = []
+    sections.append(DesignSection(
+      kind: .overview,
+      title: DesignSectionKind.overview.canonicalTitle,
+      body: blurb.isEmpty ? "\(profile.name) design system." : blurb
+    ))
+    return DesignMarkdown(
+      version: "alpha",
+      name: profile.name,
+      detail: blurb.isEmpty ? nil : blurb,
+      sections: sections
+    )
+  }
+
+  private func readDesignMarkdownText(at url: URL) throws -> String {
+    let isAccessing = url.startAccessingSecurityScopedResource()
+    defer {
+      if isAccessing { url.stopAccessingSecurityScopedResource() }
+    }
+    return try String(contentsOf: url, encoding: .utf8)
+  }
+
+  private func generateValidatedDocument(
+    prompt: String,
+    name: String?,
+    generator: any DesignMarkdownGenerating
+  ) async throws -> DesignMarkdown {
+    let firstText = stripCodeFences(try await generator.generateDesignMarkdown(prompt: prompt, name: name))
+    if let document = try? parseAndValidate(firstText) {
+      return document
+    }
+    // One repair attempt with the spec rules re-stated.
+    let repairPrompt = """
+    \(prompt)
+
+    The previous attempt was not a valid DESIGN.md. Regenerate it strictly \
+    following these rules:
+    \(DesignMarkdownSpecGuide.rules)
+    """
+    let secondText = stripCodeFences(try await generator.generateDesignMarkdown(prompt: repairPrompt, name: name))
+    return try parseAndValidate(secondText)
+  }
+
+  /// A trimmed, length-capped explicit name, or `nil` when none was provided.
+  private func explicitName(_ hint: String?) -> String? {
+    guard let trimmed = hint?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+      return nil
+    }
+    return String(trimmed.prefix(80))
+  }
+
+  private func parseAndValidate(_ text: String) throws -> DesignMarkdown {
+    let document = try DesignMarkdownParser.parse(text)
+    try DesignMarkdownLinter.validate(document)
+    return document
+  }
+
+  /// Strips an enclosing Markdown/YAML code fence the model may wrap output in.
+  private func stripCodeFences(_ text: String) -> String {
+    var lines = text.components(separatedBy: "\n")
+    guard let first = lines.first?.trimmingCharacters(in: .whitespaces), first.hasPrefix("```") else {
+      return text
+    }
+    lines.removeFirst()
+    if let lastNonEmpty = lines.lastIndex(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }),
+       lines[lastNonEmpty].trimmingCharacters(in: .whitespaces) == "```" {
+      lines.removeSubrange(lastNonEmpty...)
+    }
+    return lines.joined(separator: "\n")
   }
 
   private func writeScaffold(for profile: EaselDesignSystemProfile, at directoryURL: URL) throws {
