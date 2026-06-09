@@ -391,6 +391,9 @@ final class CodexChatRuntime {
       if let toolUse = CodexMessageMapper.todoToolUse(items: item.items, itemID: item.id) {
         messageDisplay.addMessage(toolUse)
       }
+      if let toolResult = CodexMessageMapper.todoToolResult(items: item.items, itemID: item.id) {
+        messageDisplay.addMessage(toolResult)
+      }
 
     default:
       break

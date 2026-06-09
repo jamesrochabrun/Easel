@@ -111,7 +111,9 @@ struct ToolDisplayView: View {
   private func todoListView(_ content: String) -> some View {
     VStack(alignment: .leading, spacing: 4) {
       ForEach(content.components(separatedBy: .newlines), id: \.self) { line in
-        if !line.isEmpty {
+        // Skip the synthetic "TOOL USE: <tool>." header that prefixes tool-use
+        // content so it never renders as a stray checklist row.
+        if !line.isEmpty, !line.hasPrefix("TOOL USE:") {
           HStack(spacing: 8) {
             if line.contains("[x]") || line.contains("[✓]") {
               Image(systemName: "checkmark.circle.fill")
