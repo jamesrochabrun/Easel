@@ -25,5 +25,8 @@ struct SlideDeckFirstSlidePreparationScriptTests {
     #expect(script.contains("padding: 0 !important"))
     #expect(script.contains("border-radius: 0 !important"))
     #expect(script.contains("box-shadow: none !important"))
+    #expect(script.contains("overflow: hidden !important"))
+    #expect(script.contains("clip-path: inset(0) !important"))
+    #expect(script.contains("contain: paint !important"))
   }
 }

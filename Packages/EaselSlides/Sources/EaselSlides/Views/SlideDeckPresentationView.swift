@@ -53,8 +53,10 @@ struct SlideDeckPresentationView: View {
           height: SlideDeckRenderMetrics.renderSize.height
         )
         .background(Color.white)
+        .clipped()
         .scaleEffect(scale, anchor: .center)
         .frame(width: stageSize.width, height: stageSize.height)
+        .clipped()
 
         if isLoading {
           ProgressView()

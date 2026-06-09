@@ -33,6 +33,9 @@ struct SlideDeckScaffoldTests {
     #expect(html.contains("height: 100vh;"))
     #expect(html.contains("border-radius: 0;"))
     #expect(html.contains("box-shadow: none;"))
+    #expect(html.contains("overflow: hidden;"))
+    #expect(html.contains("clip-path: inset(0);"))
+    #expect(html.contains("contain: paint;"))
     #expect(html.contains("place-items: center") == false)
     #expect(html.contains("width: min(100vw") == false)
     #expect(html.contains("calc(100vh * 16 / 9)") == false)
@@ -56,6 +59,9 @@ struct SlideDeckScaffoldTests {
     #expect(script.contains("padding: 0 !important"))
     #expect(script.contains("border-radius: 0 !important"))
     #expect(script.contains("box-shadow: none !important"))
+    #expect(script.contains("overflow: hidden !important"))
+    #expect(script.contains("clip-path: inset(0) !important"))
+    #expect(script.contains("contain: paint !important"))
   }
 
   @Test
@@ -66,5 +72,7 @@ struct SlideDeckScaffoldTests {
     #expect(SlideDeckContract.authoringSummary.contains("full-bleed"))
     #expect(SlideDeckContract.authoringSummary.contains("no body padding"))
     #expect(SlideDeckContract.authoringSummary.contains("box shadow"))
+    #expect(SlideDeckContract.authoringSummary.contains("clip to the square 16:9 slide bounds"))
+    #expect(SlideDeckContract.authoringSummary.contains("inner rounded card"))
   }
 }

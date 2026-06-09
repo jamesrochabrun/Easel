@@ -10,7 +10,7 @@ public enum SlideDeckContract {
   public static let slideAttribute = "data-easel-slide"
   public static let titleAttribute = "data-title"
 
-  public static let authoringSummary = "Keep slides as `section[data-easel-slide]` elements inside one `data-easel-deck` stage. The deck stage must be full-bleed in Easel's 16:9 preview: `html`, `body`, and `[data-easel-deck]` fill the viewport with no body padding, centered card frame, rounded outer deck, border, or box shadow. Put spacing inside each `section[data-easel-slide]`, not around the deck, and set `data-title` for thumbnail labels when needed."
+  public static let authoringSummary = "Keep slides as `section[data-easel-slide]` elements inside one `data-easel-deck` stage. The deck stage must be full-bleed in Easel's 16:9 preview: `html`, `body`, and `[data-easel-deck]` fill the viewport with no body padding, centered card frame, rounded outer deck, border, or box shadow. Each `section[data-easel-slide]` is the slide canvas and must clip to the square 16:9 slide bounds with `overflow: hidden`; do not create an inner rounded card/frame/canvas that represents the slide itself. Put spacing inside each slide section, and set `data-title` for thumbnail labels when needed."
 }
 
 public enum SlideDeckScaffold {
@@ -74,11 +74,19 @@ public enum SlideDeckScaffold {
         [data-easel-slide] {
           position: absolute;
           inset: 0;
+          width: 100%;
+          height: 100%;
           display: grid;
           align-content: center;
           gap: 24px;
           padding: clamp(48px, 7vw, 92px);
           background: var(--surface);
+          overflow: hidden;
+          border: 0;
+          border-radius: 0;
+          box-shadow: none;
+          clip-path: inset(0);
+          contain: paint;
           opacity: 0;
           pointer-events: none;
           transition: opacity 180ms ease;
@@ -221,8 +229,16 @@ public enum SlideDeckScaffold {
         }
 
         [data-easel-slide] {
+          position: absolute !important;
+          inset: 0 !important;
           width: 100% !important;
           height: 100% !important;
+          overflow: hidden !important;
+          border: 0 !important;
+          border-radius: 0 !important;
+          box-shadow: none !important;
+          clip-path: inset(0) !important;
+          contain: paint !important;
         }
       `;
     }

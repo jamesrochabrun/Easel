@@ -202,13 +202,14 @@ public struct SlideDeckPreviewView: View {
             height: SlideDeckRenderMetrics.renderSize.height
           )
           .background(Color.white)
+          .clipped()
           .scaleEffect(scale, anchor: .center)
         }
         .frame(width: stageSize.width, height: stageSize.height)
-        .clipShape(RoundedRectangle(cornerRadius: 3))
+        .clipped()
         .shadow(color: .black.opacity(0.28), radius: 18, y: 8)
         .overlay {
-          RoundedRectangle(cornerRadius: 3)
+          Rectangle()
             .stroke(Color.white.opacity(0.12), lineWidth: 1)
         }
 

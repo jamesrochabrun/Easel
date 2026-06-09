@@ -86,6 +86,12 @@ enum SlideDeckPreviewScript {
             pointer-events: none !important;
             width: 100% !important;
             height: 100% !important;
+            overflow: hidden !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            clip-path: inset(0) !important;
+            contain: paint !important;
           }
 
           [${slideAttribute}][${selectedAttribute}="true"] {
@@ -118,6 +124,11 @@ enum SlideDeckPreviewScript {
             element.style.removeProperty("margin");
             element.style.removeProperty("box-sizing");
             element.style.removeProperty("overflow");
+            element.style.removeProperty("border");
+            element.style.removeProperty("border-radius");
+            element.style.removeProperty("box-shadow");
+            element.style.removeProperty("clip-path");
+            element.style.removeProperty("contain");
           }
         });
       }
@@ -155,6 +166,11 @@ enum SlideDeckPreviewScript {
             element.style.setProperty("margin", "0", "important");
             element.style.setProperty("box-sizing", "border-box", "important");
             element.style.setProperty("overflow", "hidden", "important");
+            element.style.setProperty("border", "0", "important");
+            element.style.setProperty("border-radius", "0", "important");
+            element.style.setProperty("box-shadow", "none", "important");
+            element.style.setProperty("clip-path", "inset(0)", "important");
+            element.style.setProperty("contain", "paint", "important");
           } else {
             element.removeAttribute(selectedAttribute);
             element.style.setProperty("display", "none", "important");
