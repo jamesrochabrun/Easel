@@ -103,7 +103,10 @@ struct SlideDeckThumbnailRenderer: NSViewRepresentable {
 
         do {
           let result = try await self.evaluateJavaScript(
-            SlideDeckPreviewScript.installAndSelectScript(selectedIndex: request.selectedIndex),
+            SlideDeckPreviewScript.installAndSelectScript(
+              selectedIndex: request.selectedIndex,
+              fastForwardMotion: true
+            ),
             in: webView
           )
           let discoveredMetadata = SlideDeckMetadataParser.metadata(from: result)

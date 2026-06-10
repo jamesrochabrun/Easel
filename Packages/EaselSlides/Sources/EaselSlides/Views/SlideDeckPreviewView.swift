@@ -193,22 +193,24 @@ public struct SlideDeckPreviewView: View {
             url: url,
             selectedIndex: selectedIndex,
             reloadToken: reloadToken,
+            fastForwardMotion: true,
             onMetadataChange: handleMetadataChange,
-            onLoadingChange: { isLoading = $0 },
-            onError: { errorMessage = $0 }
+            onLoadingChange: handleLoadingChange,
+            onError: handleError
           )
           .frame(
             width: SlideDeckRenderMetrics.renderSize.width,
             height: SlideDeckRenderMetrics.renderSize.height
           )
           .background(Color.white)
+          .clipped()
           .scaleEffect(scale, anchor: .center)
         }
         .frame(width: stageSize.width, height: stageSize.height)
-        .clipShape(RoundedRectangle(cornerRadius: 3))
+        .clipped()
         .shadow(color: .black.opacity(0.28), radius: 18, y: 8)
         .overlay {
-          RoundedRectangle(cornerRadius: 3)
+          Rectangle()
             .stroke(Color.white.opacity(0.12), lineWidth: 1)
         }
 
@@ -283,6 +285,20 @@ public struct SlideDeckPreviewView: View {
     let width = min(availableWidth, availableHeight * SlideDeckRenderMetrics.aspectRatio)
     let height = width / SlideDeckRenderMetrics.aspectRatio
     return CGSize(width: width, height: height)
+  }
+
+  @MainActor
+  private func handleLoadingChange(_ nextIsLoading: Bool) {
+    Task { @MainActor in
+      isLoading = nextIsLoading
+    }
+  }
+
+  @MainActor
+  private func handleError(_ message: String) {
+    Task { @MainActor in
+      errorMessage = message
+    }
   }
 
   @MainActor

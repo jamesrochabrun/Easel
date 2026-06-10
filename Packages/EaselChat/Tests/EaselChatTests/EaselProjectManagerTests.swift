@@ -95,6 +95,7 @@ struct EaselProjectManagerTests {
     #expect(readme.contains("Slide deck layout:"))
     #expect(readme.contains("full-bleed"))
     #expect(readme.contains("no body padding"))
+    #expect(readme.contains("Reusable slide template: `resources/SLIDE_TEMPLATE.md`"))
   }
 
   @Test
@@ -113,13 +114,20 @@ struct EaselProjectManagerTests {
     let projectURL = URL(fileURLWithPath: project.workingDirectory)
     let indexHTML = try String(contentsOf: projectURL.appendingPathComponent("index.html"), encoding: .utf8)
     let stageJS = try String(contentsOf: projectURL.appendingPathComponent("deck-stage.js"), encoding: .utf8)
+    let templateURL = projectURL.appendingPathComponent("resources/SLIDE_TEMPLATE.md")
+    let templateMarkdown = try String(contentsOf: templateURL, encoding: .utf8)
 
     #expect(indexHTML.contains("data-easel-deck"))
     #expect(indexHTML.contains("data-easel-slide"))
     #expect(indexHTML.contains("data-title=\"Opening\""))
+    #expect(indexHTML.contains("easel-slide-safe"))
+    #expect(indexHTML.contains("resources/SLIDE_TEMPLATE.md"))
     #expect(indexHTML.contains("<script src=\"./deck-stage.js\"></script>"))
     #expect(stageJS.contains("[data-easel-slide]"))
     #expect(stageJS.contains("ArrowRight"))
+    #expect(templateMarkdown.contains("# Easel Slide Template"))
+    #expect(templateMarkdown.contains("1280x720"))
+    #expect(templateMarkdown.contains(".easel-slide-safe"))
   }
 
   @Test
@@ -138,6 +146,7 @@ struct EaselProjectManagerTests {
     let projectURL = URL(fileURLWithPath: project.workingDirectory)
 
     #expect(FileManager.default.fileExists(atPath: projectURL.appendingPathComponent("deck-stage.js").path) == false)
+    #expect(FileManager.default.fileExists(atPath: projectURL.appendingPathComponent("resources/SLIDE_TEMPLATE.md").path) == false)
   }
 
   @Test

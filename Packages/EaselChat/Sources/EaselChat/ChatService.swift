@@ -5,6 +5,7 @@
 
 import ClaudeCodeCore
 import ClaudeCodeSDK
+import EaselDesignSystems
 import EaselKit
 import Foundation
 import OSLog
@@ -282,6 +283,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
       projectPath: currentWorkingDirectory,
       projectKind: currentProject?.kind,
       projectFidelity: currentPrototypeFidelity,
+      designSystem: currentProject?.designSystem,
       previewURL: previewURL
     )
     chatViewModel?.sendMessage(text, context: context, hiddenContext: combinedHiddenContext)

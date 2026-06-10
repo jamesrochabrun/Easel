@@ -76,6 +76,17 @@ final class AppearanceSettingsTests: XCTestCase {
     )
   }
 
+  func testRuntimeStyleUsesReadableInputTint() {
+    XCTAssertEqual(
+      hexString(for: EaselChatRuntimeStyle.inputTint(for: .light)),
+      EaselDesignSystem.Palette.accentHex
+    )
+    XCTAssertEqual(
+      hexString(for: EaselChatRuntimeStyle.inputTint(for: .dark)),
+      EaselDesignSystem.Palette.selectionAccentDarkHex
+    )
+  }
+
   func testToolCardsUseGraphiteChromeAndCompletion() {
     XCTAssertEqual(
       hexString(for: EaselChatRuntimeStyle.toolCardBorder(for: .dark)),

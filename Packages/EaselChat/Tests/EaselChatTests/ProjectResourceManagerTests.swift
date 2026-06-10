@@ -60,7 +60,7 @@ struct ProjectResourceManagerTests {
     let projectManager = LocalEaselProjectManager(rootDirectory: rootDirectory)
     let project = try await projectManager.createProject(from: EaselProjectCreateRequest(
       name: "Duplicate Assets",
-      kind: .slideDeck,
+      kind: .prototype,
       designSystem: .none,
       fidelity: .wireframe
     ))

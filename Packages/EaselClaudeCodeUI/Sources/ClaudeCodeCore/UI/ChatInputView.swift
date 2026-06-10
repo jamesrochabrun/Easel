@@ -345,6 +345,7 @@ extension ChatInputView {
         .scrollContentBackground(.hidden)
         .focused($isFocused)
         .font(.system(size: uiConfiguration.messageFontSize))
+        .tint(EaselChatRuntimeStyle.inputTint(for: colorScheme))
         .frame(minHeight: 20, maxHeight: 200)
         .fixedSize(horizontal: false, vertical: true)
         .padding(textAreaEdgeInsets)

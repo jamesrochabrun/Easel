@@ -3,6 +3,7 @@
 //  EaselChat
 //
 
+import EaselDesignSystems
 import EaselSlides
 import Foundation
 
@@ -16,6 +17,7 @@ enum EaselAgentInstructions {
     - Your sandbox cannot bind network sockets. Never run `npm run dev`, `python -m http.server`, or any command that starts a server or opens a port — it fails with "Operation not permitted". The app runs the dev server for you; just keep the project's `dev` script valid.
     - Do not open external browser apps or use shell commands such as `open`, `open -a`, `xdg-open`, or `start` to preview project UI.
     - Write or copy every generated project asset into the project's resources/ folder before referencing it from app UI.
+    - When the project ships a design system, it is the source of truth. Before writing any UI, read its spec at `resources/design-system/DESIGN.md`, then build every screen or slide directly from that system: reuse its exact colors, typography, spacing, radii, effects, and component families instead of inventing an ad-hoc palette, type scale, or component style. If you need a token the system does not define, extend it consistently rather than departing from it.
     - For slide deck projects, \(SlideDeckContract.authoringSummary)
     """
 
@@ -222,6 +224,7 @@ enum EaselAgentInstructions {
     projectPath: String?,
     projectKind: EaselProjectKind? = nil,
     projectFidelity: EaselProjectFidelity? = nil,
+    designSystem: EaselDesignSystemChoice? = nil,
     previewURL: URL?
   ) -> String {
     var lines = [
@@ -250,6 +253,10 @@ enum EaselAgentInstructions {
       }
     }
 
+    if let designSystem, designSystem.kind == .custom {
+      lines.append("Active design system: \(designSystem.displayName). Its spec is in this project at resources/design-system/DESIGN.md. Read it before writing UI and build directly from its colors, typography, spacing, radii, effects, and component families — do not improvise a different palette or type scale when the design system already defines one.")
+    }
+
     if let previewURL {
       lines.append("Current embedded preview URL: \(previewURL.absoluteString)")
     }
@@ -262,12 +269,14 @@ enum EaselAgentInstructions {
     projectPath: String?,
     projectKind: EaselProjectKind? = nil,
     projectFidelity: EaselProjectFidelity? = nil,
+    designSystem: EaselDesignSystemChoice? = nil,
     previewURL: URL?
   ) -> String {
     [hiddenContext, self.hiddenContext(
       projectPath: projectPath,
       projectKind: projectKind,
       projectFidelity: projectFidelity,
+      designSystem: designSystem,
       previewURL: previewURL
     )]
       .compactMap { value in
