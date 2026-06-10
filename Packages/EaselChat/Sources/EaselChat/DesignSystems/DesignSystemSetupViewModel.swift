@@ -38,7 +38,6 @@ public final class DesignSystemSetupViewModel {
   public private(set) var sourceLinks: [String] = []
   public private(set) var codeSourceURLs: [URL] = []
   public private(set) var figFileURLs: [URL] = []
-  public var figImportMode: EaselDesignSystemFigImportMode = .reference
   public private(set) var assetURLs: [URL] = []
   public private(set) var designMarkdownURL: URL?
   /// Raw DESIGN.md pasted directly into the form (takes priority over a file).
@@ -126,7 +125,7 @@ public final class DesignSystemSetupViewModel {
         sourceLinks: sourceLinks,
         codeSourceURLs: codeSourceURLs,
         figFileURLs: figFileURLs,
-        figImportMode: figImportMode,
+        figImportMode: .extractCatalog,
         assetURLs: assetURLs,
         notes: notes,
         source: makeSource(),
@@ -169,7 +168,6 @@ public final class DesignSystemSetupViewModel {
     sourceLinks = []
     codeSourceURLs = []
     figFileURLs = []
-    figImportMode = .reference
     assetURLs = []
     designMarkdownURL = nil
     designMarkdownText = ""

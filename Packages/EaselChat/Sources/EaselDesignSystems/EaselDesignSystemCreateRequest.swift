@@ -10,7 +10,7 @@ public struct EaselDesignSystemCreateRequest: Equatable, Sendable {
   /// produces a spec-compliant `DESIGN.md` plus the derived `catalog.json`.
   public enum Source: Equatable, Sendable {
     /// Existing behavior: scaffold from a blurb plus optional code/.fig/assets.
-    /// A `.fig` in `.extractCatalog` mode emits a rich DESIGN.md during import.
+    /// A `.fig` emits a rich DESIGN.md during import.
     case resources
     /// Import and normalize an existing `DESIGN.md` file.
     case designMarkdown(URL)
@@ -38,7 +38,7 @@ public struct EaselDesignSystemCreateRequest: Equatable, Sendable {
     sourceLinks: [String],
     codeSourceURLs: [URL],
     figFileURLs: [URL],
-    figImportMode: EaselDesignSystemFigImportMode = .reference,
+    figImportMode: EaselDesignSystemFigImportMode = .extractCatalog,
     assetURLs: [URL],
     notes: String,
     source: Source = .resources,

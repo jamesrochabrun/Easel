@@ -182,22 +182,6 @@ public struct DesignSystemSetupView: View {
 
             Divider()
 
-            VStack(alignment: .leading, spacing: 10) {
-              Picker("Figma import mode", selection: $viewModel.figImportMode) {
-                ForEach(EaselDesignSystemFigImportMode.allCases) { mode in
-                  Text(mode.displayName).tag(mode)
-                }
-              }
-              .pickerStyle(.segmented)
-
-              Text(viewModel.figImportMode.detail)
-                .font(.title3)
-                .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
-            }
-            .padding(20)
-
-            Divider()
-
             DesignSystemFileImportRow(
               title: "Add fonts, logos and assets",
               buttonTitle: "Browse files",
