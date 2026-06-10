@@ -49,8 +49,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private func configureStatusItem() {
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     if let button = item.button {
-      let image = NSImage(systemSymbolName: "sparkles", accessibilityDescription: "Codex Design")
+      let image = NSImage(named: "easelmenubar")
+      image?.size = NSSize(width: 18, height: 18)
       image?.isTemplate = true
+      image?.accessibilityDescription = "Easel"
       button.image = image
       button.target = self
       button.action = #selector(statusItemClicked(_:))
