@@ -27,28 +27,6 @@ struct SettingsView: View {
     NavigationStack {
       VStack(spacing: 0) {
         Form {
-          Section("Assistant") {
-            VStack(alignment: .leading, spacing: 8) {
-              Text("Provider")
-                .font(.headline)
-
-              Picker("Provider", selection: providerSelection) {
-                ForEach(ChatProvider.allCases) { provider in
-                  Text(provider.displayName)
-                    .tag(provider)
-                }
-              }
-              .pickerStyle(.segmented)
-              .labelsHidden()
-              .frame(width: 220)
-
-              Text("Switching providers starts a fresh conversation.")
-                .font(.caption)
-                .foregroundColor(.secondary)
-            }
-            .padding(.vertical, 8)
-          }
-
           Section("Working Directory") {
             VStack(alignment: .leading, spacing: 12) {
               Text("Project Path")
@@ -71,7 +49,7 @@ struct SettingsView: View {
                   Button("Clear") {
                     projectPath = ""
                     saveProjectPath()
-                    updateClaudeClient()
+                    updateWorkingDirectory()
                   }
                   .buttonStyle(.bordered)
                   // .disabled(chatViewModel.hasSessionStarted)
@@ -114,13 +92,6 @@ struct SettingsView: View {
     }
   }
 
-  private var providerSelection: Binding<ChatProvider> {
-    Binding(
-      get: { chatViewModel.globalPreferences.chatProvider },
-      set: { chatViewModel.switchProvider(to: $0) }
-    )
-  }
-  
   private func loadProjectPath() {
     // Load session-specific path if available
     if let sessionId = chatViewModel.currentSessionId,
@@ -175,7 +146,7 @@ struct SettingsView: View {
   private func showDirectoryPicker() {
     let panel = NSOpenPanel()
     panel.title = "Select Project Directory"
-    panel.message = "Choose a project directory to use with \(chatViewModel.activeProvider.displayName)"
+    panel.message = "Choose a project directory to use with Codex"
     panel.prompt = "Select"
     panel.allowsMultipleSelection = false
     panel.canChooseFiles = false
@@ -189,7 +160,7 @@ struct SettingsView: View {
           Task { @MainActor in
             projectPath = url.path
             saveProjectPath()
-            updateClaudeClient()
+            updateWorkingDirectory()
           }
         }
       }
@@ -198,13 +169,13 @@ struct SettingsView: View {
         Task { @MainActor in
           projectPath = url.path
           saveProjectPath()
-          updateClaudeClient()
+          updateWorkingDirectory()
         }
       }
     }
   }
   
-  private func updateClaudeClient() {
+  private func updateWorkingDirectory() {
     // Update the active provider configuration directly
     let workingDirectory = projectPath
 

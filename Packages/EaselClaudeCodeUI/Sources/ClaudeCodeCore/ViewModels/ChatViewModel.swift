@@ -115,7 +115,7 @@ public final class ChatViewModel {
     return streamProcessor.activeSessionId
   }
 
-  public private(set) var activeProvider: ChatProvider = .claude
+  public private(set) var activeProvider: ChatProvider = .codex
 
   /// Returns all messages currently in memory
   public func getCurrentMessages() -> [ChatMessage] {
@@ -412,7 +412,7 @@ EOF
     self.shouldManageSessions = shouldManageSessions
     self.onSessionChange = onSessionChange
     self.onUserMessageSent = onUserMessageSent
-    self.activeProvider = globalPreferences.chatProvider
+    self.activeProvider = globalPreferences.chatProvider.supportedProvider
     self.sessionManager = SessionManager(sessionStorage: sessionStorage, logger: logger)
     self.streamProcessor = StreamProcessor(
       messageStore: messageStore,
@@ -425,6 +425,10 @@ EOF
         claudeClient.configuration.workingDirectory
       }
     )
+
+    if globalPreferences.chatProvider != activeProvider {
+      globalPreferences.chatProvider = activeProvider
+    }
 
     // Set up error handler for SessionManager after all properties are initialized
     self.sessionManager.setErrorHandler { [weak self] error, operation in
@@ -487,7 +491,13 @@ EOF
   }
 
   public func switchProvider(to provider: ChatProvider) {
-    guard activeProvider != provider else { return }
+    let provider = provider.supportedProvider
+    guard activeProvider != provider else {
+      if globalPreferences.chatProvider != provider {
+        globalPreferences.chatProvider = provider
+      }
+      return
+    }
 
     let currentDirectory = projectPath
     cancelRequest()
@@ -501,12 +511,18 @@ EOF
   }
 
   private func ensureProviderMatchesPreferences() {
-    let selectedProvider = globalPreferences.chatProvider
-    guard activeProvider != selectedProvider else { return }
+    let selectedProvider = globalPreferences.chatProvider.supportedProvider
+    guard activeProvider != selectedProvider else {
+      if globalPreferences.chatProvider != selectedProvider {
+        globalPreferences.chatProvider = selectedProvider
+      }
+      return
+    }
 
     let currentDirectory = projectPath
     clearConversation()
     activeProvider = selectedProvider
+    globalPreferences.chatProvider = selectedProvider
 
     if !currentDirectory.isEmpty {
       setWorkingDirectory(currentDirectory)
@@ -1523,25 +1539,23 @@ EOF
           error: error,
           severity: .critical,
           context: "Command '\(actualCommand)' Not Found",
-          recoverySuggestion: "The command '\(actualCommand)' was not found. This looks like a typo - did you mean 'claude'? Check your Settings > Claude Command.",
+          recoverySuggestion: "The command '\(actualCommand)' was not found. Verify the command is installed and available in PATH.",
           operation: .configuration
         )
       } else if actualCommand == "claude" {
-        // It's the correct command name, so probably not installed
         errorInfo = ErrorInfo(
           error: error,
           severity: .critical,
-          context: "Claude Not Installed",
-          recoverySuggestion: "Claude command-line tool is not installed. Run: npm install -g @anthropic/claude-code",
+          context: "Assistant Command Not Installed",
+          recoverySuggestion: "The configured assistant command is not installed or is not available in PATH.",
           operation: .configuration
         )
       } else {
-        // Some other command name
         errorInfo = ErrorInfo(
           error: error,
           severity: .critical,
           context: "Command '\(actualCommand)' Not Found",
-          recoverySuggestion: "The command '\(actualCommand)' was not found in PATH. Check your Settings > Claude Command.",
+          recoverySuggestion: "The command '\(actualCommand)' was not found in PATH.",
           operation: .configuration
         )
       }

@@ -104,7 +104,7 @@ final class PersistentPreferencesTests: XCTestCase {
     XCTAssertEqual(loaded?.generalPreferences.defaultWorkingDirectory, "/persistent/test")
   }
 
-  func testGeneralPreferencesDecodeDefaultsProviderToClaude() throws {
+  func testGeneralPreferencesDecodeDefaultsProviderToCodex() throws {
     let json = """
     {
       "autoApproveLowRisk": false,
@@ -124,8 +124,38 @@ final class PersistentPreferencesTests: XCTestCase {
     let data = try XCTUnwrap(json.data(using: .utf8))
     let preferences = try JSONDecoder().decode(GeneralPreferences.self, from: data)
 
-    XCTAssertEqual(preferences.chatProvider, .claude)
+    XCTAssertEqual(preferences.chatProvider, .codex)
     XCTAssertFalse(preferences.codexModel.isEmpty)
+  }
+
+  func testGeneralPreferencesInitializerNormalizesClaudeProviderToCodex() {
+    let preferences = GeneralPreferences(chatProvider: .claude)
+
+    XCTAssertEqual(preferences.chatProvider, .codex)
+  }
+
+  func testGeneralPreferencesDecodeClaudeProviderAsCodex() throws {
+    let json = """
+    {
+      "autoApproveLowRisk": false,
+      "claudeCommand": "claude",
+      "claudePath": "",
+      "chatProvider": "claude",
+      "defaultWorkingDirectory": "",
+      "appendSystemPrompt": "",
+      "systemPrompt": "",
+      "showDetailedPermissionInfo": true,
+      "permissionRequestTimeout": 3600,
+      "permissionTimeoutEnabled": false,
+      "maxConcurrentPermissionRequests": 5,
+      "disallowedTools": []
+    }
+    """
+
+    let data = try XCTUnwrap(json.data(using: .utf8))
+    let preferences = try JSONDecoder().decode(GeneralPreferences.self, from: data)
+
+    XCTAssertEqual(preferences.chatProvider, .codex)
   }
 
   func testToolReconciliation() async throws {

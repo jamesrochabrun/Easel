@@ -224,7 +224,7 @@ struct MCPConfigurationView: View {
   }
   
   private var configurationWarningView: some View {
-    Text("Configuration is stored at ~/.config/claude/mcp-config.json")
+    Text("Configuration is stored in the selected MCP configuration file")
       .font(.caption)
       .foregroundColor(.secondary)
   }

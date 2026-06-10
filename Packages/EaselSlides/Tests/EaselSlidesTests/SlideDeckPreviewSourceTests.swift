@@ -35,6 +35,7 @@ struct SlideDeckPreviewSourceTests {
 
     #expect(source.contains("onLoadingChange: handleLoadingChange"))
     #expect(source.contains("onError: handleError"))
+    #expect(source.contains("private func applyMetadataChange"))
     #expect(source.contains("Task { @MainActor in"))
     #expect(source.contains("onLoadingChange: { isLoading = $0 }") == false)
     #expect(source.contains("onError: { errorMessage = $0 }") == false)
@@ -66,6 +67,7 @@ struct SlideDeckPreviewSourceTests {
 
     #expect(source.contains("onLoadingChange: handleLoadingChange"))
     #expect(source.contains("onError: handleError"))
+    #expect(source.contains("private func applyMetadataChange"))
     #expect(source.contains("Task { @MainActor in"))
     #expect(source.contains("onLoadingChange: { isLoading = $0 }") == false)
     #expect(source.contains("onError: { errorMessage = $0 }") == false)
@@ -78,6 +80,18 @@ struct SlideDeckPreviewSourceTests {
     )
 
     #expect(source.contains("fastForwardMotion: true"))
+  }
+
+  @Test
+  func thumbnailRendererSettlesAnimationsBeforeSnapshot() throws {
+    let source = try sourceContents(
+      "Sources/EaselSlides/Views/SlideDeckThumbnailRenderer.swift"
+    )
+
+    #expect(source.contains("waitForSettledPaint"))
+    #expect(source.contains("document.getAnimations"))
+    #expect(source.contains("animation.finish()"))
+    #expect(source.contains("requestAnimationFrame(resolve)"))
   }
 
   private func sourceContents(_ relativePath: String) throws -> String {

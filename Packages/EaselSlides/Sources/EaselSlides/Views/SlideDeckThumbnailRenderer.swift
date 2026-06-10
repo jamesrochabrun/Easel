@@ -122,7 +122,7 @@ struct SlideDeckThumbnailRenderer: NSViewRepresentable {
               SlideDeckPreviewScript.selectScript(index: slide.index),
               in: webView
             )
-            try await self.waitForNextPaint(in: webView)
+            try await self.waitForSettledPaint(in: webView)
             try Task.checkCancellation()
 
             if let image = try? await self.snapshot(webView) {
@@ -185,7 +185,7 @@ struct SlideDeckThumbnailRenderer: NSViewRepresentable {
       }
     }
 
-    private func waitForNextPaint(in webView: WKWebView) async throws {
+    private func waitForSettledPaint(in webView: WKWebView) async throws {
       _ = try await webView.callAsyncJavaScript(
         """
         const timeout = new Promise((resolve) => {
@@ -195,6 +195,27 @@ struct SlideDeckThumbnailRenderer: NSViewRepresentable {
           ? document.fonts.ready.catch(() => undefined)
           : Promise.resolve();
         await Promise.race([fontsReady, timeout]);
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+
+        if (document.getAnimations) {
+          for (const animation of document.getAnimations({ subtree: true })) {
+            const timing = animation.effect && animation.effect.getTiming
+              ? animation.effect.getTiming()
+              : {};
+
+            if (timing.iterations === Infinity) {
+              animation.pause();
+              continue;
+            }
+
+            try {
+              animation.finish();
+            } catch {
+              animation.pause();
+            }
+          }
+        }
+
         await new Promise((resolve) => requestAnimationFrame(resolve));
         return true;
         """,

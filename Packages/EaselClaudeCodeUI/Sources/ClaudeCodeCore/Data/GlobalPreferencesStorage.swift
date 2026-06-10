@@ -167,7 +167,7 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
       self.appendSystemPrompt = general.appendSystemPrompt
       self.claudeCommand = general.claudeCommand
       self.claudePath = general.claudePath
-      self.chatProvider = general.chatProvider
+      self.chatProvider = general.chatProvider.supportedProvider
       let loadedCodexModel = general.codexModel.trimmingCharacters(in: .whitespacesAndNewlines)
       self.codexModel = loadedCodexModel.isEmpty ? CodexModelCacheCatalog().defaultModelIdentifier() : loadedCodexModel
       self.defaultWorkingDirectory = general.defaultWorkingDirectory
@@ -250,7 +250,7 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
       self.defaultWorkingDirectory = ""
       self.claudeCommand = "claude"
       self.claudePath = ""
-      self.chatProvider = .claude
+      self.chatProvider = .codex
       self.codexModel = codexModelCatalog.defaultModelIdentifier()
       self.isClaudeCommandFromConfig = false
 
@@ -326,7 +326,7 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
       self.appendSystemPrompt = general.appendSystemPrompt
       self.claudeCommand = general.claudeCommand
       self.claudePath = general.claudePath
-      self.chatProvider = general.chatProvider
+      self.chatProvider = general.chatProvider.supportedProvider
       let loadedCodexModel = general.codexModel.trimmingCharacters(in: .whitespacesAndNewlines)
       self.codexModel = loadedCodexModel.isEmpty ? CodexModelCacheCatalog().defaultModelIdentifier() : loadedCodexModel
       self.defaultWorkingDirectory = general.defaultWorkingDirectory
@@ -370,7 +370,7 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
     defaultWorkingDirectory = ""
     claudeCommand = "claude"
     claudePath = ""
-    chatProvider = .claude
+    chatProvider = .codex
     codexModel = codexModelCatalog.defaultModelIdentifier()
     isClaudeCommandFromConfig = false
 

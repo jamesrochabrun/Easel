@@ -303,6 +303,13 @@ public struct SlideDeckPreviewView: View {
 
   @MainActor
   private func handleMetadataChange(_ nextMetadata: SlideDeckMetadata) {
+    Task { @MainActor in
+      applyMetadataChange(nextMetadata)
+    }
+  }
+
+  @MainActor
+  private func applyMetadataChange(_ nextMetadata: SlideDeckMetadata) {
     if metadata != nextMetadata {
       thumbnailsByIndex = [:]
     }

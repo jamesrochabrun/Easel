@@ -11,13 +11,28 @@ import EaselServerManager
 final class AppDelegate: NSObject, NSApplicationDelegate {
   private var windowController: WindowController?
   private var statusItem: NSStatusItem?
+  private let isFloatingChatBarEnabled: Bool
   let appState = AppState()
   let chatService = ChatService()
   var serverManager: ProjectServerManager?
 
+  override init() {
+    self.isFloatingChatBarEnabled = false
+    super.init()
+  }
+
+  init(isFloatingChatBarEnabled: Bool) {
+    self.isFloatingChatBarEnabled = isFloatingChatBarEnabled
+    super.init()
+  }
+
   func applicationDidFinishLaunching(_ notification: Notification) {
     appState.openCanvas()
-    let controller = WindowController(appState: appState, chatService: chatService)
+    let controller = WindowController(
+      appState: appState,
+      chatService: chatService,
+      isFloatingChatBarEnabled: isFloatingChatBarEnabled
+    )
     self.windowController = controller
     controller.showCanvas()
     configureStatusItem()
@@ -66,8 +81,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     if let event = NSApp.currentEvent, event.type == .rightMouseUp {
       showContextMenu(from: button)
-    } else {
+    } else if isFloatingChatBarEnabled {
       openChatBar(sender)
+    } else {
+      openAppWindow(sender)
     }
   }
 
@@ -77,7 +94,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     menu.popUp(positioning: nil, at: location, in: button)
   }
 
-  private func buildStatusMenu() -> NSMenu {
+  func buildStatusMenu() -> NSMenu {
     let menu = NSMenu()
 
     let openWindowItem = NSMenuItem(
@@ -88,13 +105,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     openWindowItem.target = self
     menu.addItem(openWindowItem)
 
-    let openChatBarItem = NSMenuItem(
-      title: "Open Chat Bar",
-      action: #selector(openChatBar(_:)),
-      keyEquivalent: ""
-    )
-    openChatBarItem.target = self
-    menu.addItem(openChatBarItem)
+    if isFloatingChatBarEnabled {
+      let openChatBarItem = NSMenuItem(
+        title: "Open Chat Bar",
+        action: #selector(openChatBar(_:)),
+        keyEquivalent: ""
+      )
+      openChatBarItem.target = self
+      menu.addItem(openChatBarItem)
+    }
 
     menu.addItem(NSMenuItem.separator())
 
@@ -123,6 +142,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   @objc private func openChatBar(_ sender: Any?) {
+    guard isFloatingChatBarEnabled else {
+      openAppWindow(sender)
+      return
+    }
+
     guard let controller = windowController else { return }
     NSApp.activate(ignoringOtherApps: true)
     if appState.phase == .canvas {
