@@ -29,7 +29,12 @@ struct EaselDesignSystemManagerTests {
     try Data([0, 1, 2]).write(to: figURL)
     try Data([3, 4, 5]).write(to: logoURL)
 
-    let manager = LocalEaselDesignSystemManager(rootDirectory: rootDirectory)
+    let importer = RecordingDesignSystemImporter()
+    let manager = LocalEaselDesignSystemManager(
+      rootDirectory: rootDirectory,
+      designSystemImporter: importer,
+      importScheduling: .immediate
+    )
     let profile = try await manager.createDesignSystem(from: EaselDesignSystemCreateRequest(
       blurb: "Mission Impastabowl: fast-casual pasta restaurant",
       sourceLinks: ["https://github.com/example/brand"],
