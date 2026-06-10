@@ -48,17 +48,6 @@ public enum DesignLibraryItemKind: String, Codable, CaseIterable, Identifiable, 
     }
   }
 
-  var badgeTint: DesignLibraryBadgeTint {
-    switch self {
-    case .prototype:
-      return .neutral
-    case .slideDeck:
-      return .warm
-    case .designSystem:
-      return .soft
-    }
-  }
-
   var preparesSlideFirstPage: Bool {
     self == .slideDeck
   }

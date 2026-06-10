@@ -30,14 +30,7 @@ struct DesignLibraryThumbnailPlaceholderView: View {
   }
 
   private var background: some View {
-    ZStack {
-      EaselDesignSystem.Palette.surfaceElevated(for: colorScheme)
-
-      if item.kind == .designSystem {
-        Color(red: 0.95, green: 0.88, blue: 0.88)
-          .opacity(colorScheme == .dark ? 0.18 : 0.72)
-      }
-    }
+    EaselDesignSystem.Palette.surfaceElevated(for: colorScheme)
   }
 
   private var iconColor: Color {
