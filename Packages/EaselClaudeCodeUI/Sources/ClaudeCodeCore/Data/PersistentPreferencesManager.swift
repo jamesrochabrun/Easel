@@ -330,7 +330,7 @@ public struct GeneralPreferences: Codable {
     autoApproveLowRisk: Bool = false,
     claudeCommand: String = "claude",
     claudePath: String = "",
-    chatProvider: ChatProvider = .claude,
+    chatProvider: ChatProvider = .codex,
     codexModel: String = CodexModelCacheCatalog().defaultModelIdentifier(),
     defaultWorkingDirectory: String = "",
     appendSystemPrompt: String = "",
@@ -345,7 +345,7 @@ public struct GeneralPreferences: Codable {
     self.autoApproveLowRisk = autoApproveLowRisk
     self.claudeCommand = claudeCommand
     self.claudePath = claudePath
-    self.chatProvider = chatProvider
+    self.chatProvider = chatProvider.supportedProvider
     self.codexModel = codexModel
     self.defaultWorkingDirectory = defaultWorkingDirectory
     self.appendSystemPrompt = appendSystemPrompt
@@ -364,7 +364,7 @@ public struct GeneralPreferences: Codable {
     autoApproveLowRisk = try container.decode(Bool.self, forKey: .autoApproveLowRisk)
     claudeCommand = try container.decode(String.self, forKey: .claudeCommand)
     claudePath = try container.decode(String.self, forKey: .claudePath)
-    chatProvider = try container.decodeIfPresent(ChatProvider.self, forKey: .chatProvider) ?? .claude
+    chatProvider = (try container.decodeIfPresent(ChatProvider.self, forKey: .chatProvider) ?? .codex).supportedProvider
     codexModel = try container.decodeIfPresent(String.self, forKey: .codexModel) ?? CodexModelCacheCatalog().defaultModelIdentifier()
     defaultWorkingDirectory = try container.decode(String.self, forKey: .defaultWorkingDirectory)
     appendSystemPrompt = try container.decode(String.self, forKey: .appendSystemPrompt)

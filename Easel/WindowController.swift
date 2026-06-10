@@ -15,12 +15,19 @@ final class WindowController: NSObject, WindowControlling, NSWindowDelegate {
 
   private let appState: AppState
   private let chatService: ChatService
+  private let isFloatingChatBarEnabled: Bool
   private var storedCanvasFrame: NSRect?
   private var transitionGeneration = 0
 
-  init(appState: AppState, chatService: ChatService, observesPhaseChanges: Bool = true) {
+  init(
+    appState: AppState,
+    chatService: ChatService,
+    isFloatingChatBarEnabled: Bool = false,
+    observesPhaseChanges: Bool = true
+  ) {
     self.appState = appState
     self.chatService = chatService
+    self.isFloatingChatBarEnabled = isFloatingChatBarEnabled
     self.capsulePanel = Self.makeCapsulePanel()
     self.canvasWindow = Self.makeCanvasWindow()
 
@@ -35,6 +42,12 @@ final class WindowController: NSObject, WindowControlling, NSWindowDelegate {
   }
 
   func showCapsule() {
+    guard isFloatingChatBarEnabled else {
+      appState.openCanvas()
+      showCanvas()
+      return
+    }
+
     let frame = capsuleFrame()
     capsulePanel.setFrame(frame, display: true)
     capsulePanel.alphaValue = 1
@@ -93,6 +106,12 @@ final class WindowController: NSObject, WindowControlling, NSWindowDelegate {
   }
 
   func animateToCapsule() {
+    guard isFloatingChatBarEnabled else {
+      appState.openCanvas()
+      showCanvas()
+      return
+    }
+
     let generation = nextTransitionGeneration()
     preserveCanvasFrameIfPossible()
 
@@ -127,6 +146,7 @@ final class WindowController: NSObject, WindowControlling, NSWindowDelegate {
 
   func windowShouldClose(_ sender: NSWindow) -> Bool {
     guard sender === canvasWindow else { return true }
+    guard isFloatingChatBarEnabled else { return true }
 
     preserveCanvasFrameIfPossible()
     appState.resetToCapsule()

@@ -18,6 +18,7 @@ struct WindowControllerTests {
     let controller = WindowController(
       appState: appState,
       chatService: ChatService(),
+      isFloatingChatBarEnabled: true,
       observesPhaseChanges: false
     )
 
@@ -43,6 +44,7 @@ struct WindowControllerTests {
     let controller = WindowController(
       appState: appState,
       chatService: ChatService(),
+      isFloatingChatBarEnabled: true,
       observesPhaseChanges: false
     )
 
@@ -58,6 +60,7 @@ struct WindowControllerTests {
     let controller = WindowController(
       appState: appState,
       chatService: ChatService(),
+      isFloatingChatBarEnabled: true,
       observesPhaseChanges: false
     )
     controller.showCapsule()
@@ -73,6 +76,7 @@ struct WindowControllerTests {
     let controller = WindowController(
       appState: appState,
       chatService: ChatService(),
+      isFloatingChatBarEnabled: true,
       observesPhaseChanges: false
     )
     defer {
@@ -88,6 +92,42 @@ struct WindowControllerTests {
     #expect(controller.canvasWindow.isVisible)
     #expect(controller.canvasWindow.contentView != nil)
     #expect(controller.canvasWindow.alphaValue == 1)
+  }
+
+  @Test
+  func showCapsuleFallsBackToCanvasWhenFloatingChatBarIsDisabled() {
+    let appState = AppState()
+    let controller = WindowController(
+      appState: appState,
+      chatService: ChatService(),
+      observesPhaseChanges: false
+    )
+    defer {
+      controller.canvasWindow.orderOut(nil)
+      controller.capsulePanel.orderOut(nil)
+    }
+
+    controller.showCapsule()
+
+    #expect(appState.phase == .canvas)
+    #expect(!controller.capsulePanel.isVisible)
+    #expect(controller.canvasWindow.isVisible)
+  }
+
+  @Test
+  func closingCanvasWindowDoesNotReturnToCapsuleWhenFloatingChatBarIsDisabled() {
+    let appState = AppState()
+    appState.phase = .canvas
+    let controller = WindowController(
+      appState: appState,
+      chatService: ChatService(),
+      observesPhaseChanges: false
+    )
+
+    let shouldClose = controller.windowShouldClose(controller.canvasWindow)
+
+    #expect(shouldClose)
+    #expect(appState.phase == .canvas)
   }
 
   @Test

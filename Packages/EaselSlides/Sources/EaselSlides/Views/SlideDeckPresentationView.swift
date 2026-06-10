@@ -225,6 +225,13 @@ struct SlideDeckPresentationView: View {
 
   @MainActor
   private func handleMetadataChange(_ nextMetadata: SlideDeckMetadata) {
+    Task { @MainActor in
+      applyMetadataChange(nextMetadata)
+    }
+  }
+
+  @MainActor
+  private func applyMetadataChange(_ nextMetadata: SlideDeckMetadata) {
     metadata = nextMetadata
 
     guard !nextMetadata.slides.isEmpty else {

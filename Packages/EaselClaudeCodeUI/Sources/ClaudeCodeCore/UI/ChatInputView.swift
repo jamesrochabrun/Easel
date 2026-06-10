@@ -283,7 +283,9 @@ extension ChatInputView {
         CodexModelBadge(modelIdentifier: globalPreferences.codexModel)
       }
 
-      PermissionModeButton(mode: $viewModel.permissionMode)
+      if viewModel.activeProvider != .codex {
+        PermissionModeButton(mode: $viewModel.permissionMode)
+      }
     }
     .font(.system(size: 10))
     .foregroundStyle(EaselChatRuntimeStyle.tertiaryText(for: colorScheme))
