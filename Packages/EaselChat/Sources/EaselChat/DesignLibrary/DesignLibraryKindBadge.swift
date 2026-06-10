@@ -19,7 +19,7 @@ struct DesignLibraryKindBadge: View {
       .padding(.horizontal, 8)
       .frame(height: 24)
       .background(
-        kind.badgeTint.background(for: colorScheme),
+        colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.06),
         in: RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.control)
       )
   }

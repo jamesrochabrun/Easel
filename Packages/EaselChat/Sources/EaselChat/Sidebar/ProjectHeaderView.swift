@@ -22,7 +22,8 @@ struct ProjectHeaderView: View {
         HStack(spacing: 8) {
           Image(systemName: headerIconName)
             .font(.system(size: 14, weight: .medium))
-            .foregroundStyle(projectIconColor)
+            .symbolRenderingMode(.palette)
+            .foregroundStyle(projectIconAccentColor, projectIconSecondaryColor)
             .frame(width: 20)
 
           VStack(alignment: .leading, spacing: 2) {
@@ -94,10 +95,23 @@ struct ProjectHeaderView: View {
     return project.kind?.systemImage ?? (project.isExpanded ? "folder.fill" : "folder")
   }
 
-  private var projectIconColor: Color {
-    project.project == nil
-      ? EaselDesignSystem.Palette.secondaryText(for: colorScheme)
-      : EaselDesignSystem.Palette.accentForeground(for: colorScheme)
+  private var projectIconPalette: DesignKindSymbolPalette? {
+    if project.designSystem != nil {
+      return DesignLibraryItemKind.designSystem.symbolPalette
+    }
+
+    guard let kind = project.kind else { return nil }
+    return DesignLibraryItemKind(projectKind: kind).symbolPalette
+  }
+
+  private var projectIconAccentColor: Color {
+    projectIconPalette?.accent(for: colorScheme)
+      ?? EaselDesignSystem.Palette.secondaryText(for: colorScheme)
+  }
+
+  private var projectIconSecondaryColor: Color {
+    projectIconPalette?.secondary(for: colorScheme)
+      ?? EaselDesignSystem.Palette.tertiaryText(for: colorScheme)
   }
 
   private func designSystemChip(title: String) -> some View {
