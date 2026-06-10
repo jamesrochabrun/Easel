@@ -34,10 +34,22 @@ public enum DesignSectionKind: Int, CaseIterable, Comparable, Sendable {
   /// Accepted alternate headings (in addition to `canonicalTitle`).
   public var aliases: [String] {
     switch self {
-    case .overview: return ["Brand & Style"]
-    case .layout: return ["Layout & Spacing"]
-    case .elevation: return ["Elevation"]
-    default: return []
+    case .overview:
+      return ["Brand & Style", "Visual Theme & Atmosphere", "Theme & Atmosphere"]
+    case .colors:
+      return ["Color Palette", "Color Palette & Roles", "Palette"]
+    case .typography:
+      return ["Typography Rules", "Type", "Type System"]
+    case .layout:
+      return ["Layout & Spacing", "Layout Principles"]
+    case .elevation:
+      return ["Elevation", "Depth & Elevation", "Depth"]
+    case .shapes:
+      return ["Border Radius", "Radius", "Radii"]
+    case .components:
+      return ["Component Stylings", "Component Styling", "Component Styles"]
+    case .dosAndDonts:
+      return ["Dos and Donts", "Dos & Donts", "Do's & Don'ts"]
     }
   }
 
@@ -55,9 +67,25 @@ public enum DesignSectionKind: Int, CaseIterable, Comparable, Sendable {
   }
 
   private static func normalize(_ value: String) -> String {
-    value
+    stripNumericPrefix(value)
       .trimmingCharacters(in: .whitespaces)
       .lowercased()
       .replacingOccurrences(of: "\u{2019}", with: "'") // curly → straight apostrophe
+  }
+
+  private static func stripNumericPrefix(_ value: String) -> String {
+    let trimmed = value.trimmingCharacters(in: .whitespaces)
+    var cursor = trimmed.startIndex
+    while cursor < trimmed.endIndex, trimmed[cursor].isNumber {
+      cursor = trimmed.index(after: cursor)
+    }
+    guard cursor > trimmed.startIndex, cursor < trimmed.endIndex, trimmed[cursor] == "." else {
+      return trimmed
+    }
+    let afterDot = trimmed.index(after: cursor)
+    guard afterDot < trimmed.endIndex, trimmed[afterDot].isWhitespace else {
+      return trimmed
+    }
+    return String(trimmed[afterDot...]).trimmingCharacters(in: .whitespaces)
   }
 }

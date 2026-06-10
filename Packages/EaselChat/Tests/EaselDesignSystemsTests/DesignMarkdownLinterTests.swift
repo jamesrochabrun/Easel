@@ -48,6 +48,44 @@ struct DesignMarkdownLinterTests {
   }
 
   @Test
+  func ignoresResponsiveBehaviorExtraSectionForOrder() throws {
+    let document = try DesignMarkdownParser.parse([
+      "---",
+      "name: Apple",
+      "colors:",
+      "  primary: \"#0066CC\"",
+      "typography:",
+      "  body:",
+      "    fontFamily: SF Pro Text",
+      "    fontSize: 17px",
+      "---",
+      "",
+      "## Overview",
+      "",
+      "Photography-first.",
+      "",
+      "## Colors",
+      "",
+      "Action blue.",
+      "",
+      "## Typography",
+      "",
+      "SF Pro.",
+      "",
+      "## Do's and Don'ts",
+      "",
+      "- Do use product imagery.",
+      "",
+      "## Responsive Behavior",
+      "",
+      "Global nav collapses at tablet widths.",
+    ].joined(separator: "\n"))
+
+    let findings = DesignMarkdownLinter.lint(document)
+    #expect(findings.contains { $0.rule == "section-order" } == false)
+  }
+
+  @Test
   func acceptsExtendedComponentPropertiesWithoutWarning() {
     let document = DesignMarkdown(
       name: "Extended",

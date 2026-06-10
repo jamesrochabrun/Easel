@@ -60,9 +60,14 @@ struct DesignMarkdownParserTests {
   @Test
   func resolvesSectionAliases() {
     #expect(DesignSectionKind.match(heading: "Brand & Style") == .overview)
+    #expect(DesignSectionKind.match(heading: "1. Visual Theme & Atmosphere") == .overview)
+    #expect(DesignSectionKind.match(heading: "2. Color Palette & Roles") == .colors)
+    #expect(DesignSectionKind.match(heading: "3. Typography Rules") == .typography)
+    #expect(DesignSectionKind.match(heading: "4. Component Stylings") == .components)
     #expect(DesignSectionKind.match(heading: "Layout & Spacing") == .layout)
     #expect(DesignSectionKind.match(heading: "Elevation") == .elevation)
     #expect(DesignSectionKind.match(heading: "Do\u{2019}s and Don\u{2019}ts") == .dosAndDonts)
+    #expect(DesignSectionKind.match(heading: "Responsive Behavior") == nil)
     #expect(DesignSectionKind.match(heading: "Mystery") == nil)
   }
 
