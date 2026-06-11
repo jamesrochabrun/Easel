@@ -108,11 +108,14 @@ public struct SidebarView: View {
   }
 
   private var headerView: some View {
-    HStack(spacing: 9) {
-      Image(systemName: "sparkles")
-        .font(EaselDesignSystem.Typography.interface(size: 14, weight: .semibold))
-        .foregroundStyle(EaselDesignSystem.Palette.accent)
-        .frame(width: 18, height: 18)
+    HStack(alignment: .center, spacing: 5) {
+      Image("easelmenubar")
+        .renderingMode(.template)
+        .resizable()
+        .scaledToFit()
+        .foregroundStyle(headerIconForegroundColor)
+        .frame(width: 16, height: 16)
+        .accessibilityHidden(true)
 
       Text("Easel")
         .font(EaselDesignSystem.Typography.interface(size: 16, weight: .semibold))
@@ -123,6 +126,10 @@ public struct SidebarView: View {
     .padding(.trailing, 16)
     .frame(maxWidth: .infinity, alignment: .leading)
     .frame(height: EaselDesignSystem.Spacing.toolbarHeight)
+  }
+
+  private var headerIconForegroundColor: Color {
+    colorScheme == .dark ? .white : EaselDesignSystem.Palette.accent
   }
 
   private var headerLeadingPadding: CGFloat {
