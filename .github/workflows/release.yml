@@ -13,10 +13,10 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Setup Xcode
-        uses: maxim-lobanov/setup-xcode@v1
+        uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
         with:
           xcode-version: latest-stable
 
@@ -51,6 +51,8 @@ jobs:
             "$KEYCHAIN_PATH"
 
       - name: Archive app
+        env:
+          TEAM_ID: ${{ secrets.TEAM_ID }}
         run: |
           xcodebuild \
             -project Easel.xcodeproj \
@@ -59,9 +61,10 @@ jobs:
             -archivePath build/Easel.xcarchive \
             -derivedDataPath build/DerivedData \
             -skipPackagePluginValidation \
+            -disableAutomaticPackageResolution \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Developer ID Application" \
-            DEVELOPMENT_TEAM=${{ secrets.TEAM_ID }} \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
             archive
 
       - name: Export app
@@ -168,7 +171,7 @@ jobs:
           cat build/Easel.app.zip.sha256
 
       - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: |
             build/Easel.dmg
