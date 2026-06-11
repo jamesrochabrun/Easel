@@ -210,7 +210,7 @@ public struct ChatScreen: View {
   @ViewBuilder
   private var loadingView: some View {
     let isToastVisible = (customPermissionService as? DefaultCustomPermissionService)?.isToastVisible ?? false
-    if viewModel.isLoading, !isToastVisible, let startTime = viewModel.streamingStartTime {
+    if viewModel.isCurrentSessionLoading, !isToastVisible, let startTime = viewModel.streamingStartTime {
       LoadingIndicator(
         startTime: startTime,
         inputTokens: viewModel.currentInputTokens,

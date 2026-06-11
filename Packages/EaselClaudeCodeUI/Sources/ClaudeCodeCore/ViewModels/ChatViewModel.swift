@@ -58,11 +58,32 @@ public final class ChatViewModel {
   /// Optional Codex developer instructions prefix. Falls back to systemPromptPrefix when nil.
   private let codexDeveloperInstructionsPrefix: String?
 
-  private let streamProcessor: StreamProcessor
+  @ObservationIgnored private lazy var streamProcessor: StreamProcessor = {
+    let processor = StreamProcessor(
+      messageStore: messageStore,
+      sessionManager: sessionManager,
+      globalPreferences: globalPreferences,
+      mcpToolsDiscovery: mcpToolsDiscovery,
+      logger: debugLogger,
+      onSessionChange: { [weak self] sessionId in
+        self?.handleRuntimeSessionChange(sessionId)
+      },
+      getCurrentWorkingDirectory: { [weak self] in
+        self?.claudeClient.configuration.workingDirectory
+      }
+    )
+
+    processor.setParentViewModel { [weak self] in
+      self
+    }
+
+    return processor
+  }()
   private let messageStore = MessageStore()
   @ObservationIgnored private var codexRuntime: CodexChatRuntime?
   @ObservationIgnored private var codexTask: Task<Void, Never>?
   private var firstMessageInSession: String?
+  private var loadingSessionIdentity: LoadingSessionIdentity?
   
   // Session isolation: track if we're in the middle of switching sessions
   private var isSwitchingSession = false
@@ -124,6 +145,14 @@ public final class ChatViewModel {
   
   /// Loading state
   public private(set) var isLoading: Bool = false
+  var isCurrentSessionLoading: Bool {
+    guard isLoading,
+          let loadingSessionIdentity else {
+      return false
+    }
+
+    return loadingSessionIdentity.matches(currentSessionIdentity)
+  }
   
   /// Error state with detailed information
   public var errorInfo: ErrorInfo?
@@ -414,17 +443,6 @@ EOF
     self.onUserMessageSent = onUserMessageSent
     self.activeProvider = globalPreferences.chatProvider.supportedProvider
     self.sessionManager = SessionManager(sessionStorage: sessionStorage, logger: logger)
-    self.streamProcessor = StreamProcessor(
-      messageStore: messageStore,
-      sessionManager: sessionManager,
-      globalPreferences: globalPreferences,
-      mcpToolsDiscovery: mcpToolsDiscovery,
-      logger: logger,
-      onSessionChange: onSessionChange,
-      getCurrentWorkingDirectory: {
-        claudeClient.configuration.workingDirectory
-      }
-    )
 
     if globalPreferences.chatProvider != activeProvider {
       globalPreferences.chatProvider = activeProvider
@@ -433,11 +451,6 @@ EOF
     // Set up error handler for SessionManager after all properties are initialized
     self.sessionManager.setErrorHandler { [weak self] error, operation in
       self?.handleError(error, operation: operation)
-    }
-
-    // Set up parent reference for StreamProcessor
-    self.streamProcessor.setParentViewModel { [weak self] in
-      return self
     }
 
     // Wire up approval timeout callback
@@ -528,6 +541,53 @@ EOF
       setWorkingDirectory(currentDirectory)
     }
   }
+
+  private var currentSessionIdentity: LoadingSessionIdentity {
+    LoadingSessionIdentity(
+      sessionId: sessionManager.currentSessionId,
+      workingDirectory: normalizedWorkingDirectory(claudeClient.configuration.workingDirectory ?? projectPath)
+    )
+  }
+
+  private func beginLoadingState() {
+    isLoading = true
+    loadingSessionIdentity = currentSessionIdentity
+    streamingStartTime = .now
+    currentInputTokens = 0
+    currentOutputTokens = 0
+    currentCostUSD = 0.0
+  }
+
+  private func endLoadingState() {
+    isLoading = false
+    streamingStartTime = nil
+    loadingSessionIdentity = nil
+  }
+
+  private func handleSessionChange(_ sessionId: String) {
+    onSessionChange?(sessionId)
+  }
+
+  private func handleRuntimeSessionChange(_ sessionId: String) {
+    updateLoadingSessionIdentityIfNeeded(sessionId: sessionId)
+    handleSessionChange(sessionId)
+  }
+
+  private func updateLoadingSessionIdentityIfNeeded(sessionId: String) {
+    guard isLoading,
+          let loadingSessionIdentity,
+          loadingSessionIdentity.sessionId == nil,
+          loadingSessionIdentity.workingDirectory == currentSessionIdentity.workingDirectory else {
+      return
+    }
+
+    self.loadingSessionIdentity = loadingSessionIdentity.replacingSessionId(sessionId)
+  }
+
+  private func normalizedWorkingDirectory(_ directory: String?) -> String? {
+    let trimmedDirectory = directory?.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmedDirectory?.isEmpty == false ? trimmedDirectory : nil
+  }
   
   // MARK: - Public Methods
   /// Retries the last user message with all its original data
@@ -617,12 +677,7 @@ EOF
     let assistantId = UUID()
     currentMessageId = assistantId
     
-    // Set loading state and initialize streaming metrics
-    isLoading = true
-    streamingStartTime = Date()
-    currentInputTokens = 0
-    currentOutputTokens = 0
-    currentCostUSD = 0.0
+    beginLoadingState()
     
     // Track session start
     if !hasSessionStarted {
@@ -660,6 +715,7 @@ EOF
     errorQueue.removeAll()
     firstMessageInSession = nil
     hasSessionStarted = false
+    endLoadingState()
     codexRuntime?.resetSession()
     codexTask = nil
   }
@@ -737,8 +793,7 @@ EOF
     customPermissionService.cancelAllRequests()
 
     // Clean up UI state
-    isLoading = false
-    streamingStartTime = nil
+    endLoadingState()
 
     // Mark the last message as cancelled
     let messages = messageStore.getAllMessages()
@@ -781,11 +836,7 @@ EOF
 
     // Set up loading state
     await MainActor.run {
-      self.isLoading = true
-      self.streamingStartTime = Date()
-      self.currentInputTokens = 0
-      self.currentOutputTokens = 0
-      self.currentCostUSD = 0.0
+      self.beginLoadingState()
     }
 
     let assistantId = UUID()
@@ -840,13 +891,12 @@ EOF
     guard let sessionId = sessions.first(where: { $0.id == id })?.id else { return }
 
     // Notify settings storage of session change
-    onSessionChange?(sessionId)
-
     // Clear current messages
     messageStore.clear()
 
     // Set the session ID
     sessionManager.selectSession(id: sessionId)
+    handleSessionChange(sessionId)
     if activeProvider == .codex {
       getCodexRuntime().markSessionRestored()
     }
@@ -948,7 +998,7 @@ EOF
   public func injectSession(sessionId: String, messages: [ChatMessage], workingDirectory: String? = nil) {
     // Set up the session
     sessionManager.selectSession(id: sessionId)
-    onSessionChange?(sessionId)
+    handleSessionChange(sessionId)
 
     // Set working directory if provided
     if let dir = workingDirectory {
@@ -1081,7 +1131,7 @@ EOF
     }
     
     // Notify settings storage of session change
-    onSessionChange?(id)
+    handleSessionChange(id)
     
     // Load and set the session's stored path
     if let sessionPath = settingsStorage.getProjectPath(forSessionId: id) {
@@ -1118,7 +1168,7 @@ EOF
   private func setupConversationResumption(assistantId: UUID, initialPrompt: String?) {
     // Only set loading state if we have a prompt to send
     if let prompt = initialPrompt, !prompt.isEmpty {
-      isLoading = true
+      beginLoadingState()
       currentMessageId = assistantId
       
       // Add the user message
@@ -1151,8 +1201,7 @@ EOF
       
       // Mark as not loading since we're not making an API call
       await MainActor.run {
-        self.isLoading = false
-        self.streamingStartTime = nil
+        self.endLoadingState()
       }
       return
     }
@@ -1187,8 +1236,7 @@ EOF
     logger.error("Failed to resume session \(sessionId): \(error.localizedDescription)")
     
     await MainActor.run {
-      self.isLoading = false
-      self.streamingStartTime = nil
+      self.endLoadingState()
       
       // Check if it's a "conversation not found" error
       let errorMessage = error.localizedDescription.lowercased()
@@ -1251,8 +1299,7 @@ EOF
     )
 
     await MainActor.run {
-      self.isLoading = false
-      self.streamingStartTime = nil
+      self.endLoadingState()
       self.firstMessageInSession = nil
     }
 
@@ -1270,7 +1317,9 @@ EOF
       workingDirectory: claudeClient.configuration.workingDirectory,
       developerInstructions: combinedCodexDeveloperInstructions(),
       modelIdentifier: globalPreferences.codexModel,
-      onSessionChange: onSessionChange
+      onSessionChange: { [weak self] sessionId in
+        self?.handleRuntimeSessionChange(sessionId)
+      }
     )
     codexRuntime = runtime
     return runtime
@@ -1471,8 +1520,7 @@ EOF
         },
         onResultReceived: { [weak self] in
           Task { @MainActor in
-            self?.isLoading = false
-            self?.streamingStartTime = nil
+            self?.endLoadingState()
           }
         }
       )
@@ -1563,12 +1611,32 @@ EOF
 
     self.errorInfo = errorInfo
     self.errorQueue.append(errorInfo)
-    self.isLoading = false
-    self.streamingStartTime = nil
+    endLoadingState()
 
     // Remove incomplete assistant message if there was an error
     if let currentMessageId = currentMessageId {
       messageStore.removeMessage(id: currentMessageId)
+    }
+  }
+
+  private struct LoadingSessionIdentity: Equatable {
+    let sessionId: String?
+    let workingDirectory: String?
+
+    func matches(_ currentIdentity: LoadingSessionIdentity) -> Bool {
+      if let sessionId {
+        return currentIdentity.sessionId == sessionId
+      }
+
+      return currentIdentity.sessionId == nil
+        && currentIdentity.workingDirectory == workingDirectory
+    }
+
+    func replacingSessionId(_ sessionId: String) -> LoadingSessionIdentity {
+      LoadingSessionIdentity(
+        sessionId: sessionId,
+        workingDirectory: workingDirectory
+      )
     }
   }
 

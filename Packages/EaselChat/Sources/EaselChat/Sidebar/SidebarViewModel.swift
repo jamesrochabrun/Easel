@@ -47,6 +47,7 @@ public final class SidebarViewModel {
   private let sessionStorage: SessionStorageProtocol
   private let projectManager: any EaselProjectManaging
   private let designSystemManager: any EaselDesignSystemManaging
+  private var pendingNewSession: StoredSession?
 
   private static let legacyProjectDirectoriesKey = "easel.addedProjectDirectories"
 
@@ -106,17 +107,54 @@ public final class SidebarViewModel {
 
     do {
       let sessions = try await sessionStorage.getAllSessions()
+      let sessionsForDisplay = sessionsIncludingPendingNewSession(sessions)
       let previousExpansion = Dictionary(uniqueKeysWithValues: projectGroups.map { ($0.id, $0.isExpanded) })
       let projects = (try? await projectManager.loadProjects()) ?? []
       projectGroups = ProjectGroup.groups(
         projects: projects,
         designSystems: customDesignSystems,
-        sessions: sessions,
+        sessions: sessionsForDisplay,
         previousExpansion: previousExpansion
       )
     } catch {
       projectGroups = []
     }
+  }
+
+  public func preparePendingNewSession(workingDirectory: String?) {
+    let normalizedWorkingDirectory = Self.normalizedWorkingDirectory(workingDirectory)
+    let now = Date()
+    let session = StoredSession(
+      id: UUID().uuidString.lowercased(),
+      createdAt: now,
+      firstUserMessage: "",
+      lastAccessedAt: now,
+      workingDirectory: normalizedWorkingDirectory
+    )
+
+    replacePendingNewSession(with: session)
+  }
+
+  public func completePendingNewSession(sessionId: String) {
+    let normalizedSessionID = sessionId.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !normalizedSessionID.isEmpty else { return }
+
+    selectedSessionId = normalizedSessionID
+
+    guard let pendingNewSession else { return }
+
+    let completedPendingSession = StoredSession(
+      id: normalizedSessionID,
+      createdAt: pendingNewSession.createdAt,
+      firstUserMessage: pendingNewSession.firstUserMessage,
+      lastAccessedAt: Date(),
+      messages: pendingNewSession.messages,
+      workingDirectory: pendingNewSession.workingDirectory,
+      branchName: pendingNewSession.branchName,
+      isWorktree: pendingNewSession.isWorktree
+    )
+
+    replacePendingNewSession(with: completedPendingSession)
   }
 
   func toggleProject(_ projectId: String) {
@@ -155,17 +193,29 @@ public final class SidebarViewModel {
   }
 
   func selectSession(_ session: StoredSession) {
+    if isPendingNewSession(session) {
+      selectedSessionId = session.id
+      return
+    }
+
+    clearPendingNewSession()
     selectedSessionId = session.id
     onSessionSelected?(session)
   }
 
   func openWorkspace(_ group: ProjectGroup) {
-    selectedSessionId = group.sessions.first?.id
-    onOpenWorkspace?(group.workingDirectory, group.sessions.first)
+    if let latestSession = group.sessions.first(where: { !isPendingNewSession($0) }) {
+      clearPendingNewSession()
+      selectedSessionId = latestSession.id
+      onOpenWorkspace?(group.workingDirectory, latestSession)
+    } else {
+      preparePendingNewSession(workingDirectory: group.workingDirectory)
+      onOpenWorkspace?(group.workingDirectory, nil)
+    }
   }
 
   func requestNewChat(workingDirectory: String?) {
-    selectedSessionId = nil
+    preparePendingNewSession(workingDirectory: workingDirectory)
     onNewChatRequested?(workingDirectory)
   }
 
@@ -178,6 +228,11 @@ public final class SidebarViewModel {
   }
 
   func deleteSession(_ session: StoredSession) {
+    if isPendingNewSession(session) {
+      clearPendingNewSession()
+      return
+    }
+
     onDeleteSession?(session)
   }
 
@@ -254,7 +309,7 @@ public final class SidebarViewModel {
     do {
       let project = try await projectManager.createProject(from: request)
       projectName = ""
-      selectedSessionId = nil
+      preparePendingNewSession(workingDirectory: project.workingDirectory)
       await loadSessions()
       onProjectLaunchRequested?(EaselProjectLaunch(project: project))
     } catch {
@@ -293,6 +348,82 @@ public final class SidebarViewModel {
     }
 
     return String(collapsed.prefix(limit)).trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  private func replacePendingNewSession(with session: StoredSession) {
+    let previousPendingSessionID = pendingNewSession?.id
+    pendingNewSession = session
+    selectedSessionId = session.id
+
+    if let previousPendingSessionID, previousPendingSessionID != session.id {
+      removeSessionFromLoadedGroups(id: previousPendingSessionID)
+    }
+
+    applyPendingNewSessionToLoadedGroups()
+  }
+
+  private func clearPendingNewSession() {
+    guard let pendingNewSession else { return }
+
+    self.pendingNewSession = nil
+    removeSessionFromLoadedGroups(id: pendingNewSession.id)
+
+    if selectedSessionId == pendingNewSession.id {
+      selectedSessionId = nil
+    }
+  }
+
+  private func sessionsIncludingPendingNewSession(_ sessions: [StoredSession]) -> [StoredSession] {
+    guard let pendingNewSession else { return sessions }
+
+    if sessions.contains(where: { $0.id == pendingNewSession.id }) {
+      self.pendingNewSession = nil
+      return sessions
+    }
+
+    if let replacementSession = sessions.first(where: { storedSession in
+      Self.normalizedWorkingDirectory(storedSession.workingDirectory) == pendingNewSession.workingDirectory
+        && storedSession.lastAccessedAt >= pendingNewSession.createdAt
+    }) {
+      self.pendingNewSession = nil
+      if selectedSessionId == pendingNewSession.id {
+        selectedSessionId = replacementSession.id
+      }
+      return sessions
+    }
+
+    return [pendingNewSession] + sessions
+  }
+
+  private func applyPendingNewSessionToLoadedGroups() {
+    guard let pendingNewSession else { return }
+
+    for index in projectGroups.indices {
+      guard Self.normalizedWorkingDirectory(projectGroups[index].workingDirectory) == pendingNewSession.workingDirectory else {
+        continue
+      }
+
+      projectGroups[index].sessions.removeAll { session in
+        isPendingNewSession(session) || session.id == pendingNewSession.id
+      }
+      projectGroups[index].sessions.insert(pendingNewSession, at: 0)
+      projectGroups[index].isExpanded = true
+    }
+  }
+
+  private func removeSessionFromLoadedGroups(id sessionID: String) {
+    for index in projectGroups.indices {
+      projectGroups[index].sessions.removeAll { $0.id == sessionID }
+    }
+  }
+
+  private func isPendingNewSession(_ session: StoredSession) -> Bool {
+    pendingNewSession?.id == session.id
+  }
+
+  private static func normalizedWorkingDirectory(_ workingDirectory: String?) -> String? {
+    let trimmed = workingDirectory?.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed?.isEmpty == false ? trimmed : nil
   }
 }
 

@@ -187,6 +187,9 @@ struct CanvasContentView: View {
       }
       chatService.onSessionChanged = {
         Task {
+          if let currentSessionId = chatService.currentSessionId {
+            vm.completePendingNewSession(sessionId: currentSessionId)
+          }
           await vm.loadSessions()
           await libraryVM.refresh()
         }
@@ -415,7 +418,7 @@ struct CanvasContentView: View {
         sidebarViewModel?.selectedSessionId = selection.latestSessionID
         await chatService.switchToSession(latestSession)
       } else {
-        sidebarViewModel?.selectedSessionId = nil
+        sidebarViewModel?.preparePendingNewSession(workingDirectory: project.workingDirectory)
         await chatService.startNewSession(workingDirectory: project.workingDirectory)
       }
 
@@ -440,7 +443,7 @@ struct CanvasContentView: View {
         sidebarViewModel?.selectedSessionId = selection.latestSessionID
         await chatService.switchToSession(latestSession)
       } else {
-        sidebarViewModel?.selectedSessionId = nil
+        sidebarViewModel?.preparePendingNewSession(workingDirectory: profile.workingDirectory)
         await chatService.startNewSession(workingDirectory: profile.workingDirectory)
       }
 
@@ -474,6 +477,7 @@ struct CanvasContentView: View {
 
     Task {
       await chatService.initialize()
+      sidebarViewModel?.preparePendingNewSession(workingDirectory: launch.profile.workingDirectory)
       await chatService.startNewSession(workingDirectory: launch.profile.workingDirectory)
       await startDevServer(for: launch.profile.workingDirectory)
       await sidebarViewModel?.loadSessions()

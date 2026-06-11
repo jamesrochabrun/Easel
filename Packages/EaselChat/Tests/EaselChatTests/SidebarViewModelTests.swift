@@ -114,6 +114,108 @@ struct SidebarViewModelTests {
   }
 
   @Test
+  func requestingNewChatShowsPendingSessionRowImmediately() async throws {
+    let project = EaselDesignProject(
+      id: UUID(),
+      name: "Landing page",
+      kind: .prototype,
+      designSystem: .none,
+      fidelity: .highFidelity,
+      workingDirectory: "/tmp/landing-page",
+      createdAt: Date(timeIntervalSince1970: 1),
+      updatedAt: Date(timeIntervalSince1970: 1)
+    )
+    let viewModel = SidebarViewModel(
+      sessionStorage: RecordingSessionStorage(sessions: []),
+      projectManager: SidebarProjectManagerStub(projects: [project]),
+      designSystemManager: SidebarDesignSystemManagerStub()
+    )
+
+    await viewModel.loadSessions()
+    viewModel.requestNewChat(workingDirectory: project.workingDirectory)
+
+    let projectGroup = try #require(viewModel.projectGroups.first)
+    let pendingSession = try #require(projectGroup.sessions.first)
+    #expect(pendingSession.firstUserMessage.isEmpty)
+    #expect(pendingSession.workingDirectory == project.workingDirectory)
+    #expect(viewModel.selectedSessionId == pendingSession.id)
+    #expect(projectGroup.isExpanded)
+  }
+
+  @Test
+  func pendingNewChatSurvivesSessionReloadUntilRuntimeSessionExists() async throws {
+    let project = EaselDesignProject(
+      id: UUID(),
+      name: "Landing page",
+      kind: .prototype,
+      designSystem: .none,
+      fidelity: .highFidelity,
+      workingDirectory: "/tmp/landing-page",
+      createdAt: Date(timeIntervalSince1970: 1),
+      updatedAt: Date(timeIntervalSince1970: 1)
+    )
+    let viewModel = SidebarViewModel(
+      sessionStorage: RecordingSessionStorage(sessions: []),
+      projectManager: SidebarProjectManagerStub(projects: [project]),
+      designSystemManager: SidebarDesignSystemManagerStub()
+    )
+
+    await viewModel.loadSessions()
+    viewModel.requestNewChat(workingDirectory: project.workingDirectory)
+    let pendingID = try #require(viewModel.selectedSessionId)
+
+    await viewModel.loadSessions()
+
+    let projectGroup = try #require(viewModel.projectGroups.first)
+    #expect(projectGroup.sessions.map(\.id) == [pendingID])
+    #expect(viewModel.selectedSessionId == pendingID)
+  }
+
+  @Test
+  func completingPendingNewChatKeepsRowSelectedUntilStoredSessionLoads() async throws {
+    let project = EaselDesignProject(
+      id: UUID(),
+      name: "Landing page",
+      kind: .prototype,
+      designSystem: .none,
+      fidelity: .highFidelity,
+      workingDirectory: "/tmp/landing-page",
+      createdAt: Date(timeIntervalSince1970: 1),
+      updatedAt: Date(timeIntervalSince1970: 1)
+    )
+    let sessionStorage = RecordingSessionStorage(sessions: [])
+    let viewModel = SidebarViewModel(
+      sessionStorage: sessionStorage,
+      projectManager: SidebarProjectManagerStub(projects: [project]),
+      designSystemManager: SidebarDesignSystemManagerStub()
+    )
+
+    await viewModel.loadSessions()
+    viewModel.requestNewChat(workingDirectory: project.workingDirectory)
+    viewModel.completePendingNewSession(sessionId: "runtime-session")
+    await viewModel.loadSessions()
+
+    var projectGroup = try #require(viewModel.projectGroups.first)
+    #expect(projectGroup.sessions.map(\.id) == ["runtime-session"])
+    #expect(viewModel.selectedSessionId == "runtime-session")
+
+    let storedSession = StoredSession(
+      id: "runtime-session",
+      createdAt: Date(timeIntervalSince1970: 2),
+      firstUserMessage: "Build the landing page",
+      lastAccessedAt: Date(timeIntervalSince1970: 3),
+      workingDirectory: project.workingDirectory
+    )
+    await sessionStorage.replaceSessions([storedSession])
+    await viewModel.loadSessions()
+
+    projectGroup = try #require(viewModel.projectGroups.first)
+    #expect(projectGroup.sessions.map(\.id) == ["runtime-session"])
+    #expect(projectGroup.sessions.first?.firstUserMessage == "Build the landing page")
+    #expect(viewModel.selectedSessionId == "runtime-session")
+  }
+
+  @Test
   func filteredProjectGroupsMatchesProjectNamesOnly() async {
     let checkout = EaselDesignProject(
       id: UUID(),
@@ -421,5 +523,9 @@ private actor RecordingSessionStorage: SessionStorageProtocol {
 
   func deletedSessionIDs() -> [String] {
     deletedIDs
+  }
+
+  func replaceSessions(_ sessions: [StoredSession]) {
+    self.sessions = sessions
   }
 }
