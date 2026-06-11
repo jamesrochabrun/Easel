@@ -18,5 +18,12 @@ struct EaselApp: App {
       EaselChatSettingsView(chatService: appDelegate.chatService)
         .tint(EaselDesignSystem.Palette.accent)
     }
+    .commands {
+      CommandGroup(after: .appInfo) {
+        Button("Check for Updates...") {
+          appDelegate.checkForUpdatesFromMenu(nil)
+        }
+      }
+    }
   }
 }

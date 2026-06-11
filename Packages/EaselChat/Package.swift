@@ -20,7 +20,7 @@ let package = Package(
   dependencies: [
     .package(path: "../EaselKit"),
     .package(path: "../EaselSlides"),
-    .package(path: "../../../ClaudeCodeSDK"),
+    .package(url: "https://github.com/jamesrochabrun/ClaudeCodeSDK", exact: "1.2.4"),
     .package(path: "../EaselClaudeCodeUI"),
     .package(url: "https://github.com/appstefan/highlightswift", from: "1.1.0"),
     .package(url: "https://github.com/CodeEditApp/CodeEditSourceEditor", exact: "0.15.2"),

@@ -781,14 +781,14 @@ public actor LocalEaselDesignSystemManager: EaselDesignSystemManaging {
     """
     # \(profile.name)
 
-    Created by Codex Design.
+    Created by Easel.
 
     \(profile.blurb)
 
     Add source code, .fig files, fonts, logos, and assets under `resources/`.
     Codex should write the generated component catalog to `.easel/catalog.json`.
 
-    Run `npm run dev` to preview this design system in Codex Design.
+    Run `npm run dev` to preview this design system in Easel.
     """
   }
 

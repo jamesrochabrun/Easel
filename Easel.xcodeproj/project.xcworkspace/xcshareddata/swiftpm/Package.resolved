@@ -1,5 +1,5 @@
 {
-  "originHash" : "8c4fabc93b09900049b617fd35b48524318ae1c87219f4d0daa8a607bfa0a28d",
+  "originHash" : "c26507c9a2899e568ea5de954d02db05c6664a357cbcd8de9db62dee80326315",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -26,6 +26,15 @@
       "state" : {
         "revision" : "32679325e423072a3f04204a770edffa8393e879",
         "version" : "1.2.0"
+      }
+    },
+    {
+      "identity" : "claudecodesdk",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/jamesrochabrun/ClaudeCodeSDK",
+      "state" : {
+        "revision" : "f626d1d1eab3bf43a1eef2f70b2a493903f7e5e8",
+        "version" : "1.2.4"
       }
     },
     {
@@ -116,6 +125,15 @@
       "state" : {
         "revision" : "4de8be41dba304192e87dc0a11e0aa39e72aa2e8",
         "version" : "2.1.1"
+      }
+    },
+    {
+      "identity" : "sparkle",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/sparkle-project/Sparkle",
+      "state" : {
+        "revision" : "d46d456107feacc80711b21847b82b07bd9fb46e",
+        "version" : "2.9.3"
       }
     },
     {

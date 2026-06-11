@@ -6,7 +6,7 @@ The approval server has been successfully integrated into ClaudeCodeUI. Here's w
 
 The approval server executable has been built and is located at:
 ```
-/Users/jamesrochabrun/Desktop/git/ClaudeCodeUI/modules/ApprovalMCPServer/.build/arm64-apple-macosx/debug/ApprovalMCPServer
+<repository-root>/.build/arm64-apple-macosx/debug/ApprovalMCPServer
 ```
 
 ## 2. Updated MCPApprovalTool

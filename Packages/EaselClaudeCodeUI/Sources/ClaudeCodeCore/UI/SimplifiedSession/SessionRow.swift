@@ -82,7 +82,7 @@ struct SessionRow: View {
           ChatMessage(role: .assistant, content: "I'll help you implement worktree support."),
           ChatMessage(role: .user, content: "Can you show me how to detect worktrees?")
         ],
-        workingDirectory: "/Users/jamesrochabrun/Desktop/git/ClaudeCodeUI-feature",
+        workingDirectory: "/Users/example/Projects/ClaudeCodeUI-feature",
         branchName: "feature/worktree-support",
         isWorktree: true
       ),
@@ -102,7 +102,7 @@ struct SessionRow: View {
           ChatMessage(role: .user, content: "Fix the navigation bug in the sidebar"),
           ChatMessage(role: .assistant, content: "I'll help you fix the navigation bug.")
         ],
-        workingDirectory: "/Users/jamesrochabrun/Desktop/git/ClaudeCodeUI",
+        workingDirectory: "/Users/example/Projects/ClaudeCodeUI",
         branchName: "main",
         isWorktree: false
       ),
@@ -125,7 +125,7 @@ struct SessionRow: View {
           ChatMessage(role: .assistant, content: "I'll implement OAuth2 first."),
           ChatMessage(role: .user, content: "Add SAML support")
         ],
-        workingDirectory: "/Users/jamesrochabrun/Desktop/git/auth-refactor",
+        workingDirectory: "/Users/example/Projects/auth-refactor",
         branchName: "refactor/authentication",
         isWorktree: true
       ),
@@ -164,7 +164,7 @@ struct SessionRow: View {
           role: .user,
           content: "Debug message"
         ), count: 47),
-        workingDirectory: "/Users/jamesrochabrun/Desktop/git/ClaudeCodeUI-bugfix",
+        workingDirectory: "/Users/example/Projects/ClaudeCodeUI-bugfix",
         branchName: "bugfix/memory-leak",
         isWorktree: true
       ),

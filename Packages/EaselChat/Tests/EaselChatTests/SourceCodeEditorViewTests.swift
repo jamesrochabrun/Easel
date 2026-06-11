@@ -151,6 +151,7 @@ struct SourceCodeEditorViewTests {
   }
 
   @Test
+  @MainActor
   func findPanelRepairBringsCodeEditFindPanelToFront() {
     let rootView = NSView()
     let codeEditContainer = NSView()

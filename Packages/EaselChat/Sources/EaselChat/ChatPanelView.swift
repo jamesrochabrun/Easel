@@ -32,7 +32,7 @@ public struct ChatPanelView: View {
           customPermissionService: deps.customPermissionService,
           columnVisibility: $columnVisibility,
           uiConfiguration: UIConfiguration(
-            appName: "Codex Design",
+            appName: "Easel",
             showSettingsInNavBar: false,
             showRiskData: false,
             showTokenCount: true,

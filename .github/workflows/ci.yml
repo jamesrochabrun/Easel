@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Build app
+        run: |
+          xcodebuild \
+            -project Easel.xcodeproj \
+            -scheme Easel \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Test app
+        run: |
+          xcodebuild \
+            -project Easel.xcodeproj \
+            -scheme Easel \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO \
+            test
+
+      - name: Test EaselChat package
+        working-directory: Packages/EaselChat
+        run: |
+          xcodebuild \
+            -scheme EaselChat-Package \
+            -destination 'platform=macOS' \
+            -skipPackagePluginValidation \
+            test

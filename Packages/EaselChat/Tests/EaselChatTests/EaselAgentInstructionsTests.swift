@@ -12,7 +12,7 @@ struct EaselAgentInstructionsTests {
   @Test
   func codexDeveloperInstructionsPrefixIncludesFrontendSkillAndEnvironmentConstraints() {
     let prefix = EaselAgentInstructions.codexDeveloperInstructionsPrefix
-    #expect(prefix.hasPrefix("You are Codex Design's frontend designer-agent"))
+    #expect(prefix.hasPrefix("You are Easel's frontend designer-agent"))
     #expect(prefix.contains("embedded live preview"))
     #expect(prefix.contains("Apply the bundled `frontend-skill`"))
     #expect(prefix.contains("name: frontend-skill"))
@@ -21,7 +21,7 @@ struct EaselAgentInstructionsTests {
     #expect(prefix.contains("cannot bind network sockets"))
     #expect(prefix.contains("Never run `npm run dev`"))
     #expect(prefix.contains("no browser, preview-control, or screenshot tool"))
-    #expect(prefix.contains("Codex Design"))
+    #expect(prefix.contains("Easel"))
     // The agent must treat a bundled design system as the source of truth.
     #expect(prefix.contains("resources/design-system/DESIGN.md"))
     #expect(prefix.contains("source of truth"))

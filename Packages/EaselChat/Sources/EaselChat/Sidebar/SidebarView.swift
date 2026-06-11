@@ -114,7 +114,7 @@ public struct SidebarView: View {
         .foregroundStyle(EaselDesignSystem.Palette.accent)
         .frame(width: 18, height: 18)
 
-      Text("Codex Design")
+      Text("Easel")
         .font(EaselDesignSystem.Typography.interface(size: 16, weight: .semibold))
         .foregroundStyle(.primary)
         .lineLimit(1)

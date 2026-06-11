@@ -1,0 +1,226 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Install create-dmg
+        run: brew install create-dmg
+
+      - name: Import signing certificate
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          echo "$CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security import "$RUNNER_TEMP/certificate.p12" \
+            -P "$CERTIFICATE_PASSWORD" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+
+          security default-keychain -s "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "$KEYCHAIN_PASSWORD" \
+            "$KEYCHAIN_PATH"
+
+      - name: Archive app
+        run: |
+          xcodebuild \
+            -project Easel.xcodeproj \
+            -scheme Easel \
+            -configuration Release \
+            -archivePath build/Easel.xcarchive \
+            -derivedDataPath build/DerivedData \
+            -skipPackagePluginValidation \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Developer ID Application" \
+            DEVELOPMENT_TEAM=${{ secrets.TEAM_ID }} \
+            archive
+
+      - name: Export app
+        env:
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+        run: |
+          cat > build/ExportOptions.plist <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>developer-id</string>
+            <key>teamID</key>
+            <string>${TEAM_ID}</string>
+            <key>signingStyle</key>
+            <string>automatic</string>
+          </dict>
+          </plist>
+          PLIST
+
+          xcodebuild \
+            -exportArchive \
+            -archivePath build/Easel.xcarchive \
+            -exportPath build \
+            -exportOptionsPlist build/ExportOptions.plist
+
+      - name: Notarize app
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+          APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
+        run: |
+          ditto -c -k --keepParent build/Easel.app build/Easel-notarization.zip
+
+          xcrun notarytool submit build/Easel-notarization.zip \
+            --apple-id "$APPLE_ID" \
+            --team-id "$TEAM_ID" \
+            --password "$APP_PASSWORD" \
+            --wait
+
+          xcrun stapler staple build/Easel.app
+
+      - name: Create zip for Sparkle updates
+        run: |
+          rm -f build/Easel.app.zip
+          ditto -c -k --keepParent build/Easel.app build/Easel.app.zip
+          stat -f%z build/Easel.app.zip > build/Easel.app.zip.size
+          echo "Zip file size: $(cat build/Easel.app.zip.size) bytes"
+
+      - name: Generate Sparkle signature
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          if [ -z "$SPARKLE_PRIVATE_KEY" ]; then
+            echo "SPARKLE_PRIVATE_KEY is required for release signing."
+            exit 1
+          fi
+
+          SIGN_UPDATE=$(find build/DerivedData -path '*/Sparkle/bin/sign_update' -type f | head -1)
+          if [ -z "$SIGN_UPDATE" ]; then
+            echo "Sparkle sign_update tool was not found."
+            exit 1
+          fi
+
+          echo "$SPARKLE_PRIVATE_KEY" | "$SIGN_UPDATE" \
+            build/Easel.app.zip \
+            --ed-key-file - > build/sparkle-signature.txt
+          cat build/sparkle-signature.txt
+
+      - name: Create DMG
+        run: |
+          rm -f build/Easel.dmg
+          create-dmg \
+            --volname "Easel" \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --icon "Easel.app" 150 185 \
+            --app-drop-link 450 185 \
+            --hide-extension "Easel.app" \
+            build/Easel.dmg \
+            build/Easel.app
+
+      - name: Notarize DMG
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+          APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
+        run: |
+          xcrun notarytool submit build/Easel.dmg \
+            --apple-id "$APPLE_ID" \
+            --team-id "$TEAM_ID" \
+            --password "$APP_PASSWORD" \
+            --wait
+
+          xcrun stapler staple build/Easel.dmg
+
+      - name: Generate checksums
+        run: |
+          shasum -a 256 build/Easel.dmg > build/Easel.dmg.sha256
+          shasum -a 256 build/Easel.app.zip > build/Easel.app.zip.sha256
+          cat build/Easel.dmg.sha256
+          cat build/Easel.app.zip.sha256
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/Easel.dmg
+            build/Easel.dmg.sha256
+            build/Easel.app.zip
+            build/Easel.app.zip.sha256
+            build/sparkle-signature.txt
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+
+      - name: Update appcast.xml
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          PUB_DATE=$(date -u "+%a, %d %b %Y %H:%M:%S %z")
+          ED_SIGNATURE=$(grep -o 'edSignature="[^"]*"' build/sparkle-signature.txt | head -1 | sed 's/edSignature="//;s/"//')
+          if [ -z "$ED_SIGNATURE" ]; then
+            ED_SIGNATURE=$(head -1 build/sparkle-signature.txt)
+          fi
+          LENGTH=$(cat build/Easel.app.zip.size)
+
+          {
+            echo '    <item>'
+            echo "      <title>Version ${VERSION}</title>"
+            echo "      <link>https://github.com/jamesrochabrun/Easel/releases/tag/v${VERSION}</link>"
+            echo "      <sparkle:version>${VERSION}</sparkle:version>"
+            echo "      <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>"
+            echo '      <description><![CDATA['
+            echo "        <h2>Version ${VERSION}</h2>"
+            echo '        <ul>'
+            echo '          <li>See release notes on GitHub</li>'
+            echo '        </ul>'
+            echo '      ]]></description>'
+            echo "      <pubDate>${PUB_DATE}</pubDate>"
+            echo '      <enclosure'
+            echo "        url=\"https://github.com/jamesrochabrun/Easel/releases/download/v${VERSION}/Easel.app.zip\""
+            echo "        sparkle:version=\"${VERSION}\""
+            echo "        sparkle:shortVersionString=\"${VERSION}\""
+            echo "        sparkle:edSignature=\"${ED_SIGNATURE}\""
+            echo "        length=\"${LENGTH}\""
+            echo '        type="application/octet-stream" />'
+            echo '      <sparkle:minimumSystemVersion>26.2</sparkle:minimumSystemVersion>'
+            echo '    </item>'
+          } > build/new_item.xml
+
+          git fetch origin main
+          git checkout main
+          awk '/<language>en<\/language>/{print; print ""; while ((getline line < "build/new_item.xml") > 0) print line; next}1' appcast.xml > appcast_tmp.xml
+          mv appcast_tmp.xml appcast.xml
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add appcast.xml
+          git commit -m "Update appcast.xml for v${VERSION}"
+          git push origin main
