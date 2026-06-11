@@ -17,7 +17,7 @@ public struct EaselChatSettingsView: View {
   public var body: some View {
     ClaudeCodeGlobalSettingsSceneView(
       uiConfiguration: UIConfiguration(
-        appName: "Codex Design",
+        appName: "Easel",
         showSettingsInNavBar: false,
         showRiskData: false,
         showTokenCount: true,

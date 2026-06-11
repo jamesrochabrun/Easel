@@ -346,7 +346,7 @@ struct WelcomeRow: View {
 #Preview {
   // Create a custom WelcomeRow with mock worktrees for preview
   struct PreviewWrapper: View {
-    @State private var currentPath = "cwd: /Users/jamesrochabrun/Desktop/git/ClaudeCodeUI-feature-branch"
+    @State private var currentPath = "cwd: /Users/example/Projects/ClaudeCodeUI-feature-branch"
     
     var body: some View {
       VStack(spacing: 20) {
@@ -363,7 +363,7 @@ struct WelcomeRow: View {
         
         // Preview with directory but no worktrees
         WelcomeRow(
-          path: "cwd: /Users/jamesrochabrun/Desktop/simple-project",
+          path: "cwd: /Users/example/Projects/simple-project",
           appName: "Claude Code UI",
           toolTip: "Tip: Select a folder to enable AI assistance",
           appIconAssetName: "claudeCodeSmall"
@@ -391,28 +391,28 @@ struct WelcomeRow: View {
     // Mock worktrees for preview
     let mockWorktrees = [
       GitWorktreeInfo(
-        path: "/Users/jamesrochabrun/Desktop/git/ClaudeCodeUI",
+        path: "/Users/example/Projects/ClaudeCodeUI",
         branch: "main",
         isWorktree: false,
         mainRepoPath: nil
       ),
       GitWorktreeInfo(
-        path: "/Users/jamesrochabrun/Desktop/git/ClaudeCodeUI-feature-branch",
+        path: "/Users/example/Projects/ClaudeCodeUI-feature-branch",
         branch: "feature/new-ui",
         isWorktree: true,
-        mainRepoPath: "/Users/jamesrochabrun/Desktop/git/ClaudeCodeUI"
+        mainRepoPath: "/Users/example/Projects/ClaudeCodeUI"
       ),
       GitWorktreeInfo(
-        path: "/Users/jamesrochabrun/Desktop/git/ClaudeCodeUI-bugfix",
+        path: "/Users/example/Projects/ClaudeCodeUI-bugfix",
         branch: "bugfix/crash-on-launch",
         isWorktree: true,
-        mainRepoPath: "/Users/jamesrochabrun/Desktop/git/ClaudeCodeUI"
+        mainRepoPath: "/Users/example/Projects/ClaudeCodeUI"
       ),
       GitWorktreeInfo(
-        path: "/Users/jamesrochabrun/Desktop/git/ClaudeCodeUI-experiment",
+        path: "/Users/example/Projects/ClaudeCodeUI-experiment",
         branch: "experiment/ai-suggestions",
         isWorktree: true,
-        mainRepoPath: "/Users/jamesrochabrun/Desktop/git/ClaudeCodeUI"
+        mainRepoPath: "/Users/example/Projects/ClaudeCodeUI"
       )
     ]
     

@@ -335,7 +335,7 @@ public enum SlideDeckScaffold {
         <section data-easel-slide data-title="Opening" data-active="true">
           <div class="easel-slide-safe" data-layout="hero">
             <div class="easel-slide-stack">
-              <div class="eyebrow">Codex Design · Slide Deck</div>
+              <div class="eyebrow">Easel · Slide Deck</div>
               <h1 class="easel-slide-title">\(title)</h1>
               <p class="easel-slide-copy">This 16:9 deck is ready for Codex to shape into a complete presentation using the \(designSystemDisplayName) design system.</p>
             </div>

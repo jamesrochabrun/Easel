@@ -13,6 +13,7 @@
 		CC0000010000000500000005 /* EaselWebInspector in Frameworks */ = {isa = PBXBuildFile; productRef = CC0000010000000600000006 /* EaselWebInspector */; };
 		DD0000010000000100000001 /* EaselServerManager in Frameworks */ = {isa = PBXBuildFile; productRef = DD0000010000000200000002 /* EaselServerManager */; };
 		EE0000010000000100000001 /* EaselSlides in Frameworks */ = {isa = PBXBuildFile; productRef = EE0000010000000200000002 /* EaselSlides */; };
+		FA0000010000000100000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = FA0000010000000200000002 /* Sparkle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -67,6 +68,7 @@
 				CC0000010000000500000005 /* EaselWebInspector in Frameworks */,
 				DD0000010000000100000001 /* EaselServerManager in Frameworks */,
 				BB0000012FA0000700000007 /* ApprovalServerKit in Frameworks */,
+				FA0000010000000100000001 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -134,6 +136,7 @@
 				CC0000010000000600000006 /* EaselWebInspector */,
 				DD0000010000000200000002 /* EaselServerManager */,
 				BB0000012FA0000800000008 /* ApprovalServerKit */,
+				FA0000010000000200000002 /* Sparkle */,
 			);
 			productName = Easel;
 			productReference = 7BC42BF22F70C19600D3FEC6 /* Easel.app */;
@@ -224,6 +227,7 @@
 				CC0000010000000900000009 /* XCLocalSwiftPackageReference "Packages/EaselWebInspector" */,
 					DD0000010000000300000003 /* XCLocalSwiftPackageReference "Packages/EaselServerManager" */,
 				BB0000012FA0000A0000000A /* XCRemoteSwiftPackageReference "ClaudeCodeApprovalServer" */,
+				FA0000010000000300000003 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 7BC42BF32F70C19600D3FEC6 /* Products */;
@@ -449,7 +453,8 @@
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Config/EaselInfo.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -479,7 +484,8 @@
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Config/EaselInfo.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -647,6 +653,14 @@
 				version = 1.2.0;
 			};
 		};
+		FA0000010000000300000003 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = exactVersion;
+				version = 2.9.3;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -674,6 +688,11 @@
 		EE0000010000000200000002 /* EaselSlides */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = EaselSlides;
+		};
+		FA0000010000000200000002 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FA0000010000000300000003 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

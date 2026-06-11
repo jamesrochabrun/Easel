@@ -12,3 +12,15 @@ DerivedData/
 # Swift Package Manager
 .build/
 .swiftpm/
+!Packages/EaselChat/.swiftpm/
+Packages/EaselChat/.swiftpm/*
+!Packages/EaselChat/.swiftpm/xcode/
+Packages/EaselChat/.swiftpm/xcode/*
+!Packages/EaselChat/.swiftpm/xcode/xcshareddata/
+Packages/EaselChat/.swiftpm/xcode/xcshareddata/*
+!Packages/EaselChat/.swiftpm/xcode/xcshareddata/xcschemes/
+Packages/EaselChat/.swiftpm/xcode/xcshareddata/xcschemes/*
+!Packages/EaselChat/.swiftpm/xcode/xcshareddata/xcschemes/EaselChat-Package.xcscheme
+
+# Local agent/editor settings
+.claude/settings.local.json

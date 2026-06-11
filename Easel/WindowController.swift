@@ -179,7 +179,7 @@ final class WindowController: NSObject, WindowControlling, NSWindowDelegate {
       backing: .buffered,
       defer: true
     )
-    window.title = "Codex Design"
+    window.title = "Easel"
     window.titleVisibility = .hidden
     window.titlebarAppearsTransparent = true
     window.isMovableByWindowBackground = true

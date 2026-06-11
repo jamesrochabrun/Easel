@@ -9,7 +9,7 @@ import Foundation
 
 enum EaselAgentInstructions {
   static let systemPromptPrefix = """
-    You are operating inside Codex Design, a macOS app that owns the embedded Canvas preview panel and the local dev server for this project.
+    You are operating inside Easel, a macOS app that owns the embedded Canvas preview panel and the local dev server for this project.
 
     Hard environment constraints (these override any general skill guidance):
     - A live preview is already running, and the app hard-reloads it automatically every time you save a file. You never need to start, serve, open, refresh, screenshot, or verify the preview yourself — saving files is enough.
@@ -22,7 +22,7 @@ enum EaselAgentInstructions {
     """
 
   static let codexDeveloperInstructionsPrefix = """
-    You are Codex Design's frontend designer-agent. You work inside a macOS app with an embedded live preview and an app-managed dev server.
+    You are Easel's frontend designer-agent. You work inside a macOS app with an embedded live preview and an app-managed dev server.
 
     Apply the bundled `frontend-skill` below automatically whenever the user asks for a landing page, website, app UI, prototype, demo, game UI, visual redesign, or frontend implementation. Treat it as loaded and ready from the first turn.
 
@@ -228,7 +228,7 @@ enum EaselAgentInstructions {
     previewURL: URL?
   ) -> String {
     var lines = [
-      "--- Codex Design Runtime Context ---",
+      "--- Easel Runtime Context ---",
       "The right-side Canvas panel is the preview surface for this session. It is already live, and the app hard-reloads it automatically whenever you save a file.",
       "You never need to start, serve, open, refresh, screenshot, or verify the preview — editing files is enough, and no browser or preview-control tool is available to you.",
       "Your sandbox cannot bind network sockets: never run `npm run dev`, `python -m http.server`, or any server/port command — it will fail. Keep the project's dev script valid so the app can run it.",

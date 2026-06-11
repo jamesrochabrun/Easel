@@ -8,21 +8,26 @@ import EaselChat
 import EaselKit
 import EaselServerManager
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
   private var windowController: WindowController?
   private var statusItem: NSStatusItem?
   private let isFloatingChatBarEnabled: Bool
+  private let softwareUpdater: SoftwareUpdating
   let appState = AppState()
   let chatService = ChatService()
   var serverManager: ProjectServerManager?
 
-  override init() {
-    self.isFloatingChatBarEnabled = false
-    super.init()
+  override convenience init() {
+    self.init(isFloatingChatBarEnabled: false)
   }
 
-  init(isFloatingChatBarEnabled: Bool) {
+  init(
+    isFloatingChatBarEnabled: Bool,
+    softwareUpdater: SoftwareUpdating? = nil
+  ) {
     self.isFloatingChatBarEnabled = isFloatingChatBarEnabled
+    self.softwareUpdater = softwareUpdater ?? SparkleSoftwareUpdater()
     super.init()
   }
 
@@ -117,8 +122,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     menu.addItem(NSMenuItem.separator())
 
+    let checkForUpdatesItem = NSMenuItem(
+      title: "Check for Updates...",
+      action: #selector(checkForUpdatesFromMenu(_:)),
+      keyEquivalent: ""
+    )
+    checkForUpdatesItem.target = self
+    menu.addItem(checkForUpdatesItem)
+
+    menu.addItem(NSMenuItem.separator())
+
     let quitItem = NSMenuItem(
-      title: "Quit Codex Design",
+      title: "Quit Easel",
       action: #selector(quitApp(_:)),
       keyEquivalent: "q"
     )
@@ -154,6 +169,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     } else {
       controller.showCapsule()
     }
+  }
+
+  @objc func checkForUpdatesFromMenu(_ sender: Any?) {
+    softwareUpdater.checkForUpdates()
   }
 
   @objc private func quitApp(_ sender: Any?) {

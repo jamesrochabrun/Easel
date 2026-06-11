@@ -322,14 +322,14 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
     return """
     # \(project.name)
 
-    Created by Codex Design.
+    Created by Easel.
 
     \(metadataLines.joined(separator: "\n"))
     \(designSystemGuidance)
     \(slideDeckGuidance)
     Add project assets to `resources/` so Codex can inspect and use them while designing.
 
-    Run `npm run dev` to preview this folder in Codex Design.
+    Run `npm run dev` to preview this folder in Easel.
     """
   }
 
@@ -432,7 +432,7 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
     </head>
     <body>
       <main>
-        <div class="eyebrow">Codex Design</div>
+        <div class="eyebrow">Easel</div>
         <h1>\(title)</h1>
         <p>This \(kind.lowercased()) scaffold is ready for Codex to turn into a complete \(fidelity.lowercased()) experience.</p>
         <div class="meta">
