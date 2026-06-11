@@ -32,16 +32,16 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build
 
-      - name: Test app
+      - name: Build app tests
         run: |
           xcodebuild \
             -project Easel.xcodeproj \
             -scheme Easel \
             -configuration Debug \
-            -destination 'platform=macOS' \
+            -destination 'generic/platform=macOS' \
             -skipPackagePluginValidation \
             CODE_SIGNING_ALLOWED=NO \
-            test
+            build-for-testing
 
       - name: Test EaselChat package
         working-directory: Packages/EaselChat

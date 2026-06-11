@@ -1,10 +1,16 @@
+![Easel banner](docs/images/easel-banner.png)
+
 # Easel
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Easel is a macOS workspace for AI-assisted product design and frontend iteration. It combines a local project library, design-system setup, Claude/Codex chat surfaces, live web previews, web inspection, and slide preview tooling in one SwiftUI app.
 
-![Easel canvas](docs/images/easel-screenshot.png)
+## Examples
+
+![Easel design library](docs/images/easel-design-library.png)
+
+![Easel canvas preview](docs/images/easel-canvas-preview.png)
 
 ## Requirements
 
