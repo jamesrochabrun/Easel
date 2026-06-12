@@ -17,8 +17,54 @@ enum EaselDesignSystemCatalogHTMLRenderer {
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1">
       <title>\(escapedTitle)</title>
+      <script>
+        (() => {
+          const validModes = new Set(["system", "light", "dark"]);
+          let mode = "system";
+          try {
+            mode = localStorage.getItem("easel-design-system-theme") || "system";
+          } catch (error) {
+            mode = "system";
+          }
+          document.documentElement.dataset.themeMode = validModes.has(mode) ? mode : "system";
+        })();
+      </script>
       <style>
         :root {
+          color-scheme: light;
+          --ink: #20231f;
+          --muted: #5f685f;
+          --soft: #7d877e;
+          --surface: #f7f8f4;
+          --panel: #ffffff;
+          --panel-soft: #eef1eb;
+          --line: #d7ddd2;
+          --accent: #53635b;
+          --warning: #9b640f;
+          --shadow: rgb(28 32 29 / 0.08);
+          /* Thumbnails hold .fig schematics + exported art, which are authored for
+             a light canvas; render them on a neutral light surface so exported
+             content stays legible inside the surrounding UI. */
+          --thumb-bg: #f4f4f2;
+        }
+
+        @media (prefers-color-scheme: dark) {
+          :root:not([data-theme-mode="light"]) {
+            color-scheme: dark;
+            --ink: #f1f3f0;
+            --muted: #aeb7b0;
+            --soft: #747c76;
+            --surface: #0d0f0e;
+            --panel: #151716;
+            --panel-soft: #1b1e1c;
+            --line: #2e332f;
+            --accent: #aeb7b0;
+            --warning: #d68e3a;
+            --shadow: rgb(0 0 0 / 0.24);
+          }
+        }
+
+        :root[data-theme-mode="dark"] {
           color-scheme: dark;
           --ink: #f1f3f0;
           --muted: #aeb7b0;
@@ -29,10 +75,21 @@ enum EaselDesignSystemCatalogHTMLRenderer {
           --line: #2e332f;
           --accent: #aeb7b0;
           --warning: #d68e3a;
-          /* Thumbnails hold .fig schematics + exported art, which are authored for
-             a light canvas; render them on a neutral light surface so dark-on-light
-             content stays legible inside the dark cards. */
-          --thumb-bg: #f4f4f2;
+          --shadow: rgb(0 0 0 / 0.24);
+        }
+
+        :root[data-theme-mode="light"] {
+          color-scheme: light;
+          --ink: #20231f;
+          --muted: #5f685f;
+          --soft: #7d877e;
+          --surface: #f7f8f4;
+          --panel: #ffffff;
+          --panel-soft: #eef1eb;
+          --line: #d7ddd2;
+          --accent: #53635b;
+          --warning: #9b640f;
+          --shadow: rgb(28 32 29 / 0.08);
         }
 
         * { box-sizing: border-box; }
@@ -51,13 +108,22 @@ enum EaselDesignSystemCatalogHTMLRenderer {
           padding: 64px 0;
         }
 
-        header { max-width: 820px; margin-bottom: 30px; }
+        header { margin-bottom: 30px; }
+
+        .header-top {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 24px;
+        }
+
+        .heading { max-width: 820px; min-width: 0; }
 
         h1 {
           margin: 0 0 12px;
           font-size: clamp(30px, 4.5vw, 44px);
           font-weight: 600;
-          letter-spacing: -0.015em;
+          letter-spacing: 0;
           line-height: 1.02;
         }
 
@@ -69,6 +135,40 @@ enum EaselDesignSystemCatalogHTMLRenderer {
         }
 
         .summary { margin: 10px 0 0; color: var(--soft); font-size: 14px; line-height: 1.5; }
+
+        .theme-toggle {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(58px, 1fr));
+          gap: 2px;
+          flex: 0 0 auto;
+          padding: 3px;
+          border: 1px solid var(--line);
+          border-radius: 8px;
+          background: var(--panel-soft);
+        }
+
+        .theme-toggle button {
+          appearance: none;
+          border: 0;
+          border-radius: 6px;
+          padding: 6px 10px;
+          background: transparent;
+          color: var(--muted);
+          font: inherit;
+          font-size: 12px;
+          line-height: 1.2;
+          cursor: pointer;
+        }
+
+        .theme-toggle button:hover {
+          color: var(--ink);
+        }
+
+        .theme-toggle button[aria-pressed="true"] {
+          background: var(--panel);
+          color: var(--ink);
+          box-shadow: 0 1px 2px var(--shadow);
+        }
 
         .disclaimer {
           margin: 18px 0 0;
@@ -101,7 +201,7 @@ enum EaselDesignSystemCatalogHTMLRenderer {
         section.block > h2 {
           margin: 0 0 4px;
           font-size: 13px;
-          letter-spacing: 0.08em;
+          letter-spacing: 0;
           text-transform: uppercase;
           color: var(--soft);
         }
@@ -194,13 +294,38 @@ enum EaselDesignSystemCatalogHTMLRenderer {
           border-radius: 10px;
           background: var(--panel);
         }
+
+        @media (max-width: 680px) {
+          main {
+            width: min(100% - 28px, 1040px);
+            padding: 36px 0;
+          }
+
+          .header-top {
+            flex-direction: column;
+            gap: 16px;
+          }
+
+          .theme-toggle {
+            width: 100%;
+          }
+        }
       </style>
     </head>
     <body>
       <main>
         <header>
-          <h1>\(escapedTitle)</h1>
-          <p class="blurb">\(escapedBlurb)</p>
+          <div class="header-top">
+            <div class="heading">
+              <h1>\(escapedTitle)</h1>
+              <p class="blurb">\(escapedBlurb)</p>
+            </div>
+            <div class="theme-toggle" role="group" aria-label="Theme">
+              <button type="button" data-theme-option="system" aria-pressed="true">System</button>
+              <button type="button" data-theme-option="light" aria-pressed="false">Light</button>
+              <button type="button" data-theme-option="dark" aria-pressed="false">Dark</button>
+            </div>
+          </div>
           <p id="summary" class="summary">Loading local catalog…</p>
           <p id="disclaimer" class="disclaimer" hidden></p>
           <div id="diagnostics" class="diagnostics" hidden></div>
@@ -212,7 +337,72 @@ enum EaselDesignSystemCatalogHTMLRenderer {
         const summaryEl = document.getElementById("summary");
         const disclaimerEl = document.getElementById("disclaimer");
         const diagnosticsEl = document.getElementById("diagnostics");
+        const themeStorageKey = "easel-design-system-theme";
+        const themeModes = ["system", "light", "dark"];
+        const themeButtons = Array.from(document.querySelectorAll("[data-theme-option]"));
+        const systemThemeQuery = window.matchMedia
+          ? window.matchMedia("(prefers-color-scheme: dark)")
+          : null;
         let attempts = 0;
+
+        function validThemeMode(mode) {
+          return themeModes.includes(mode) ? mode : "system";
+        }
+
+        function storedThemeMode() {
+          try {
+            return localStorage.getItem(themeStorageKey);
+          } catch (error) {
+            return null;
+          }
+        }
+
+        function persistThemeMode(mode) {
+          try {
+            localStorage.setItem(themeStorageKey, mode);
+          } catch (error) {
+            return;
+          }
+        }
+
+        function effectiveThemeMode(mode) {
+          if (mode === "system") {
+            return systemThemeQuery && systemThemeQuery.matches ? "dark" : "light";
+          }
+          return mode;
+        }
+
+        function applyThemeMode(mode, shouldPersist = false) {
+          const nextMode = validThemeMode(mode);
+          document.documentElement.dataset.themeMode = nextMode;
+          document.documentElement.dataset.effectiveTheme = effectiveThemeMode(nextMode);
+          for (const button of themeButtons) {
+            const selected = button.dataset.themeOption === nextMode;
+            button.setAttribute("aria-pressed", selected ? "true" : "false");
+          }
+          if (shouldPersist) persistThemeMode(nextMode);
+        }
+
+        for (const button of themeButtons) {
+          button.addEventListener("click", () => {
+            applyThemeMode(button.dataset.themeOption, true);
+          });
+        }
+
+        if (systemThemeQuery) {
+          const handleSystemThemeChange = () => {
+            if (document.documentElement.dataset.themeMode === "system") {
+              applyThemeMode("system");
+            }
+          };
+          if (systemThemeQuery.addEventListener) {
+            systemThemeQuery.addEventListener("change", handleSystemThemeChange);
+          } else if (systemThemeQuery.addListener) {
+            systemThemeQuery.addListener(handleSystemThemeChange);
+          }
+        }
+
+        applyThemeMode(document.documentElement.dataset.themeMode || storedThemeMode());
 
         function el(tag, opts = {}) {
           const node = document.createElement(tag);

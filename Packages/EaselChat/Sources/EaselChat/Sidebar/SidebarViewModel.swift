@@ -173,6 +173,34 @@ public final class SidebarViewModel {
     projectHeaderScrollRequest = ProjectHeaderScrollRequest(projectGroupID: projectGroupID)
   }
 
+  public func containsWorkspace(workingDirectory: String?) -> Bool {
+    guard let normalizedWorkingDirectory = Self.normalizedWorkingDirectory(workingDirectory) else {
+      return false
+    }
+
+    return projectGroups.contains { group in
+      Self.normalizedWorkingDirectory(group.workingDirectory) == normalizedWorkingDirectory
+    }
+  }
+
+  @discardableResult
+  public func openFirstWorkspace(excluding excludedWorkingDirectory: String?) -> Bool {
+    let normalizedExcludedWorkingDirectory = Self.normalizedWorkingDirectory(excludedWorkingDirectory)
+    guard let group = projectGroups.first(where: { group in
+      Self.normalizedWorkingDirectory(group.workingDirectory) != normalizedExcludedWorkingDirectory
+    }) else {
+      return false
+    }
+
+    openWorkspace(group)
+
+    if let workingDirectory = group.workingDirectory {
+      requestScrollToProjectHeader(workingDirectory: workingDirectory)
+    }
+
+    return true
+  }
+
   func clearProjectHeaderScrollRequest(_ request: ProjectHeaderScrollRequest) {
     guard projectHeaderScrollRequest == request else { return }
     projectHeaderScrollRequest = nil

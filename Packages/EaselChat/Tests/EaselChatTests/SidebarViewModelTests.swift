@@ -312,6 +312,82 @@ struct SidebarViewModelTests {
   }
 
   @Test
+  func openingFirstWorkspaceExcludingDeletedWorkspaceSelectsNextGroup() async throws {
+    let deletedProject = EaselDesignProject(
+      id: UUID(),
+      name: "Deleted",
+      kind: .prototype,
+      designSystem: .none,
+      fidelity: .highFidelity,
+      workingDirectory: "/tmp/deleted",
+      createdAt: Date(timeIntervalSince1970: 3),
+      updatedAt: Date(timeIntervalSince1970: 3)
+    )
+    let nextProject = EaselDesignProject(
+      id: UUID(),
+      name: "Next",
+      kind: .prototype,
+      designSystem: .none,
+      fidelity: .highFidelity,
+      workingDirectory: "/tmp/next",
+      createdAt: Date(timeIntervalSince1970: 2),
+      updatedAt: Date(timeIntervalSince1970: 2)
+    )
+    let nextSession = StoredSession(
+      id: "next-session",
+      createdAt: Date(timeIntervalSince1970: 4),
+      firstUserMessage: "Continue",
+      lastAccessedAt: Date(timeIntervalSince1970: 4),
+      workingDirectory: nextProject.workingDirectory
+    )
+    let viewModel = SidebarViewModel(
+      sessionStorage: RecordingSessionStorage(sessions: [nextSession]),
+      projectManager: SidebarProjectManagerStub(projects: [deletedProject, nextProject]),
+      designSystemManager: SidebarDesignSystemManagerStub()
+    )
+
+    var openedWorkingDirectory: String?
+    var openedSessionID: String?
+    viewModel.onOpenWorkspace = { workingDirectory, latestSession in
+      openedWorkingDirectory = workingDirectory
+      openedSessionID = latestSession?.id
+    }
+
+    await viewModel.loadSessions()
+    let didOpen = viewModel.openFirstWorkspace(excluding: deletedProject.workingDirectory)
+
+    #expect(didOpen)
+    #expect(openedWorkingDirectory == nextProject.workingDirectory)
+    #expect(openedSessionID == nextSession.id)
+    #expect(viewModel.selectedSessionId == nextSession.id)
+    #expect(viewModel.projectHeaderScrollRequest?.projectGroupID == nextProject.workingDirectory)
+  }
+
+  @Test
+  func openingFirstWorkspaceReturnsFalseWhenNoReplacementExists() async {
+    let project = EaselDesignProject(
+      id: UUID(),
+      name: "Only",
+      kind: .prototype,
+      designSystem: .none,
+      fidelity: .highFidelity,
+      workingDirectory: "/tmp/only",
+      createdAt: Date(timeIntervalSince1970: 1),
+      updatedAt: Date(timeIntervalSince1970: 1)
+    )
+    let viewModel = SidebarViewModel(
+      sessionStorage: RecordingSessionStorage(sessions: []),
+      projectManager: SidebarProjectManagerStub(projects: [project]),
+      designSystemManager: SidebarDesignSystemManagerStub()
+    )
+
+    await viewModel.loadSessions()
+
+    #expect(viewModel.containsWorkspace(workingDirectory: project.workingDirectory))
+    #expect(viewModel.openFirstWorkspace(excluding: project.workingDirectory) == false)
+  }
+
+  @Test
   func deletingProjectDeletesStoredSessionsAndReloadsProjects() async throws {
     let project = EaselDesignProject(
       id: UUID(),
