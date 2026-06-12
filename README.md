@@ -5,6 +5,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![CI](https://github.com/jamesrochabrun/Easel/actions/workflows/ci.yml/badge.svg)](https://github.com/jamesrochabrun/Easel/actions/workflows/ci.yml)
 
+**[⬇️ Download the latest Easel.dmg](https://github.com/jamesrochabrun/Easel/releases/latest/download/Easel.dmg)** — signed & notarized for macOS 26.2+.
+
 Easel is a Codex-first macOS workspace for AI-assisted product design and frontend iteration. It brings a local project library, design-system setup, Codex chat, a live web preview with a point-and-click inspector, and slide tooling together in one native SwiftUI app — so you can describe a UI, watch it build, and refine it by clicking directly on the result. Claude and other AI providers are planned for future releases.
 
 ![Easel design library](docs/images/easel-design-library.png)
