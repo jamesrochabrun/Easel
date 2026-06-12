@@ -18,8 +18,15 @@ SERVER_DEST="${RESOURCES_DIR}/${SERVER_NAME}"
 # Create Resources directory if it doesn't exist
 mkdir -p "${RESOURCES_DIR}"
 
-# Find the package checkout directory - try multiple locations
+# Find the package checkout directory - try multiple locations.
+# Derive the DerivedData root from BUILD_ROOT by stripping everything from Xcode's
+# "/Build/" segment onward. This resolves SourcePackages/checkouts correctly for
+# both default-location builds (Debug/CI) and archives that use a custom
+# -derivedDataPath (e.g. the release workflow), where BUILT_PRODUCTS_DIR points
+# deep into ArchiveIntermediates and the old relative "../../.." math breaks.
+DERIVED_DATA_ROOT="${BUILD_ROOT%%/Build/*}"
 POSSIBLE_PATHS=(
+  "${DERIVED_DATA_ROOT}/SourcePackages/checkouts/ClaudeCodeApprovalServer"
   "${BUILD_DIR}/../../../SourcePackages/checkouts/ClaudeCodeApprovalServer"
   "${PROJECT_DIR}/../../../SourcePackages/checkouts/ClaudeCodeApprovalServer"
   "${SRCROOT}/../../../SourcePackages/checkouts/ClaudeCodeApprovalServer"
@@ -36,6 +43,12 @@ for path in "${POSSIBLE_PATHS[@]}"; do
     fi
   done
 done
+
+# Last-resort: search the DerivedData root for the checkout.
+if [ -z "${PACKAGE_DIR}" ] && [ -n "${DERIVED_DATA_ROOT}" ] && [ -d "${DERIVED_DATA_ROOT}" ]; then
+  PACKAGE_DIR=$(find "${DERIVED_DATA_ROOT}" -maxdepth 3 -type d \
+    -path '*/SourcePackages/checkouts/ClaudeCodeApprovalServer' 2>/dev/null | head -1)
+fi
 
 if [ -z "${PACKAGE_DIR}" ] || [ ! -d "${PACKAGE_DIR}" ]; then
     echo "Error: ClaudeCodeApprovalServer package not found"
