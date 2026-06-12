@@ -1317,6 +1317,9 @@ EOF
       workingDirectory: claudeClient.configuration.workingDirectory,
       developerInstructions: combinedCodexDeveloperInstructions(),
       modelIdentifier: globalPreferences.codexModel,
+      commandOverride: globalPreferences.codexCommand,
+      extraArguments: CodexChatRuntime.parseArgumentString(globalPreferences.codexExtraArgs),
+      environmentOverrides: globalPreferences.codexEnvironmentVariables,
       onSessionChange: { [weak self] sessionId in
         self?.handleRuntimeSessionChange(sessionId)
       }

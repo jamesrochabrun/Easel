@@ -89,6 +89,27 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
     }
   }
 
+  /// User-overridden Codex CLI command. Empty means auto-detect.
+  public var codexCommand: String {
+    didSet {
+      saveToPersistentStorage()
+    }
+  }
+
+  /// Extra arguments appended to each Codex CLI launch (raw, shell-style string).
+  public var codexExtraArgs: String {
+    didSet {
+      saveToPersistentStorage()
+    }
+  }
+
+  /// Environment variable overrides injected into the Codex CLI process.
+  public var codexEnvironmentVariables: [String: String] {
+    didSet {
+      saveToPersistentStorage()
+    }
+  }
+
   public var isClaudeCommandFromConfig: Bool {
     didSet {
       saveToPersistentStorage()
@@ -170,6 +191,9 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
       self.chatProvider = general.chatProvider.supportedProvider
       let loadedCodexModel = general.codexModel.trimmingCharacters(in: .whitespacesAndNewlines)
       self.codexModel = loadedCodexModel.isEmpty ? CodexModelCacheCatalog().defaultModelIdentifier() : loadedCodexModel
+      self.codexCommand = general.codexCommand
+      self.codexExtraArgs = general.codexExtraArgs
+      self.codexEnvironmentVariables = general.codexEnvironmentVariables
       self.defaultWorkingDirectory = general.defaultWorkingDirectory
       self.autoApproveLowRisk = general.autoApproveLowRisk
       self.showDetailedPermissionInfo = general.showDetailedPermissionInfo
@@ -252,6 +276,9 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
       self.claudePath = ""
       self.chatProvider = .codex
       self.codexModel = codexModelCatalog.defaultModelIdentifier()
+      self.codexCommand = ""
+      self.codexExtraArgs = ""
+      self.codexEnvironmentVariables = [:]
       self.isClaudeCommandFromConfig = false
 
       // Default permission settings
@@ -329,6 +356,9 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
       self.chatProvider = general.chatProvider.supportedProvider
       let loadedCodexModel = general.codexModel.trimmingCharacters(in: .whitespacesAndNewlines)
       self.codexModel = loadedCodexModel.isEmpty ? CodexModelCacheCatalog().defaultModelIdentifier() : loadedCodexModel
+      self.codexCommand = general.codexCommand
+      self.codexExtraArgs = general.codexExtraArgs
+      self.codexEnvironmentVariables = general.codexEnvironmentVariables
       self.defaultWorkingDirectory = general.defaultWorkingDirectory
       self.autoApproveLowRisk = general.autoApproveLowRisk
       self.showDetailedPermissionInfo = general.showDetailedPermissionInfo
@@ -372,6 +402,9 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
     claudePath = ""
     chatProvider = .codex
     codexModel = codexModelCatalog.defaultModelIdentifier()
+    codexCommand = ""
+    codexExtraArgs = ""
+    codexEnvironmentVariables = [:]
     isClaudeCommandFromConfig = false
 
     // Reset permission settings
@@ -459,7 +492,10 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
         permissionTimeoutEnabled: permissionTimeoutEnabled,
         maxConcurrentPermissionRequests: maxConcurrentPermissionRequests,
         disallowedTools: disallowedTools,
-        isClaudeCommandFromConfig: isClaudeCommandFromConfig
+        isClaudeCommandFromConfig: isClaudeCommandFromConfig,
+        codexCommand: codexCommand,
+        codexExtraArgs: codexExtraArgs,
+        codexEnvironmentVariables: codexEnvironmentVariables
       )
     )
 
@@ -557,10 +593,13 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
         permissionRequestTimeout: permissionRequestTimeout,
         permissionTimeoutEnabled: permissionTimeoutEnabled,
         maxConcurrentPermissionRequests: maxConcurrentPermissionRequests,
-        isClaudeCommandFromConfig: isClaudeCommandFromConfig
+        isClaudeCommandFromConfig: isClaudeCommandFromConfig,
+        codexCommand: codexCommand,
+        codexExtraArgs: codexExtraArgs,
+        codexEnvironmentVariables: codexEnvironmentVariables
       )
     )
-    
+
     persistentManager.savePreferences(persistent)
     self.persistentPreferences = persistent
     logger.preferences("Created initial persistent preferences")

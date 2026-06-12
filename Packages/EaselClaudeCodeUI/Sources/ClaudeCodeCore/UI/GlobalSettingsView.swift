@@ -91,7 +91,8 @@ struct GlobalSettingsView: View {
 
   @ViewBuilder
   private var codexConfigurationRow: some View {
-    VStack(alignment: .leading, spacing: 8) {
+    @Bindable var preferences = globalPreferences
+    VStack(alignment: .leading, spacing: 16) {
       CodexModelPickerRow(
         preferences: globalPreferences,
         models: codexModels,
@@ -100,12 +101,41 @@ struct GlobalSettingsView: View {
 
       Divider()
 
-      Text("Codex CLI")
-      Text("Command: codex")
-        .font(.system(.body, design: .monospaced))
-      Text("Detected from ~/.codex/local/codex, nvm, Homebrew, or PATH.")
-        .font(.caption)
-        .foregroundColor(.secondary)
+      // Command
+      VStack(alignment: .leading, spacing: 6) {
+        Text("Command")
+          .font(.caption)
+          .foregroundColor(.secondary)
+        TextField("codex", text: $preferences.codexCommand)
+          .textFieldStyle(.roundedBorder)
+          .font(.system(.body, design: .monospaced))
+        Text("Leave empty to auto-detect from ~/.codex/local/codex, nvm, Homebrew, or PATH.")
+          .font(.caption)
+          .foregroundColor(.secondary)
+      }
+
+      // Extra arguments
+      VStack(alignment: .leading, spacing: 6) {
+        Text("Extra arguments")
+          .font(.caption)
+          .foregroundColor(.secondary)
+        TextField("e.g. --api-mode enterprise", text: $preferences.codexExtraArgs)
+          .textFieldStyle(.roundedBorder)
+        Text("Arguments applied to each CLI launch.")
+          .font(.caption)
+          .foregroundColor(.secondary)
+      }
+
+      // Environment variables
+      VStack(alignment: .leading, spacing: 6) {
+        Text("Environment variables")
+          .font(.caption)
+          .foregroundColor(.secondary)
+        CodexEnvironmentVariablesEditor(variables: $preferences.codexEnvironmentVariables)
+        Text("Injected into the Codex CLI process on each launch.")
+          .font(.caption)
+          .foregroundColor(.secondary)
+      }
     }
   }
   
@@ -155,6 +185,80 @@ struct GlobalSettingsView: View {
 
 }
 
+
+// MARK: - Environment Variables Editor
+
+/// A simple key/value editor backed by a `[String: String]` binding. Maintains a
+/// stable row order locally (dictionaries are unordered) and writes back the
+/// non-empty rows whenever an edit occurs.
+struct CodexEnvironmentVariablesEditor: View {
+  @Binding var variables: [String: String]
+
+  private struct Row: Identifiable {
+    let id = UUID()
+    var key: String
+    var value: String
+  }
+
+  @State private var rows: [Row] = []
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      ForEach($rows) { $row in
+        HStack(spacing: 8) {
+          TextField("NAME", text: $row.key)
+            .textFieldStyle(.roundedBorder)
+            .font(.system(.body, design: .monospaced))
+            .frame(maxWidth: 200)
+            .onChange(of: row.key) { commit() }
+
+          Text("=")
+            .foregroundColor(.secondary)
+
+          TextField("value", text: $row.value)
+            .textFieldStyle(.roundedBorder)
+            .font(.system(.body, design: .monospaced))
+            .onChange(of: row.value) { commit() }
+
+          Button {
+            rows.removeAll { $0.id == row.id }
+            commit()
+          } label: {
+            Image(systemName: "minus.circle.fill")
+              .foregroundColor(.secondary)
+          }
+          .buttonStyle(.plain)
+          .help("Remove variable")
+        }
+      }
+
+      Button {
+        rows.append(Row(key: "", value: ""))
+      } label: {
+        Label("Add variable", systemImage: "plus.circle")
+      }
+      .buttonStyle(.link)
+    }
+    .onAppear(perform: syncFromBinding)
+  }
+
+  private func syncFromBinding() {
+    guard rows.isEmpty else { return }
+    rows = variables
+      .sorted { $0.key < $1.key }
+      .map { Row(key: $0.key, value: $0.value) }
+  }
+
+  private func commit() {
+    var result: [String: String] = [:]
+    for row in rows {
+      let key = row.key.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !key.isEmpty else { continue }
+      result[key] = row.value
+    }
+    variables = result
+  }
+}
 
 #Preview {
   GlobalSettingsView()

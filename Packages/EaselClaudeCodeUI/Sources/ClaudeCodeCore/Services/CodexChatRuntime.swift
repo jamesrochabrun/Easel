@@ -11,6 +11,12 @@ final class CodexChatRuntime {
   var workingDirectory: String?
   var developerInstructions: String?
   var modelIdentifier: String?
+  /// User-overridden Codex CLI command. Empty/nil means auto-detect.
+  var commandOverride: String?
+  /// Extra arguments appended to each Codex CLI launch.
+  var extraArguments: [String]
+  /// Environment variable overrides injected into the Codex CLI process.
+  var environmentOverrides: [String: String]
 
   private let messageDisplay: ChatMessageDisplay
   private let sessionManager: SessionManager
@@ -24,6 +30,9 @@ final class CodexChatRuntime {
     workingDirectory: String?,
     developerInstructions: String? = nil,
     modelIdentifier: String? = nil,
+    commandOverride: String? = nil,
+    extraArguments: [String] = [],
+    environmentOverrides: [String: String] = [:],
     onSessionChange: ((String) -> Void)?
   ) {
     self.messageDisplay = messageDisplay
@@ -31,6 +40,9 @@ final class CodexChatRuntime {
     self.workingDirectory = workingDirectory
     self.developerInstructions = developerInstructions
     self.modelIdentifier = modelIdentifier
+    self.commandOverride = commandOverride
+    self.extraArguments = extraArguments
+    self.environmentOverrides = environmentOverrides
     self.onSessionChange = onSessionChange
   }
 
@@ -47,6 +59,68 @@ final class CodexChatRuntime {
     isCancelled = true
   }
 
+  /// Splits a raw shell-style argument string into individual arguments,
+  /// honoring single/double quotes and backslash escapes. Mirrors how a shell
+  /// tokenizes `--flag "a b"` into `["--flag", "a b"]`.
+  nonisolated static func parseArgumentString(_ value: String) -> [String] {
+    var arguments: [String] = []
+    var current = ""
+    var quote: Character?
+    var escaping = false
+    var hasCurrentArgument = false
+
+    for character in value {
+      if escaping {
+        current.append(character)
+        hasCurrentArgument = true
+        escaping = false
+        continue
+      }
+
+      if character == "\\" {
+        escaping = true
+        hasCurrentArgument = true
+        continue
+      }
+
+      if let activeQuote = quote {
+        if character == activeQuote {
+          quote = nil
+        } else {
+          current.append(character)
+          hasCurrentArgument = true
+        }
+        continue
+      }
+
+      if character == "'" || character == "\"" {
+        quote = character
+        hasCurrentArgument = true
+        continue
+      }
+
+      if character.isWhitespace {
+        if hasCurrentArgument {
+          arguments.append(current)
+          current = ""
+          hasCurrentArgument = false
+        }
+        continue
+      }
+
+      current.append(character)
+      hasCurrentArgument = true
+    }
+
+    if escaping {
+      current.append("\\")
+    }
+    if hasCurrentArgument {
+      arguments.append(current)
+    }
+    return arguments
+  }
+
   func send(prompt: String, messageId: UUID, firstMessageInSession: String?) async throws {
     isCancelled = false
 
@@ -57,7 +131,8 @@ final class CodexChatRuntime {
       currentSessionId: sessionManager.currentSessionId,
       workingDirectory: workingDirectory,
       developerInstructions: developerInstructions,
-      modelIdentifier: modelIdentifier
+      modelIdentifier: modelIdentifier,
+      extraArguments: extraArguments
     )
     print(Self.debugCommandDescription(options: options))
     let client = makeClient()
@@ -98,20 +173,26 @@ final class CodexChatRuntime {
     configuration.workingDirectory = workingDirectory
 
     let homeDirectory = NSHomeDirectory()
-    let localCodexPath = "\(homeDirectory)/.codex/local/codex"
-    if FileManager.default.isExecutableFile(atPath: localCodexPath) {
-      configuration.command = localCodexPath
+    let trimmedCommandOverride = commandOverride?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    if !trimmedCommandOverride.isEmpty {
+      // User-specified command takes precedence over auto-detection.
+      configuration.command = trimmedCommandOverride
     } else {
-      var commandFound = false
-      if let nvmPath = NvmPathDetector.detectNvmPath() {
-        let nvmCodexPath = "\(nvmPath)/codex"
-        if FileManager.default.isExecutableFile(atPath: nvmCodexPath) {
-          configuration.command = nvmCodexPath
-          commandFound = true
+      let localCodexPath = "\(homeDirectory)/.codex/local/codex"
+      if FileManager.default.isExecutableFile(atPath: localCodexPath) {
+        configuration.command = localCodexPath
+      } else {
+        var commandFound = false
+        if let nvmPath = NvmPathDetector.detectNvmPath() {
+          let nvmCodexPath = "\(nvmPath)/codex"
+          if FileManager.default.isExecutableFile(atPath: nvmCodexPath) {
+            configuration.command = nvmCodexPath
+            commandFound = true
+          }
         }
-      }
-      if !commandFound, let detected = CodexBinaryDetector.detect() {
-        configuration.command = detected.path
+        if !commandFound, let detected = CodexBinaryDetector.detect() {
+          configuration.command = detected.path
+        }
       }
     }
 
@@ -125,6 +206,13 @@ final class CodexChatRuntime {
       "\(homeDirectory)/.local/bin",
     ])
 
+    // Apply user-provided environment overrides last so they win.
+    for (key, value) in environmentOverrides {
+      let trimmedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !trimmedKey.isEmpty else { continue }
+      configuration.environment[trimmedKey] = value
+    }
+
     return CodexExecClient(configuration: configuration)
   }
 
@@ -134,6 +222,7 @@ final class CodexChatRuntime {
     workingDirectory: String?,
     developerInstructions: String? = nil,
     modelIdentifier: String? = nil,
+    extraArguments: [String] = [],
     configOverrides: [String: String] = CodexUserConfigCompatibility.compatibleConfigOverrides()
   ) -> CodexExecOptions {
     var options = CodexExecOptions()
@@ -144,6 +233,11 @@ final class CodexChatRuntime {
 
     for (key, value) in configOverrides {
       options.configOverrides[key] = value
+    }
+
+    // User-configured extra arguments, appended to every launch.
+    if !extraArguments.isEmpty {
+      options.extraFlags.append(contentsOf: extraArguments)
     }
 
     if let developerInstructions = tomlString(developerInstructions) {
