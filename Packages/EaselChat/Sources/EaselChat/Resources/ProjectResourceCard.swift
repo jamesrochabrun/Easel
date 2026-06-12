@@ -10,10 +10,33 @@ struct ProjectResourceCard: View {
   let resource: ProjectResource
   let isSelected: Bool
   let onSelect: () -> Void
+  let onDelete: () -> Void
 
   @Environment(\.colorScheme) private var colorScheme
+  @State private var isHovering = false
 
   var body: some View {
+    ZStack(alignment: .topTrailing) {
+      card
+
+      if isHovering {
+        ProjectResourceDeleteButton(action: onDelete)
+          .padding(8)
+          .help("Delete \(resource.fileName)")
+          .transition(.opacity)
+      }
+    }
+    .onHover { hovering in
+      withAnimation(.easeInOut(duration: 0.12)) {
+        isHovering = hovering
+      }
+    }
+    .contextMenu {
+      Button("Delete", systemImage: "trash", role: .destructive, action: onDelete)
+    }
+  }
+
+  private var card: some View {
     Button(action: onSelect) {
       VStack(alignment: .leading, spacing: 12) {
         Color.clear

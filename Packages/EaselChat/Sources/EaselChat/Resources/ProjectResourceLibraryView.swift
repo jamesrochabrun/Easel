@@ -11,6 +11,7 @@ struct ProjectResourceLibraryView: View {
   let selectedItem: ProjectResourcePanelItem?
   let columns: [GridItem]
   let onSelect: (ProjectResourcePanelItem) -> Void
+  let onDelete: (ProjectResourcePanelItem) -> Void
 
   var body: some View {
     ScrollView {
@@ -25,6 +26,9 @@ struct ProjectResourceLibraryView: View {
                 isSelected: selectedItem?.id == ProjectResourcePanelItem.resource(resource).id,
                 onSelect: {
                   onSelect(.resource(resource))
+                },
+                onDelete: {
+                  onDelete(.resource(resource))
                 }
               )
             }
@@ -39,7 +43,8 @@ struct ProjectResourceLibraryView: View {
               ProjectStructureSectionView(
                 section: section,
                 selectedItem: selectedItem,
-                onSelect: onSelect
+                onSelect: onSelect,
+                onDelete: onDelete
               )
             }
           }

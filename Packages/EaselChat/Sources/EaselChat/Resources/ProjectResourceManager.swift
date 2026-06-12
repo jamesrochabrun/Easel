@@ -12,6 +12,7 @@ public protocol ProjectResourceManaging: Sendable {
   func loadPreview(for item: ProjectResourcePanelItem) async throws -> ProjectResourcePreview
   func saveText(_ text: String, for item: ProjectResourcePanelItem) async throws -> ProjectResourcePreview
   func importResources(from sourceURLs: [URL], intoProjectAt projectPath: String) async throws -> [ProjectResource]
+  func deleteItem(_ item: ProjectResourcePanelItem) async throws
 }
 
 public enum ProjectResourceError: LocalizedError, Equatable, Sendable {
@@ -19,6 +20,8 @@ public enum ProjectResourceError: LocalizedError, Equatable, Sendable {
   case missingFile
   case noImportableFiles
   case unsupportedTextEditing
+  case protectedFile(String)
+  case fileOutsideProject
 
   public var errorDescription: String? {
     switch self {
@@ -30,6 +33,10 @@ public enum ProjectResourceError: LocalizedError, Equatable, Sendable {
       return "No importable files were selected."
     case .unsupportedTextEditing:
       return "This file type cannot be edited inline."
+    case let .protectedFile(name):
+      return "\(name) is required by the project and can't be deleted."
+    case .fileOutsideProject:
+      return "That file is outside the project folder and can't be deleted."
     }
   }
 }
@@ -202,6 +209,27 @@ public actor LocalProjectResourceManager: ProjectResourceManaging {
 
     try touchProjectMetadata(in: projectURL)
     return try await loadResources(forProjectAt: projectPath)
+  }
+
+  public func deleteItem(_ item: ProjectResourcePanelItem) async throws {
+    guard item.isDeletable else {
+      throw ProjectResourceError.protectedFile(item.fileName)
+    }
+
+    let projectURL = try validatedProjectURL(for: item.projectPath)
+    let fileURL = item.fileURL.standardizedFileURL.resolvingSymlinksInPath()
+
+    // Defense in depth: only ever delete files that live inside the project.
+    guard fileURL.path.hasPrefix(projectURL.path + "/") else {
+      throw ProjectResourceError.fileOutsideProject
+    }
+
+    guard fileManager.fileExists(atPath: fileURL.path) else {
+      throw ProjectResourceError.missingFile
+    }
+
+    try fileManager.removeItem(at: fileURL)
+    try touchProjectMetadata(in: projectURL)
   }
 
   private func validatedProjectURL(for projectPath: String) throws -> URL {

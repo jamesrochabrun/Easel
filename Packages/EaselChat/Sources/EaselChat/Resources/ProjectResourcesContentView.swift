@@ -15,6 +15,7 @@ struct ProjectResourcesContentView: View {
   let onSelect: (ProjectResourcePanelItem) -> Void
   let onSaveText: (ProjectResourcePanelItem, String) -> Void
   let onBack: () -> Void
+  let onDelete: (ProjectResourcePanelItem) -> Void
 
   var body: some View {
     ZStack {
@@ -34,7 +35,8 @@ struct ProjectResourcesContentView: View {
           projectStructureSections: projectStructureSections,
           selectedItem: selectedItem,
           columns: columns,
-          onSelect: onSelect
+          onSelect: onSelect,
+          onDelete: onDelete
         )
         .transition(libraryTransition)
       }

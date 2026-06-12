@@ -10,10 +10,42 @@ struct ProjectStructureRow: View {
   let item: ProjectStructureItem
   let isSelected: Bool
   let onSelect: () -> Void
+  let onDelete: () -> Void
 
   @Environment(\.colorScheme) private var colorScheme
+  @State private var isHovering = false
+
+  private var isDeletable: Bool {
+    ProjectResourcePanelItem.projectFile(item).isDeletable
+  }
 
   var body: some View {
+    ZStack(alignment: .trailing) {
+      row
+
+      if isHovering && isDeletable {
+        ProjectResourceDeleteButton(action: onDelete)
+          .padding(.trailing, 10)
+          .help("Delete \(item.fileName)")
+          .transition(.opacity)
+      }
+    }
+    .onHover { hovering in
+      withAnimation(.easeInOut(duration: 0.12)) {
+        isHovering = hovering
+      }
+    }
+    .contextMenu {
+      if isDeletable {
+        Button("Delete", systemImage: "trash", role: .destructive, action: onDelete)
+      } else {
+        Label("Required by the project", systemImage: "lock")
+          .disabled(true)
+      }
+    }
+  }
+
+  private var row: some View {
     Button(action: onSelect) {
       HStack(spacing: 10) {
         ProjectFileThumbnailView(
