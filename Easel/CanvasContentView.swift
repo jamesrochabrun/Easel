@@ -177,12 +177,12 @@ struct CanvasContentView: View {
       }
       vm.onProjectDeleted = {
         Task {
-          await libraryVM.refresh()
+          await handleDeletedWorkspaceIfNeeded(using: vm, libraryViewModel: libraryVM)
         }
       }
       vm.onDesignSystemDeleted = {
         Task {
-          await libraryVM.refresh()
+          await handleDeletedWorkspaceIfNeeded(using: vm, libraryViewModel: libraryVM)
         }
       }
       chatService.onSessionChanged = {
@@ -374,6 +374,29 @@ struct CanvasContentView: View {
       await designLibraryViewModel?.refresh()
       await sidebarViewModel?.loadSessions()
     }
+  }
+
+  @MainActor
+  private func handleDeletedWorkspaceIfNeeded(
+    using sidebarViewModel: SidebarViewModel,
+    libraryViewModel: DesignLibraryViewModel
+  ) async {
+    await libraryViewModel.refresh()
+
+    guard let deletedWorkingDirectory = chatService.currentWorkingDirectory,
+          !sidebarViewModel.containsWorkspace(workingDirectory: deletedWorkingDirectory) else {
+      return
+    }
+
+    await serverManager.stopServer(for: deletedWorkingDirectory)
+    selectedCanvasSurface = .canvas
+
+    if sidebarViewModel.openFirstWorkspace(excluding: deletedWorkingDirectory) {
+      return
+    }
+
+    chatService.clearActiveWorkspace()
+    showDesignLibrary()
   }
 
   private func toggleDesignLibrary() {

@@ -231,6 +231,15 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
     }
   }
 
+  public func clearActiveWorkspace() {
+    previewURLObserver.stopObserving()
+    currentSessionId = nil
+    chatViewModel?.clearConversation()
+    chatViewModel?.setWorkingDirectory("")
+    setCurrentWorkingDirectory(nil)
+    clearPreviewURL()
+  }
+
   // MARK: - Preview URL
 
   public func setPreviewURL(_ url: URL) {

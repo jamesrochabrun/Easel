@@ -51,6 +51,8 @@ struct EaselDesignSystemManagerTests {
     let designSystemURL = URL(fileURLWithPath: profile.workingDirectory)
     #expect(FileManager.default.fileExists(atPath: designSystemURL.appendingPathComponent("index.html").path))
     #expect(FileManager.default.fileExists(atPath: designSystemURL.appendingPathComponent("README.md").path))
+    #expect(FileManager.default.fileExists(atPath: designSystemURL.appendingPathComponent("AGENTS.md").path))
+    #expect(FileManager.default.fileExists(atPath: designSystemURL.appendingPathComponent("CLAUDE.md").path))
     #expect(FileManager.default.fileExists(atPath: designSystemURL.appendingPathComponent("package.json").path))
     #expect(FileManager.default.fileExists(atPath: designSystemURL.appendingPathComponent(".easel/design-system.json").path))
     #expect(FileManager.default.fileExists(atPath: designSystemURL.appendingPathComponent("resources/code/Frontend/App.swift").path))
@@ -61,6 +63,13 @@ struct EaselDesignSystemManagerTests {
     let indexHTML = try String(contentsOf: designSystemURL.appendingPathComponent("index.html"), encoding: .utf8)
     #expect(indexHTML.contains(".easel/catalog.json"))
     #expect(indexHTML.contains("Codex will replace this scaffold") == false)
+
+    let agentInstructions = try String(contentsOf: designSystemURL.appendingPathComponent("AGENTS.md"), encoding: .utf8)
+    #expect(agentInstructions.contains("Do not modify `index.html` document structure"))
+    #expect(agentInstructions.contains("Only change the template structure when the user provides a concrete error or warning"))
+
+    let claudeInstructions = try String(contentsOf: designSystemURL.appendingPathComponent("CLAUDE.md"), encoding: .utf8)
+    #expect(claudeInstructions == agentInstructions)
 
     let loadedSystems = try await manager.loadDesignSystems()
     #expect(loadedSystems.map(\.id) == [profile.id])

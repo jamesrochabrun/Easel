@@ -549,6 +549,8 @@ public actor LocalEaselDesignSystemManager: EaselDesignSystemManaging {
 
     try write(packageJSON(for: profile), to: directoryURL.appendingPathComponent("package.json"))
     try write(readme(for: profile), to: directoryURL.appendingPathComponent("README.md"))
+    try write(agentInstructions(for: profile), to: directoryURL.appendingPathComponent("AGENTS.md"))
+    try write(claudeInstructions(for: profile), to: directoryURL.appendingPathComponent("CLAUDE.md"))
     try write(indexHTML(for: profile), to: directoryURL.appendingPathComponent("index.html"))
   }
 
@@ -790,6 +792,23 @@ public actor LocalEaselDesignSystemManager: EaselDesignSystemManaging {
 
     Run `npm run dev` to preview this design system in Easel.
     """
+  }
+
+  private func agentInstructions(for profile: EaselDesignSystemProfile) -> String {
+    """
+    # \(profile.name) Agent Instructions
+
+    This folder is an Easel design-system template.
+
+    - Do not modify `index.html` document structure, required element IDs, or catalog-loading/rendering flow. Easel depends on that template structure to render `.easel/catalog.json`.
+    - Make design-system changes by editing design-system values in `DESIGN.md` and the generated catalog data, or by adding new design-system values that the existing UI can render.
+    - Add source files, examples, fonts, logos, and assets under `resources/`.
+    - Only change the template structure when the user provides a concrete error or warning caused by a bug in the template itself. Keep that fix scoped to the template bug.
+    """
+  }
+
+  private func claudeInstructions(for profile: EaselDesignSystemProfile) -> String {
+    agentInstructions(for: profile)
   }
 
   private func indexHTML(for profile: EaselDesignSystemProfile) -> String {
