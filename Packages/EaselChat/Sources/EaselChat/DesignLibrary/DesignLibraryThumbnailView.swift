@@ -3,20 +3,35 @@
 //  EaselChat
 //
 
+import EaselDesignSystems
 import EaselKit
 import SwiftUI
 
 struct DesignLibraryThumbnailView: View {
   let item: DesignLibraryItem
   @Bindable var thumbnailCache: DesignLibraryThumbnailCache
+  @Bindable var paletteCache: DesignLibraryPaletteCache
 
   @Environment(\.colorScheme) private var colorScheme
+
+  /// Design systems show their color palette instead of a rendered "site"
+  /// preview. The palette loads asynchronously, so this is non-nil only once
+  /// the catalog has been read and contained usable colors.
+  private var designSystemPalette: [EaselDesignSystemColorToken]? {
+    guard item.kind == .designSystem else { return nil }
+    guard let colors = paletteCache.palette(for: item.workingDirectory), !colors.isEmpty else {
+      return nil
+    }
+    return colors
+  }
 
   var body: some View {
     let key = DesignLibraryThumbnailCacheKey(item: item)
 
     ZStack {
-      if let image = thumbnailCache.image(for: key) {
+      if let palette = designSystemPalette {
+        DesignLibraryPaletteThumbnailView(colors: palette)
+      } else if let image = thumbnailCache.image(for: key) {
         Image(nsImage: image)
           .resizable()
           .aspectRatio(16 / 9, contentMode: .fill)
@@ -30,7 +45,11 @@ struct DesignLibraryThumbnailView: View {
     .frame(maxWidth: .infinity)
     .background(EaselDesignSystem.Palette.surfaceElevated(for: colorScheme))
     .overlay {
-      if let previewFile = item.previewFile, thumbnailCache.shouldRender(key) {
+      // Projects and slide decks render a live snapshot of their preview file.
+      // Design systems use their palette instead, so they skip the web render.
+      if item.kind != .designSystem,
+         let previewFile = item.previewFile,
+         thumbnailCache.shouldRender(key) {
         DesignLibraryThumbnailRenderer(
           previewFile: previewFile,
           kind: item.kind,
@@ -52,5 +71,10 @@ struct DesignLibraryThumbnailView: View {
       }
     }
     .clipped()
+    .task(id: item.workingDirectory) {
+      if item.kind == .designSystem {
+        paletteCache.ensureLoaded(for: item.workingDirectory)
+      }
+    }
   }
 }

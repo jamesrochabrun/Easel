@@ -9,13 +9,14 @@ import SwiftUI
 struct DesignLibraryCardView: View {
   let item: DesignLibraryItem
   @Bindable var thumbnailCache: DesignLibraryThumbnailCache
+  @Bindable var paletteCache: DesignLibraryPaletteCache
 
   @State private var isHovering = false
   @Environment(\.colorScheme) private var colorScheme
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
-      DesignLibraryThumbnailView(item: item, thumbnailCache: thumbnailCache)
+      DesignLibraryThumbnailView(item: item, thumbnailCache: thumbnailCache, paletteCache: paletteCache)
 
       VStack(alignment: .leading, spacing: 12) {
         HStack(alignment: .top, spacing: 12) {

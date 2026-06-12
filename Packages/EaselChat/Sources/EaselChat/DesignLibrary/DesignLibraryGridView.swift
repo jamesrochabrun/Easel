@@ -9,6 +9,7 @@ import SwiftUI
 struct DesignLibraryGridView: View {
   let items: [DesignLibraryItem]
   @Bindable var thumbnailCache: DesignLibraryThumbnailCache
+  @Bindable var paletteCache: DesignLibraryPaletteCache
   let onOpenSelection: (DesignLibrarySelection) -> Void
 
   /// The grid renders its first wave of cells together, so those stagger into
@@ -29,6 +30,7 @@ struct DesignLibraryGridView: View {
             selection: selection,
             revealDelay: isStaggeringInitialReveal ? Self.staggerDelay(forCellAt: index) : 0,
             thumbnailCache: thumbnailCache,
+            paletteCache: paletteCache,
             onOpenSelection: onOpenSelection
           )
         }
@@ -53,6 +55,7 @@ private struct DesignLibraryGridCellButton: View {
   let selection: DesignLibrarySelection
   let revealDelay: Double
   @Bindable var thumbnailCache: DesignLibraryThumbnailCache
+  @Bindable var paletteCache: DesignLibraryPaletteCache
   let onOpenSelection: (DesignLibrarySelection) -> Void
 
   @State private var isVisible = false
@@ -62,7 +65,7 @@ private struct DesignLibraryGridCellButton: View {
     Button {
       onOpenSelection(selection)
     } label: {
-      DesignLibraryCardView(item: item, thumbnailCache: thumbnailCache)
+      DesignLibraryCardView(item: item, thumbnailCache: thumbnailCache, paletteCache: paletteCache)
     }
     .buttonStyle(.plain)
     .help("Open \(item.title)")
