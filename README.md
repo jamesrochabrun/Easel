@@ -14,11 +14,34 @@ Easel is a macOS workspace for AI-assisted product design and frontend iteration
 - **Build prototypes by chatting** — Describe what you want and Claude Code builds it in a real working directory. Easel runs the dev server, detects the URL, and shows the result in a live preview next to the chat.
 - **Iterate by clicking, not typing paths** — Toggle the inspector (`Cmd+Shift+I`), click any element in the preview, and type an instruction like "make this button bigger." Easel sends that element as context to the chat. Crop a region, queue multiple elements, or edit the backing source file directly.
 - **Reusable design systems** — Create a design system once (from a description, an imported `DESIGN.md`, or AI-generated) and reuse it across projects so everything you build stays on-brand.
+- **Slide decks** — Build presentation decks the same way you build prototypes: chat to generate slides, browse them in a slide rail, and present in-tab, fullscreen, or in a new tab.
+- **Real files you can edit** — Every project is a real folder of HTML/CSS/JS, assets, and metadata. Browse the design files, manage resources, and drop into the built-in code editor to tweak source by hand whenever you'd rather not round-trip through chat.
 - **A visual design library** — All your projects and design systems appear as a searchable, filterable grid of thumbnails. Click any one to open it in the workspace.
-- **Slide decks** — Create "Slide Deck" projects and get a slide rail, live preview, and a Present menu (in-tab, fullscreen, or new tab).
 - **Lives in your menu bar** — Easel stays in the menu bar, with quick access to the window, a floating chat bar, and "Check for Updates."
 
 Everything you create is stored locally and independently of the app, under `~/Documents/Easel Projects/` and `~/Documents/Easel Design Systems/` — so your work survives app updates and uninstalls.
+
+## A Closer Look
+
+**Chat to build, then refine by clicking.** Describe a screen, watch it render in the live preview, and use the inspector to point at any element and say what to change.
+
+![Chat, live preview, and the element inspector](docs/images/easel-canvas-inspect.png)
+
+**Create reusable design systems.** Pull in brand, code, and assets — or import a `DESIGN.md` — to get a token set (colors, typography, and more) that keeps every project on-brand.
+
+![Choosing and browsing a design system](docs/images/easel-design-systems.png)
+
+**Make slide decks.** Spin up a Slide Deck project and Easel generates a full 16:9 deck you can browse slide-by-slide and present.
+
+![Slide deck preview](docs/images/easel-slides.png)
+
+**Manage real design files and resources.** Each project keeps its assets, pages, and metadata in a self-contained folder you can browse right inside Easel.
+
+![Project design files and structure](docs/images/easel-design-files.png)
+
+**Edit code directly when you need to.** Prefer to make a change by hand? Open the source in the built-in editor with syntax highlighting and edit it directly — no need to go through chat for every tweak.
+
+![Built-in code editor](docs/images/easel-code-editor.png)
 
 ## Requirements
 

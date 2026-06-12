@@ -486,6 +486,14 @@ struct CanvasContentView: View {
   }
 
   private func cyclePanelLayout() {
+    // In the designs grid there's no chat panel or canvas to cycle through, so
+    // the four-state cycle would appear to do nothing on two of every four
+    // presses. Collapse it to a simple sidebar show/hide toggle there.
+    if contentMode == .designs {
+      toggleSidebarPanel()
+      return
+    }
+
     var nextState = panelLayoutState
     nextState.advanceCommandShortcutCycle()
     setPanelLayoutState(nextState)

@@ -23,6 +23,12 @@ final class CodexChatRuntime {
   private let onSessionChange: ((String) -> Void)?
   private var hasSession = false
   private var isCancelled = false
+  /// Monotonically increasing token identifying the active turn. Each `send`
+  /// captures the current value; `cancel`/`resetSession` (and the next `send`)
+  /// bump it. A turn whose token no longer matches must not mutate shared state
+  /// — this prevents a still-streaming turn from bleeding into a new session or
+  /// workspace after the user switches away mid-generation.
+  private(set) var activeGeneration = 0
 
   init(
     messageDisplay: ChatMessageDisplay,
@@ -53,10 +59,12 @@ final class CodexChatRuntime {
   func resetSession() {
     hasSession = false
     isCancelled = false
+    activeGeneration &+= 1
   }
 
   func cancel() {
     isCancelled = true
+    activeGeneration &+= 1
   }
 
   /// Splits a raw shell-style argument string into individual arguments,
@@ -123,6 +131,8 @@ final class CodexChatRuntime {
 
   func send(prompt: String, messageId: UUID, firstMessageInSession: String?) async throws {
     isCancelled = false
+    activeGeneration &+= 1
+    let generation = activeGeneration
 
     let state = StreamState(messageId: messageId, firstMessageInSession: firstMessageInSession)
     let isFirstTurn = !hasSession
@@ -140,7 +150,8 @@ final class CodexChatRuntime {
     let eventStream = AsyncStream<CodexExecEvent>.makeStream()
     let eventTask = Task { @MainActor [weak self, weak state] in
       for await event in eventStream.stream {
-        guard let self, let state, !self.isCancelled, !Task.isCancelled else { continue }
+        guard let self, let state, !Task.isCancelled,
+              self.activeGeneration == generation, !self.isCancelled else { continue }
         self.process(event, state: state)
       }
     }
@@ -159,7 +170,9 @@ final class CodexChatRuntime {
     eventStream.continuation.finish()
     await eventTask.value
 
-    guard !isCancelled, !Task.isCancelled else { return }
+    // Bail if this turn was superseded (workspace/session switched) or cancelled
+    // — otherwise it would persist its session and finalize into the wrong chat.
+    guard activeGeneration == generation, !isCancelled, !Task.isCancelled else { return }
 
     hasSession = true
     ensureSessionExists(firstMessageInSession: firstMessageInSession)

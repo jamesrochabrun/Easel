@@ -9,6 +9,7 @@ struct ProjectStructureSectionView: View {
   let section: ProjectStructureSection
   let selectedItem: ProjectResourcePanelItem?
   let onSelect: (ProjectResourcePanelItem) -> Void
+  let onDelete: (ProjectResourcePanelItem) -> Void
 
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
@@ -24,6 +25,9 @@ struct ProjectStructureSectionView: View {
             isSelected: selectedItem?.id == ProjectResourcePanelItem.projectFile(item).id,
             onSelect: {
               onSelect(.projectFile(item))
+            },
+            onDelete: {
+              onDelete(.projectFile(item))
             }
           )
         }

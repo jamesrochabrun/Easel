@@ -696,6 +696,9 @@ EOF
           try await startNewConversation(prompt: apiContent, messageId: assistantId)
         }
       } catch {
+        // A turn cancelled by a workspace/session switch must not post an error
+        // into whatever conversation is now showing.
+        if Task.isCancelled { return }
         await MainActor.run {
           self.handleError(error, operation: .apiCall)
         }
@@ -708,6 +711,9 @@ EOF
   
   /// Clears the conversation history and starts a new session
   public func clearConversation() {
+    // Stop any in-flight turn first so it can't keep streaming into the chat
+    // after we've cleared it (e.g. when switching to another workspace).
+    stopActiveGeneration()
     messageStore.clear()
     sessionManager.clearSession()
     currentMessageId = nil
@@ -772,6 +778,24 @@ EOF
     }
   }
   
+  /// Invalidates any in-flight Codex turn before the conversation is cleared or
+  /// a different session is loaded.
+  ///
+  /// The Codex runtime streams into the shared message store regardless of which
+  /// session is visible, so a turn left running across a switch would bleed into
+  /// — and persist over — the new session/workspace. Cancelling it bumps the
+  /// runtime's generation token, after which its remaining events and its
+  /// session-finalize are dropped.
+  ///
+  /// The Claude path is deliberately left alone: it routes results to their
+  /// originating session, so a background turn stays correctly scoped to that
+  /// session (see `isCurrentSessionLoading`) and is allowed to finish.
+  private func stopActiveGeneration() {
+    codexRuntime?.cancel()
+    codexTask?.cancel()
+    codexTask = nil
+  }
+
   /// Cancels any ongoing requests
   public func cancelRequest() {
     // Set cancellation flag
@@ -996,6 +1020,10 @@ EOF
   }
 
   public func injectSession(sessionId: String, messages: [ChatMessage], workingDirectory: String? = nil) {
+    // Stop any in-flight turn from the previous session/workspace so it can't
+    // stream into or persist over the session we're about to load.
+    stopActiveGeneration()
+
     // Set up the session
     sessionManager.selectSession(id: sessionId)
     handleSessionChange(sessionId)

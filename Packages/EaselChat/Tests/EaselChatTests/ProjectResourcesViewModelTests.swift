@@ -76,6 +76,65 @@ struct ProjectResourcesViewModelTests {
   }
 
   @Test
+  func deleteRemovesResourceAndReloads() async {
+    let project = makeProject(name: "Project", path: "/tmp/project")
+    let keep = makeResource(projectPath: project.workingDirectory, fileName: "keep.png")
+    let remove = makeResource(projectPath: project.workingDirectory, fileName: "remove.png")
+    let resourceManager = StubProjectResourceManager(
+      resourcesByProject: [project.workingDirectory: [keep, remove]]
+    )
+    let viewModel = ProjectResourcesViewModel(
+      projectManager: StubProjectManager(projects: [project]),
+      resourceManager: resourceManager
+    )
+
+    await viewModel.refresh(currentProjectPath: project.workingDirectory)
+    await viewModel.deleteItem(.resource(remove))
+
+    #expect(viewModel.resources == [keep])
+    #expect(await resourceManager.deletedItemIDs == [ProjectResourcePanelItem.resource(remove).id])
+    #expect(viewModel.errorMessage == nil)
+  }
+
+  @Test
+  func deleteRejectsProtectedProjectFile() async {
+    let project = makeProject(name: "Project", path: "/tmp/project")
+    let index = makeProjectStructureItem(projectPath: project.workingDirectory, fileName: "index.html")
+    let resourceManager = StubProjectResourceManager(
+      resourcesByProject: [:],
+      projectStructureByProject: [
+        project.workingDirectory: [ProjectStructureSection(role: .pages, items: [index])]
+      ]
+    )
+    let viewModel = ProjectResourcesViewModel(
+      projectManager: StubProjectManager(projects: [project]),
+      resourceManager: resourceManager
+    )
+
+    await viewModel.refresh(currentProjectPath: project.workingDirectory)
+    await viewModel.deleteItem(.projectFile(index))
+
+    #expect(await resourceManager.deletedItemIDs.isEmpty)
+    #expect(viewModel.errorMessage != nil)
+  }
+
+  @Test
+  func protectedFilesAreNotDeletable() {
+    let path = "/tmp/project"
+    let index = makeProjectStructureItem(projectPath: path, fileName: "index.html")
+    let readme = makeProjectStructureItem(projectPath: path, fileName: "README.md")
+    let packageJSON = makeProjectStructureItem(projectPath: path, fileName: "package.json")
+    let styles = makeProjectStructureItem(projectPath: path, fileName: "styles.css")
+    let resource = makeResource(projectPath: path, fileName: "hero.png")
+
+    #expect(ProjectResourcePanelItem.projectFile(index).isDeletable == false)
+    #expect(ProjectResourcePanelItem.projectFile(readme).isDeletable == false)
+    #expect(ProjectResourcePanelItem.projectFile(packageJSON).isDeletable == false)
+    #expect(ProjectResourcePanelItem.projectFile(styles).isDeletable == true)
+    #expect(ProjectResourcePanelItem.resource(resource).isDeletable == true)
+  }
+
+  @Test
   func refreshHonorsDesignSystemWorkspaceInsteadOfFallingBackToProject() async {
     let project = makeProject(name: "Proto", path: "/tmp/proto")
     let designSystemPath = "/tmp/design-systems/plusui"
@@ -251,6 +310,17 @@ private actor StubProjectResourceManager: ProjectResourceManaging {
   func importResources(from sourceURLs: [URL], intoProjectAt projectPath: String) async throws -> [ProjectResource] {
     resourcesByProject[projectPath] = importedResources
     return importedResources
+  }
+
+  private(set) var deletedItemIDs: [String] = []
+
+  func deleteItem(_ item: ProjectResourcePanelItem) async throws {
+    deletedItemIDs.append(item.id)
+    for (project, resources) in resourcesByProject {
+      resourcesByProject[project] = resources.filter {
+        ProjectResourcePanelItem.resource($0).id != item.id
+      }
+    }
   }
 }
 

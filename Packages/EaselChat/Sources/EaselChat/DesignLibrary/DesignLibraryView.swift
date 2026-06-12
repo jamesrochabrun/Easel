@@ -13,6 +13,7 @@ public struct DesignLibraryView: View {
   private let onCreateDesign: (() -> Void)?
 
   @State private var thumbnailCache = DesignLibraryThumbnailCache()
+  @State private var paletteCache = DesignLibraryPaletteCache()
   @Environment(\.colorScheme) private var colorScheme
 
   public init(
@@ -61,6 +62,7 @@ public struct DesignLibraryView: View {
             DesignLibraryGridView(
               items: viewModel.visibleItems,
               thumbnailCache: thumbnailCache,
+              paletteCache: paletteCache,
               onOpenSelection: onOpenSelection
             )
           }

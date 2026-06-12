@@ -4,6 +4,7 @@
 //
 
 import EaselDesignSystems
+import EaselKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -12,6 +13,8 @@ public struct ProjectResourcesView: View {
   let currentProjectPath: String?
 
   @State private var isImporterPresented = false
+  @State private var isDropTargeted = false
+  @State private var itemPendingDeletion: ProjectResourcePanelItem?
 
   public init(
     viewModel: ProjectResourcesViewModel,
@@ -19,6 +22,12 @@ public struct ProjectResourcesView: View {
   ) {
     self.viewModel = viewModel
     self.currentProjectPath = currentProjectPath
+  }
+
+  /// Files can be dropped to add resources whenever a project is active and an
+  /// import isn't already in flight — mirroring the "Add Design Files" button.
+  private var canImportDroppedFiles: Bool {
+    viewModel.selectedProjectPath != nil && !viewModel.isImporting
   }
 
   public var body: some View {
@@ -36,6 +45,19 @@ public struct ProjectResourcesView: View {
       content
     }
     .background(.background)
+    .onDrop(of: [.item], isTargeted: $isDropTargeted) { providers in
+      guard canImportDroppedFiles, !providers.isEmpty else { return false }
+      Task {
+        await importDroppedProviders(providers)
+      }
+      return true
+    }
+    .overlay {
+      if isDropTargeted && canImportDroppedFiles {
+        dropTargetOverlay
+      }
+    }
+    .animation(.easeInOut(duration: 0.15), value: isDropTargeted)
     .task(id: currentProjectPath ?? "") {
       await viewModel.refresh(currentProjectPath: currentProjectPath)
     }
@@ -56,6 +78,93 @@ public struct ProjectResourcesView: View {
         }
       }
     }
+    .confirmationDialog(
+      itemPendingDeletion.map { "Delete \($0.fileName)?" } ?? "Delete file?",
+      isPresented: deletionConfirmationBinding,
+      titleVisibility: .visible,
+      presenting: itemPendingDeletion
+    ) { item in
+      Button("Delete", role: .destructive) {
+        Task { await viewModel.deleteItem(item) }
+      }
+      Button("Cancel", role: .cancel) {}
+    } message: { item in
+      Text("\"\(item.fileName)\" will be removed from this project. This can't be undone.")
+    }
+  }
+
+  /// Resolves dropped items to on-disk files and imports them. Finder files come
+  /// through as file URLs; screenshots and other app-vended assets arrive as data
+  /// (e.g. PNG), so those are written to a temporary file first. This way every
+  /// asset type imports, matching the "Add Design Files" button.
+  private func importDroppedProviders(_ providers: [NSItemProvider]) async {
+    var fileURLs: [URL] = []
+    for provider in providers {
+      if let url = await Self.loadDroppedFile(from: provider) {
+        fileURLs.append(url)
+      }
+    }
+
+    guard !fileURLs.isEmpty else { return }
+    await viewModel.importResources(from: fileURLs)
+  }
+
+  /// Loads a provider's contents into a temporary file we own, copying it out of
+  /// the system-supplied location before that location is invalidated.
+  private static func loadDroppedFile(from provider: NSItemProvider) async -> URL? {
+    await withCheckedContinuation { continuation in
+      provider.loadFileRepresentation(forTypeIdentifier: UTType.item.identifier) { url, _ in
+        guard let url else {
+          continuation.resume(returning: nil)
+          return
+        }
+
+        let destinationDirectory = FileManager.default.temporaryDirectory
+          .appendingPathComponent("EaselDroppedAssets/\(UUID().uuidString)", isDirectory: true)
+        let destination = destinationDirectory.appendingPathComponent(url.lastPathComponent)
+
+        do {
+          try FileManager.default.createDirectory(at: destinationDirectory, withIntermediateDirectories: true)
+          try FileManager.default.copyItem(at: url, to: destination)
+          continuation.resume(returning: destination)
+        } catch {
+          continuation.resume(returning: nil)
+        }
+      }
+    }
+  }
+
+  private var deletionConfirmationBinding: Binding<Bool> {
+    Binding(
+      get: { itemPendingDeletion != nil },
+      set: { if !$0 { itemPendingDeletion = nil } }
+    )
+  }
+
+  private func requestDelete(_ item: ProjectResourcePanelItem) {
+    itemPendingDeletion = item
+  }
+
+  private var dropTargetOverlay: some View {
+    ZStack {
+      Rectangle()
+        .fill(.regularMaterial)
+
+      VStack(spacing: 10) {
+        Image(systemName: "tray.and.arrow.down")
+          .font(.system(size: 30, weight: .light))
+        Text("Drop files to add to this project")
+          .font(.callout.weight(.medium))
+      }
+      .foregroundStyle(.primary)
+    }
+    .overlay {
+      RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.card)
+        .strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [8, 6]))
+        .padding(8)
+    }
+    .allowsHitTesting(false)
+    .transition(.opacity)
   }
 
   private var resourcesObservationID: String {
@@ -143,7 +252,8 @@ public struct ProjectResourcesView: View {
         isSavingPreview: viewModel.isSavingPreview,
         onSelect: selectItem,
         onSaveText: saveText,
-        onBack: viewModel.clearSelection
+        onBack: viewModel.clearSelection,
+        onDelete: requestDelete
       )
     }
   }

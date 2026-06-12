@@ -89,4 +89,19 @@ public enum ProjectResourcePanelItem: Identifiable, Equatable, Sendable {
       return item.role.displayName
     }
   }
+
+  /// Core scaffold files a project needs to function. These are never deletable
+  /// from the UI so a project can't be accidentally broken.
+  static let protectedFileNames: Set<String> = ["index.html", "package.json", "readme.md"]
+
+  /// Imported resources can always be removed. Project-structure files are
+  /// deletable too, except the protected scaffold above.
+  var isDeletable: Bool {
+    switch self {
+    case .resource:
+      return true
+    case let .projectFile(item):
+      return !Self.protectedFileNames.contains(item.fileName.lowercased())
+    }
+  }
 }

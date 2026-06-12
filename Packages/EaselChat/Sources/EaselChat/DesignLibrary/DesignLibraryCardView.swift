@@ -9,13 +9,14 @@ import SwiftUI
 struct DesignLibraryCardView: View {
   let item: DesignLibraryItem
   @Bindable var thumbnailCache: DesignLibraryThumbnailCache
+  @Bindable var paletteCache: DesignLibraryPaletteCache
 
   @State private var isHovering = false
   @Environment(\.colorScheme) private var colorScheme
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
-      DesignLibraryThumbnailView(item: item, thumbnailCache: thumbnailCache)
+      DesignLibraryThumbnailView(item: item, thumbnailCache: thumbnailCache, paletteCache: paletteCache)
 
       VStack(alignment: .leading, spacing: 12) {
         HStack(alignment: .top, spacing: 12) {
@@ -27,7 +28,7 @@ struct DesignLibraryCardView: View {
 
           Spacer(minLength: 8)
 
-          DesignLibraryKindBadge(kind: item.kind)
+          DesignLibraryKindBadge(kind: item.kind, gradientColors: badgeGradientColors)
         }
 
         HStack(spacing: 8) {
@@ -73,6 +74,17 @@ struct DesignLibraryCardView: View {
         isHovering = hovering
       }
     }
+  }
+
+  /// Accent gradient for the "Design system" badge chip, derived from the
+  /// system's palette once its tokens have loaded.
+  private var badgeGradientColors: [Color] {
+    guard item.kind == .designSystem,
+          let tokens = paletteCache.tokens(for: item.workingDirectory),
+          !tokens.colors.isEmpty else {
+      return []
+    }
+    return DesignSystemPaletteGradient.accentColors(from: tokens.colors)
   }
 
   private var cardBorderColor: Color {

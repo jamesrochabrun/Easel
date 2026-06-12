@@ -112,6 +112,30 @@ public final class ProjectResourcesViewModel {
     }
   }
 
+  public func deleteItem(_ item: ProjectResourcePanelItem) async {
+    guard let selectedProjectPath else { return }
+    guard item.isDeletable else {
+      errorMessage = ProjectResourceError.protectedFile(item.fileName).localizedDescription
+      return
+    }
+
+    do {
+      try await resourceManager.deleteItem(item)
+
+      if selectedItem?.id == item.id {
+        selectedItem = nil
+        selectedPreview = nil
+      }
+
+      resources = try await resourceManager.loadResources(forProjectAt: selectedProjectPath)
+      projectStructureSections = try await resourceManager.loadProjectStructure(forProjectAt: selectedProjectPath)
+      reconcileSelection()
+      errorMessage = nil
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
   public func reportImportFailure(_ error: Error) {
     errorMessage = error.localizedDescription
   }
