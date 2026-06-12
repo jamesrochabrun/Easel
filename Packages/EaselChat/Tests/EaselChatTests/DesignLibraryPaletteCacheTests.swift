@@ -24,7 +24,7 @@ struct DesignLibraryPaletteCacheTests {
     let cache = DesignLibraryPaletteCache(designSystemManager: manager)
 
     // Not loaded yet.
-    #expect(cache.palette(for: "/ds/Sentry") == nil)
+    #expect(cache.tokens(for: "/ds/Sentry") == nil)
 
     cache.ensureLoaded(for: "/ds/Sentry")
     let colors = try await waitForPalette(cache, path: "/ds/Sentry")
@@ -44,8 +44,8 @@ struct DesignLibraryPaletteCacheTests {
     for _ in 0..<20 where manager.loadCount == 0 { await Task.yield() }
     try await Task.sleep(for: .milliseconds(50))
 
-    // No usable colors -> palette stays nil so the card falls back to placeholder.
-    #expect(cache.palette(for: "/ds/Empty") == nil)
+    // No usable colors -> tokens stay nil so the card falls back to placeholder.
+    #expect(cache.tokens(for: "/ds/Empty") == nil)
   }
 
   @Test
@@ -73,8 +73,8 @@ struct DesignLibraryPaletteCacheTests {
     path: String
   ) async throws -> [EaselDesignSystemColorToken] {
     for _ in 0..<50 {
-      if let colors = cache.palette(for: path), !colors.isEmpty {
-        return colors
+      if let tokens = cache.tokens(for: path), !tokens.colors.isEmpty {
+        return tokens.colors
       }
       await Task.yield()
       try await Task.sleep(for: .milliseconds(10))

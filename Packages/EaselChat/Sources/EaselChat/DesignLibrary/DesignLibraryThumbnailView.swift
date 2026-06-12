@@ -14,23 +14,23 @@ struct DesignLibraryThumbnailView: View {
 
   @Environment(\.colorScheme) private var colorScheme
 
-  /// Design systems show their color palette instead of a rendered "site"
-  /// preview. The palette loads asynchronously, so this is non-nil only once
-  /// the catalog has been read and contained usable colors.
-  private var designSystemPalette: [EaselDesignSystemColorToken]? {
+  /// Design systems show their palette + type specimen instead of a rendered
+  /// "site" preview. The tokens load asynchronously, so this is non-nil only
+  /// once the catalog has been read and contained usable colors.
+  private var designSystemTokens: DesignSystemCardTokens? {
     guard item.kind == .designSystem else { return nil }
-    guard let colors = paletteCache.palette(for: item.workingDirectory), !colors.isEmpty else {
+    guard let tokens = paletteCache.tokens(for: item.workingDirectory), !tokens.isEmpty else {
       return nil
     }
-    return colors
+    return tokens
   }
 
   var body: some View {
     let key = DesignLibraryThumbnailCacheKey(item: item)
 
     ZStack {
-      if let palette = designSystemPalette {
-        DesignLibraryPaletteThumbnailView(colors: palette)
+      if let tokens = designSystemTokens {
+        DesignLibraryPaletteThumbnailView(tokens: tokens)
       } else if let image = thumbnailCache.image(for: key) {
         Image(nsImage: image)
           .resizable()
