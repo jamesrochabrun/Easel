@@ -111,6 +111,9 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
           }
         }
       )
+      vm.runtimeHiddenContextProvider = { [weak self] in
+        self?.makeHiddenContextForCurrentState(nil)
+      }
 
       if let dir = config.workingDirectory {
         vm.projectPath = dir
@@ -287,8 +290,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
   }
 
   private func sendMessageToViewModel(_ text: String, context: String? = nil, hiddenContext: String? = nil) {
-    let combinedHiddenContext = makeHiddenContextForCurrentState(hiddenContext)
-    chatViewModel?.sendMessage(text, context: context, hiddenContext: combinedHiddenContext)
+    chatViewModel?.sendMessage(text, context: context, hiddenContext: hiddenContext)
   }
 
   func makeHiddenContextForCurrentState(_ hiddenContext: String?) -> String {

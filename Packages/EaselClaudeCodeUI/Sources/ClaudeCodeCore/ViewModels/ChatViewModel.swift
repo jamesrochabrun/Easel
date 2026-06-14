@@ -48,6 +48,9 @@ public final class ChatViewModel {
   /// Optional callback invoked when a user message is sent, used for external logging
   private let onUserMessageSent: ((String, [TextSelection]?, [FileAttachment]?) -> Void)?
 
+  /// Optional hidden context supplied by an embedding app for every outgoing turn.
+  @ObservationIgnored public var runtimeHiddenContextProvider: (() -> String?)?
+
   /// Controls whether this view model should manage sessions (load, save, switch, etc.)
   /// Set to false when using ChatScreen directly without RootView to avoid unnecessary session operations
   public let shouldManageSessions: Bool
@@ -634,35 +637,20 @@ EOF
     // Build message content for display (just the user's text)
     let displayContent = text
     
-    // Build message content for API (with all context and attachments)
-    var apiContentParts: [String] = [text]
-    
-    // Add image paths to the message text for Claude Code
-    if let attachments = attachments, !attachments.isEmpty,
-       let imagePaths = AttachmentProcessor.formatImagePathsForMessage(attachments) {
-      apiContentParts.insert(imagePaths, at: 1)
+    let apiContent = makeAPIContent(
+      text: text,
+      context: context,
+      hiddenContext: hiddenContext,
+      attachments: attachments
+    )
+
+    #if DEBUG
+    if activeProvider == .codex,
+       ProcessInfo.processInfo.environment["EASEL_DEBUG_CODEX_PROMPT"] == "1" {
+      debugPrintCodexPrompt(apiContent)
     }
-    
-    // Add context if present
-    if let context = context, !context.isEmpty {
-      apiContentParts.append("--- Context ---\n\(context)")
-    }
-    
-    // Add hidden context if present
-    if let hiddenContext = hiddenContext, !hiddenContext.isEmpty {
-      apiContentParts.append(hiddenContext)
-    }
-    
-    // Add attachments metadata in XML format
-    if let attachments = attachments, !attachments.isEmpty {
-      let attachmentContent = AttachmentProcessor.formatAttachmentsForXML(attachments)
-      if !attachmentContent.isEmpty {
-        apiContentParts.append(attachmentContent)
-      }
-    }
-    
-    let apiContent = apiContentParts.joined(separator: "\n\n")
-    
+    #endif
+
     // Add user message with code selections and attachments for UI display
     let userMessage = MessageFactory.userMessage(content: displayContent, codeSelections: codeSelections, attachments: attachments)
     messageStore.addMessage(userMessage)
@@ -707,6 +695,50 @@ EOF
     if activeProvider == .codex {
       codexTask = task
     }
+  }
+
+  func makeAPIContent(
+    text: String,
+    context: String? = nil,
+    hiddenContext: String? = nil,
+    attachments: [FileAttachment]? = nil
+  ) -> String {
+    var apiContentParts: [String] = [text]
+
+    // Add image paths to the message text for Claude Code
+    if let attachments = attachments, !attachments.isEmpty,
+       let imagePaths = AttachmentProcessor.formatImagePathsForMessage(attachments) {
+      apiContentParts.insert(imagePaths, at: 1)
+    }
+
+    // Add context if present
+    if let context = context, !context.isEmpty {
+      apiContentParts.append("--- Context ---\n\(context)")
+    }
+
+    // Add hidden context if present
+    if let combinedHiddenContext = combinedHiddenContext(hiddenContext), !combinedHiddenContext.isEmpty {
+      apiContentParts.append(combinedHiddenContext)
+    }
+
+    // Add attachments metadata in XML format
+    if let attachments = attachments, !attachments.isEmpty {
+      let attachmentContent = AttachmentProcessor.formatAttachmentsForXML(attachments)
+      if !attachmentContent.isEmpty {
+        apiContentParts.append(attachmentContent)
+      }
+    }
+
+    return apiContentParts.joined(separator: "\n\n")
+  }
+
+  private func combinedHiddenContext(_ hiddenContext: String?) -> String? {
+    [hiddenContext, runtimeHiddenContextProvider?()]
+      .compactMap { value -> String? in
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed?.isEmpty == false ? trimmed : nil
+      }
+      .joined(separator: "\n\n")
   }
   
   /// Clears the conversation history and starts a new session
@@ -1369,6 +1401,18 @@ EOF
 
     return parts.isEmpty ? nil : parts.joined(separator: "\n\n")
   }
+
+  #if DEBUG
+  private func debugPrintCodexPrompt(_ prompt: String) {
+    print("""
+
+    ===== EASEL CODEX PROMPT BEGIN =====
+    \(prompt)
+    ===== EASEL CODEX PROMPT END =====
+
+    """)
+  }
+  #endif
   
   private func continueConversation(sessionId: String, prompt: String, messageId: UUID) async throws {
     if isDebugEnabled {

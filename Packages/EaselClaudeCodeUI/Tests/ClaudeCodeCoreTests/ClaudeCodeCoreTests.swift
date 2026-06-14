@@ -12,6 +12,32 @@ final class ClaudeCodeCoreTests: XCTestCase {
   }
 
   @MainActor
+  func testRuntimeHiddenContextProviderIsIncludedInAPIContent() {
+    let viewModel = ChatViewModel(
+      claudeClient: HangingClaudeCodeClient(),
+      sessionStorage: NoOpSessionStorage(),
+      settingsStorage: SettingsStorageManager(),
+      globalPreferences: GlobalPreferencesStorage(),
+      customPermissionService: MockCustomPermissionService(),
+      shouldManageSessions: false
+    )
+    viewModel.runtimeHiddenContextProvider = {
+      "Runtime project context"
+    }
+
+    let content = viewModel.makeAPIContent(
+      text: "hello",
+      context: "Visible context",
+      hiddenContext: "Caller hidden context"
+    )
+
+    XCTAssertTrue(content.contains("hello"))
+    XCTAssertTrue(content.contains("--- Context ---\nVisible context"))
+    XCTAssertTrue(content.contains("Caller hidden context"))
+    XCTAssertTrue(content.contains("Runtime project context"))
+  }
+
+  @MainActor
   func testLoadingIndicatorIsScopedToActiveSession() async throws {
     let client = HangingClaudeCodeClient()
     let viewModel = ChatViewModel(
