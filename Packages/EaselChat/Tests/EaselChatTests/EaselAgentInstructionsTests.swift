@@ -122,9 +122,10 @@ struct EaselAgentInstructionsTests {
     #expect(context.contains("Current project type: Prototype"))
     #expect(context.contains("Current prototype fidelity: High fidelity"))
     #expect(context.contains("Prototype fidelity contract"))
-    #expect(context.contains("polished product prototype"))
-    #expect(context.contains("realistic content"))
-    #expect(context.contains("meaningful UI states"))
+    #expect(context.contains("fully interactive prototype"))
+    #expect(context.contains("React useState/useEffect"))
+    #expect(context.contains("ask questions"))
+    #expect(context.contains("Good hi-fi designs do not start from scratch"))
   }
 
   @Test
