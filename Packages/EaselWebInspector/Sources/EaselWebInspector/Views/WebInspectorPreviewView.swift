@@ -282,14 +282,16 @@ public struct WebInspectorPreviewView: View {
   @ViewBuilder
   private var headerControls: some View {
     HStack(spacing: 12) {
-      Button {
+      WebPreviewModeButton(
+        title: "\(inspectState.isActive ? "Stop" : "Start") \(inspectBehavior.modeName) mode",
+        systemImage: "cursorarrow.rays",
+        isActive: inspectState.isActive,
+        width: 24,
+        height: 24,
+        font: .system(size: 14, weight: .medium)
+      ) {
         toggleInspector()
-      } label: {
-        Image(systemName: "cursorarrow.rays")
-          .font(.system(size: 14, weight: .medium))
-          .foregroundStyle(inspectState.isActive ? EaselDesignSystem.Palette.accent : EaselDesignSystem.Palette.secondaryText(for: colorScheme))
       }
-      .buttonStyle(.plain)
       .help("\(inspectState.isActive ? "Stop" : "Start") \(inspectBehavior.modeName) mode")
 
       if inspectState.isActive {
@@ -297,17 +299,16 @@ public struct WebInspectorPreviewView: View {
         if availableModes.count > 1 {
           HStack(spacing: 6) {
             ForEach(availableModes) { behavior in
-              Button {
+              WebPreviewModeButton(
+                title: behavior.accessibilityLabel,
+                systemImage: behavior.icon,
+                isActive: inspectBehavior == behavior,
+                width: 26,
+                height: 20,
+                font: .caption
+              ) {
                 inspectBehavior = behavior
-              } label: {
-                Image(systemName: behavior.icon)
-                  .font(.caption)
-                  .frame(width: 26, height: 20)
-                  .foregroundStyle(inspectBehavior == behavior ? EaselDesignSystem.Palette.accent : EaselDesignSystem.Palette.secondaryText(for: colorScheme))
-                  .contentShape(Rectangle())
               }
-              .buttonStyle(.plain)
-              .accessibilityLabel(behavior.accessibilityLabel)
               .help(behavior.helpText)
             }
           }
