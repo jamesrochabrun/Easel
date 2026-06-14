@@ -300,6 +300,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
       projectKind: project?.kind,
       projectFidelity: prototypeFidelity(for: project),
       designSystem: project?.designSystem,
+      resourcePaths: projectResourcePaths(at: currentWorkingDirectory),
       previewURL: previewURL
     )
   }
@@ -343,6 +344,37 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
     let decoder = JSONDecoder()
     decoder.dateDecodingStrategy = .iso8601
     return try? decoder.decode(EaselDesignProject.self, from: data)
+  }
+
+  private func projectResourcePaths(at workingDirectory: String?) -> [String] {
+    guard let workingDirectory, !workingDirectory.isEmpty else { return [] }
+
+    let projectURL = URL(fileURLWithPath: workingDirectory, isDirectory: true)
+      .resolvingSymlinksInPath()
+    let resourcesURL = projectURL.appendingPathComponent(ProjectResource.resourcesDirectoryName, isDirectory: true)
+    guard let enumerator = FileManager.default.enumerator(
+      at: resourcesURL,
+      includingPropertiesForKeys: [.isRegularFileKey],
+      options: [.skipsHiddenFiles]
+    ) else {
+      return []
+    }
+
+    var paths: [String] = []
+    for case let fileURL as URL in enumerator {
+      guard paths.count < 80 else { break }
+
+      let values = try? fileURL.resourceValues(forKeys: [.isRegularFileKey])
+      guard values?.isRegularFile == true else { continue }
+
+      let filePath = fileURL.resolvingSymlinksInPath().path
+      guard filePath.hasPrefix(projectURL.path + "/") else { continue }
+
+      let relativePath = String(filePath.dropFirst(projectURL.path.count + 1))
+      paths.append(relativePath)
+    }
+
+    return paths.sorted()
   }
 
   private func refreshCurrentProjectMetadata(for workingDirectory: String?) {

@@ -93,6 +93,23 @@ struct EaselAgentInstructionsTests {
   }
 
   @Test
+  func hiddenContextIncludesProjectResourceManifest() {
+    let context = EaselAgentInstructions.hiddenContext(
+      projectPath: "/tmp/easel",
+      resourcePaths: [
+        "resources/hero.png",
+        "resources/codebase-references/App.md",
+      ],
+      previewURL: nil
+    )
+
+    #expect(context.contains("Available project resources and design files"))
+    #expect(context.contains("- `resources/hero.png`"))
+    #expect(context.contains("- `resources/codebase-references/App.md`"))
+    #expect(context.contains("Inspect these resources"))
+  }
+
+  @Test
   func hiddenContextIncludesPrototypeFidelityGuidance() {
     let context = EaselAgentInstructions.hiddenContext(
       projectPath: "/tmp/prototype",

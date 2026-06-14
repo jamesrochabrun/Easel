@@ -226,6 +226,7 @@ enum EaselAgentInstructions {
     projectKind: EaselProjectKind? = nil,
     projectFidelity: EaselProjectFidelity? = nil,
     designSystem: EaselDesignSystemChoice? = nil,
+    resourcePaths: [String] = [],
     previewURL: URL?
   ) -> String {
     var lines = [
@@ -259,6 +260,12 @@ enum EaselAgentInstructions {
       lines.append("Active design system: \(designSystem.displayName). Its spec is in this project at resources/design-system/DESIGN.md. Read it before writing UI and build directly from its colors, typography, spacing, radii, effects, and component families — do not improvise a different palette or type scale when the design system already defines one.")
     }
 
+    if !resourcePaths.isEmpty {
+      lines.append("Available project resources and design files in this project:")
+      lines.append(contentsOf: resourcePaths.map { "- `\($0)`" })
+      lines.append("Inspect these resources from the current project path when they are relevant to the user's request.")
+    }
+
     if let previewURL {
       lines.append("Current embedded preview URL: \(previewURL.absoluteString)")
     }
@@ -272,6 +279,7 @@ enum EaselAgentInstructions {
     projectKind: EaselProjectKind? = nil,
     projectFidelity: EaselProjectFidelity? = nil,
     designSystem: EaselDesignSystemChoice? = nil,
+    resourcePaths: [String] = [],
     previewURL: URL?
   ) -> String {
     [hiddenContext, self.hiddenContext(
@@ -279,6 +287,7 @@ enum EaselAgentInstructions {
       projectKind: projectKind,
       projectFidelity: projectFidelity,
       designSystem: designSystem,
+      resourcePaths: resourcePaths,
       previewURL: previewURL
     )]
       .compactMap { value in

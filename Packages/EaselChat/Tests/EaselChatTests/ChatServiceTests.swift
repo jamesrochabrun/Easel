@@ -61,6 +61,15 @@ struct ChatServiceTests {
       designSystem: .none,
       fidelity: .highFidelity
     ))
+    let projectURL = URL(fileURLWithPath: project.workingDirectory, isDirectory: true)
+    let screenshotURL = projectURL.appendingPathComponent("resources/screenshot.png")
+    let referenceURL = projectURL.appendingPathComponent("resources/codebase-references/App.md")
+    try FileManager.default.createDirectory(
+      at: referenceURL.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
+    try Data("image".utf8).write(to: screenshotURL)
+    try Data("# App reference".utf8).write(to: referenceURL)
     let service = ChatService(projectManager: projectManager)
 
     await service.startNewSession(workingDirectory: project.workingDirectory)
@@ -70,6 +79,8 @@ struct ChatServiceTests {
     #expect(context.contains("Current prototype fidelity: High fidelity"))
     #expect(context.contains("Prototype fidelity contract"))
     #expect(context.contains(EaselProjectFidelity.highFidelity.agentGuidance.trimmingCharacters(in: .whitespacesAndNewlines)))
+    #expect(context.contains("- `resources/screenshot.png`"))
+    #expect(context.contains("- `resources/codebase-references/App.md`"))
   }
 
   @Test
