@@ -12,6 +12,7 @@ public protocol ProjectResourceManaging: Sendable {
   func loadPreview(for item: ProjectResourcePanelItem) async throws -> ProjectResourcePreview
   func saveText(_ text: String, for item: ProjectResourcePanelItem) async throws -> ProjectResourcePreview
   func importResources(from sourceURLs: [URL], intoProjectAt projectPath: String) async throws -> [ProjectResource]
+  func importReferenceCodebase(from sourceURL: URL, intoProjectAt projectPath: String) async throws -> [ProjectResource]
   func deleteItem(_ item: ProjectResourcePanelItem) async throws
 }
 
@@ -211,6 +212,40 @@ public actor LocalProjectResourceManager: ProjectResourceManaging {
     return try await loadResources(forProjectAt: projectPath)
   }
 
+  public func importReferenceCodebase(from sourceURL: URL, intoProjectAt projectPath: String) async throws -> [ProjectResource] {
+    let projectURL = try validatedProjectURL(for: projectPath)
+
+    let isAccessing = sourceURL.startAccessingSecurityScopedResource()
+    defer {
+      if isAccessing {
+        sourceURL.stopAccessingSecurityScopedResource()
+      }
+    }
+
+    let sourceDirectoryURL = sourceURL.standardizedFileURL.resolvingSymlinksInPath()
+    var isDirectory: ObjCBool = false
+    guard fileManager.fileExists(atPath: sourceDirectoryURL.path, isDirectory: &isDirectory),
+          isDirectory.boolValue else {
+      throw ProjectResourceError.noImportableFiles
+    }
+
+    let referencesURL = projectURL
+      .appendingPathComponent(ProjectResource.resourcesDirectoryName, isDirectory: true)
+      .appendingPathComponent("codebase-references", isDirectory: true)
+    try fileManager.createDirectory(at: referencesURL, withIntermediateDirectories: true)
+
+    let referenceURL = uniqueDestinationURL(
+      for: referenceCodebaseFileName(for: sourceDirectoryURL),
+      in: referencesURL
+    )
+    try writeReferenceCodebaseNote(
+      sourceURL: sourceDirectoryURL,
+      to: referenceURL
+    )
+    try touchProjectMetadata(in: projectURL)
+    return try await loadResources(forProjectAt: projectPath)
+  }
+
   public func deleteItem(_ item: ProjectResourcePanelItem) async throws {
     guard item.isDeletable else {
       throw ProjectResourceError.protectedFile(item.fileName)
@@ -252,6 +287,33 @@ public actor LocalProjectResourceManager: ProjectResourceManaging {
 
     let values = try? url.resourceValues(forKeys: [.isDirectoryKey])
     return values?.isDirectory != true
+  }
+
+  private func writeReferenceCodebaseNote(
+    sourceURL: URL,
+    to destinationURL: URL
+  ) throws {
+    let contents = """
+    # Reference codebase: \(sourceURL.lastPathComponent)
+
+    Selected repository:
+
+    `\(sourceURL.path)`
+
+    Use this path only as read-only reference context for the current Easel session.
+
+    Strict rules:
+
+    - Do not modify files in this repository.
+    - Do not create, delete, move, rename, format, or overwrite files in this repository.
+    - Do not run commands that write inside this repository, including package installs, builds, generators, formatters, or git commands that change state.
+    - Make all implementation changes inside the Easel project directory, not in the referenced repository.
+    """
+    try write(contents, to: destinationURL)
+  }
+
+  private func referenceCodebaseFileName(for sourceURL: URL) -> String {
+    "\(sanitizedFileName(sourceURL.lastPathComponent)).md"
   }
 
   private func files(
@@ -399,6 +461,10 @@ public actor LocalProjectResourceManager: ProjectResourceManaging {
   private func sanitizedFileName(_ name: String) -> String {
     let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
     return trimmed.isEmpty ? "Resource" : trimmed
+  }
+
+  private func write(_ contents: String, to url: URL) throws {
+    try Data(contents.utf8).write(to: url, options: .atomic)
   }
 
   private func uniqueDestinationURL(for fileName: String, in directoryURL: URL) -> URL {

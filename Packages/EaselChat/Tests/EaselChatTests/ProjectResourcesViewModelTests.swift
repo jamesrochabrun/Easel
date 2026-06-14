@@ -312,6 +312,10 @@ private actor StubProjectResourceManager: ProjectResourceManaging {
     return importedResources
   }
 
+  func importReferenceCodebase(from sourceURL: URL, intoProjectAt projectPath: String) async throws -> [ProjectResource] {
+    importedResources
+  }
+
   private(set) var deletedItemIDs: [String] = []
 
   func deleteItem(_ item: ProjectResourcePanelItem) async throws {

@@ -26,6 +26,7 @@ public final class SidebarViewModel {
   var creationError: String?
   var projectDeletionError: String?
   var designSystemError: String?
+  var highFidelityContextRequest: HighFidelityProjectContextRequest?
 
   // MARK: - Callbacks
 
@@ -47,7 +48,9 @@ public final class SidebarViewModel {
   private let sessionStorage: SessionStorageProtocol
   private let projectManager: any EaselProjectManaging
   private let designSystemManager: any EaselDesignSystemManaging
+  private let resourceManager: any ProjectResourceManaging
   private var pendingNewSession: StoredSession?
+  private var shouldResumeHighFidelityContextAfterDesignSystemSelection = false
 
   private static let legacyProjectDirectoriesKey = "easel.addedProjectDirectories"
 
@@ -56,11 +59,13 @@ public final class SidebarViewModel {
   public init(
     sessionStorage: SessionStorageProtocol,
     projectManager: any EaselProjectManaging = LocalEaselProjectManager(),
-    designSystemManager: any EaselDesignSystemManaging = LocalEaselDesignSystemManager()
+    designSystemManager: any EaselDesignSystemManaging = LocalEaselDesignSystemManager(),
+    resourceManager: any ProjectResourceManaging = LocalProjectResourceManager()
   ) {
     self.sessionStorage = sessionStorage
     self.projectManager = projectManager
     self.designSystemManager = designSystemManager
+    self.resourceManager = resourceManager
     UserDefaults.standard.removeObject(forKey: Self.legacyProjectDirectoriesKey)
   }
 
@@ -98,6 +103,10 @@ public final class SidebarViewModel {
 
   private var projectCreationFidelity: EaselProjectFidelity {
     shouldShowFidelityPicker ? selectedFidelity : .highFidelity
+  }
+
+  var shouldRequestHighFidelityContext: Bool {
+    selectedProjectKind == .prototype && projectCreationFidelity == .highFidelity
   }
 
   // MARK: - Public Methods
@@ -217,7 +226,28 @@ public final class SidebarViewModel {
     selectedProjectKind = .prototype
     selectedFidelity = .highFidelity
     projectName = Self.suggestedProjectName(from: trimmed)
-    await createProjectAndStartSession()
+    requestHighFidelityContext()
+  }
+
+  public func requestHighFidelityContext() {
+    guard !projectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+    highFidelityContextRequest = HighFidelityProjectContextRequest()
+  }
+
+  func clearHighFidelityContextRequest() {
+    highFidelityContextRequest = nil
+  }
+
+  func requestDesignSystemForHighFidelityContext() {
+    shouldResumeHighFidelityContextAfterDesignSystemSelection = true
+    clearHighFidelityContextRequest()
+    requestBrowseDesignSystems()
+  }
+
+  public func consumeHighFidelityContextResumeRequest() -> Bool {
+    let shouldResume = shouldResumeHighFidelityContextAfterDesignSystemSelection
+    shouldResumeHighFidelityContextAfterDesignSystemSelection = false
+    return shouldResume
   }
 
   func selectSession(_ session: StoredSession) {
@@ -318,10 +348,11 @@ public final class SidebarViewModel {
     }
   }
 
-  func createProjectAndStartSession() async {
+  func createProjectAndStartSession(context: HighFidelityProjectContext = .empty) async {
     let name = projectName.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !name.isEmpty else { return }
 
+    clearHighFidelityContextRequest()
     isCreatingProject = true
     creationError = nil
     projectDeletionError = nil
@@ -336,6 +367,11 @@ public final class SidebarViewModel {
 
     do {
       let project = try await projectManager.createProject(from: request)
+      do {
+        try await attach(context, to: project)
+      } catch {
+        creationError = "Project created, but context could not be attached: \(error.localizedDescription)"
+      }
       projectName = ""
       preparePendingNewSession(workingDirectory: project.workingDirectory)
       await loadSessions()
@@ -363,6 +399,22 @@ public final class SidebarViewModel {
         selectedDesignSystem = .preset(.none)
       }
       designSystemError = error.localizedDescription
+    }
+  }
+
+  private func attach(_ context: HighFidelityProjectContext, to project: EaselDesignProject) async throws {
+    if !context.resourceURLs.isEmpty {
+      _ = try await resourceManager.importResources(
+        from: context.resourceURLs,
+        intoProjectAt: project.workingDirectory
+      )
+    }
+
+    for codebaseURL in context.codebaseURLs {
+      _ = try await resourceManager.importReferenceCodebase(
+        from: codebaseURL,
+        intoProjectAt: project.workingDirectory
+      )
     }
   }
 

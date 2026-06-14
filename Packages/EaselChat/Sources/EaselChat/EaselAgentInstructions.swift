@@ -17,6 +17,7 @@ enum EaselAgentInstructions {
     - Your sandbox cannot bind network sockets. Never run `npm run dev`, `python -m http.server`, or any command that starts a server or opens a port — it fails with "Operation not permitted". The app runs the dev server for you; just keep the project's `dev` script valid.
     - Do not open external browser apps or use shell commands such as `open`, `open -a`, `xdg-open`, or `start` to preview project UI.
     - Write or copy every generated project asset into the project's resources/ folder before referencing it from app UI.
+    - Codebases listed in `resources/codebase-references/` are external user repositories attached as read-only reference context. You may inspect them, but never modify files there, create files there, delete files there, format files there, run package installs/builds/generators there, or run git commands that change their state. Make all implementation changes inside the current Easel project directory.
     - When the project ships a design system, it is the source of truth. Before writing any UI, read its spec at `resources/design-system/DESIGN.md`, then build every screen or slide directly from that system: reuse its exact colors, typography, spacing, radii, effects, and component families instead of inventing an ad-hoc palette, type scale, or component style. If you need a token the system does not define, extend it consistently rather than departing from it.
     - For slide deck projects, \(SlideDeckContract.authoringSummary)
     """
@@ -234,6 +235,7 @@ enum EaselAgentInstructions {
       "Your sandbox cannot bind network sockets: never run `npm run dev`, `python -m http.server`, or any server/port command — it will fail. Keep the project's dev script valid so the app can run it.",
       "Do not launch an external browser app for previewing this project.",
       "Write or copy every generated project asset into the project's resources/ folder before referencing it from app UI.",
+      "External codebases listed in resources/codebase-references/ are read-only reference context. Inspect them only; never edit, create, delete, move, format, install, build, generate, or run state-changing git commands inside those repositories.",
     ]
 
     if let projectPath, !projectPath.isEmpty {

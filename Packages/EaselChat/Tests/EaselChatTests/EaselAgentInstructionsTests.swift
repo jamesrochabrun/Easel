@@ -26,6 +26,10 @@ struct EaselAgentInstructionsTests {
     #expect(prefix.contains("resources/design-system/DESIGN.md"))
     #expect(prefix.contains("source of truth"))
     #expect(prefix.contains("component families"))
+    // Referenced codebases must remain untouched by the Easel session.
+    #expect(prefix.contains("resources/codebase-references"))
+    #expect(prefix.contains("read-only reference context"))
+    #expect(prefix.contains("never modify files there"))
   }
 
   @Test
@@ -82,6 +86,8 @@ struct EaselAgentInstructionsTests {
     #expect(context.contains("Do not launch an external browser app"))
     #expect(context.contains("cannot bind network sockets"))
     #expect(context.contains("resources/ folder"))
+    #expect(context.contains("resources/codebase-references"))
+    #expect(context.contains("Inspect them only"))
     #expect(context.contains("Current project path: /tmp/easel"))
     #expect(context.contains("Current embedded preview URL: http://127.0.0.1:4173/"))
   }

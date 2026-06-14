@@ -6,6 +6,7 @@
 import ClaudeCodeCore
 import EaselDesignSystems
 import EaselKit
+import Foundation
 import SwiftUI
 
 public struct SidebarView: View {
@@ -101,6 +102,14 @@ public struct SidebarView: View {
       .disabled(!canConfirmDesignSystemDeletion)
     } message: {
       Text(designSystemDeleteConfirmationMessage)
+    }
+    .sheet(item: $sidebarViewModel.highFidelityContextRequest) { _ in
+      HighFidelityProjectContextPickerView(
+        selectedDesignSystemName: selectedContextDesignSystemName,
+        onDesignSystem: handleDesignSystemContextSelection,
+        onStart: createProject
+      )
+      .frame(width: 560, height: 620)
     }
     .task {
       await sidebarViewModel.loadSessions()
@@ -270,9 +279,7 @@ public struct SidebarView: View {
       }
 
       Button {
-        Task {
-          await sidebarViewModel.createProjectAndStartSession()
-        }
+        handleCreateProjectButton()
       } label: {
         HStack(spacing: 8) {
           Image(systemName: sidebarViewModel.isCreatingProject ? "hourglass" : "plus")
@@ -640,6 +647,11 @@ public struct SidebarView: View {
     !sidebarViewModel.projectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
+  private var selectedContextDesignSystemName: String? {
+    guard sidebarViewModel.selectedDesignSystem != .preset(.none) else { return nil }
+    return sidebarViewModel.selectedDesignSystem.displayName
+  }
+
   private var createButtonBackground: Color {
     if canCreateProject && !sidebarViewModel.isCreatingProject {
       return EaselDesignSystem.Palette.primaryAction(for: colorScheme)
@@ -773,6 +785,27 @@ public struct SidebarView: View {
     designSystemToDelete = designSystem
     designSystemDeleteConfirmationName = ""
     showDeleteDesignSystemConfirmation = true
+  }
+
+  private func handleCreateProjectButton() {
+    guard canCreateProject else { return }
+
+    if sidebarViewModel.shouldRequestHighFidelityContext {
+      sidebarViewModel.requestHighFidelityContext()
+    } else {
+      createProject(.empty)
+    }
+  }
+
+  private func handleDesignSystemContextSelection() {
+    sidebarViewModel.requestDesignSystemForHighFidelityContext()
+  }
+
+  private func createProject(_ context: HighFidelityProjectContext) {
+    sidebarViewModel.clearHighFidelityContextRequest()
+    Task {
+      await sidebarViewModel.createProjectAndStartSession(context: context)
+    }
   }
 
   private func resetDesignSystemDeleteConfirmation() {
