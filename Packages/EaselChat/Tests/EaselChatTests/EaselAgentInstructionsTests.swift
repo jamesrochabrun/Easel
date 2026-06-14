@@ -140,6 +140,7 @@ struct EaselAgentInstructionsTests {
     #expect(context.contains("The prototype fidelity contract specializes the bundled frontend skill"))
     #expect(context.contains("Prototype fidelity contract"))
     #expect(context.contains("Create a high-fidelity, polished design"))
+    #expect(context.contains("Ask 2-4 concise clarifying questions and wait"))
     #expect(context.contains("Good hi-fi designs do not start from scratch"))
   }
 

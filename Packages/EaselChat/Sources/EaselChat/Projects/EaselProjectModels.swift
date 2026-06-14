@@ -82,6 +82,7 @@ public enum EaselProjectFidelity: String, CaseIterable, Codable, Identifiable, S
     case .highFidelity:
       return """
       Create a high-fidelity, polished design that's also a fully interactive prototype — it should feel like a real working app, not a static mockup.
+      First response rule: Ask 2-4 concise clarifying questions and wait for the user's answer before inspecting files, generating assets, editing code, or building. Skip this only if the user explicitly says to proceed without questions or provides enough concrete context to build immediately.
       Behavior: Use React useState/useEffect for dynamic behavior. Include hover states, click interactions, form validation, animated transitions, and multi-step navigation flows with realistic state management.
       Design process (use the todo list to remember): (1) ask questions, (2) find existing UI kits and collect design context — copy ALL relevant components and read ALL relevant examples; ask the user if you can't find them, (3) start your file with assumptions + context + design reasoning (as if you are a junior designer and the user is your manager), with placeholders for the designs, and show it to the user early, (4) build out the designs and show the user again ASAP; append some next steps, (5) use your tools to check, verify and iterate on the design.
       Good hi-fi designs do not start from scratch — they are rooted in existing design context. Ask the user to import their codebase, or find a suitable UI kit / design resources.
