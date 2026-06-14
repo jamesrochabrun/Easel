@@ -252,6 +252,7 @@ enum EaselAgentInstructions {
 
       if projectKind == .prototype, let projectFidelity {
         lines.append("Current prototype fidelity: \(projectFidelity.displayName)")
+        lines.append("The prototype fidelity contract specializes the bundled frontend skill. When the two differ, follow this fidelity contract for process, polish level, breadth, visual style, and interaction depth.")
         lines.append("Prototype fidelity contract: \(projectFidelity.agentGuidance)")
       }
     }
