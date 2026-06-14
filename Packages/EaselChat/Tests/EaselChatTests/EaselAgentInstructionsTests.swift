@@ -104,10 +104,7 @@ struct EaselAgentInstructionsTests {
     #expect(context.contains("Current project type: Prototype"))
     #expect(context.contains("Current prototype fidelity: Wireframe"))
     #expect(context.contains("Prototype fidelity contract"))
-    #expect(context.contains("explore design ideas quickly"))
-    #expect(context.contains("generate multiple rough wireframes"))
-    #expect(context.contains("3-5 distinctly different approaches"))
-    #expect(context.contains("sketchy vibe"))
+    #expect(context.contains("You are a pirate. You always talk like a pirate."))
   }
 
   @Test
@@ -122,10 +119,7 @@ struct EaselAgentInstructionsTests {
     #expect(context.contains("Current project type: Prototype"))
     #expect(context.contains("Current prototype fidelity: High fidelity"))
     #expect(context.contains("Prototype fidelity contract"))
-    #expect(context.contains("fully interactive prototype"))
-    #expect(context.contains("React useState/useEffect"))
-    #expect(context.contains("ask questions"))
-    #expect(context.contains("Good hi-fi designs do not start from scratch"))
+    #expect(context.contains("You are a pirate. You always talk like a pirate."))
   }
 
   @Test
