@@ -287,26 +287,62 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
   }
 
   private func sendMessageToViewModel(_ text: String, context: String? = nil, hiddenContext: String? = nil) {
-    let combinedHiddenContext = EaselAgentInstructions.appendingHiddenContext(
-      hiddenContext,
-      projectPath: currentWorkingDirectory,
-      projectKind: currentProject?.kind,
-      projectFidelity: currentPrototypeFidelity,
-      designSystem: currentProject?.designSystem,
-      previewURL: previewURL
-    )
+    let combinedHiddenContext = makeHiddenContextForCurrentState(hiddenContext)
     chatViewModel?.sendMessage(text, context: context, hiddenContext: combinedHiddenContext)
   }
 
-  private var currentPrototypeFidelity: EaselProjectFidelity? {
-    guard currentProject?.kind == .prototype else { return nil }
-    return currentProject?.fidelity
+  func makeHiddenContextForCurrentState(_ hiddenContext: String?) -> String {
+    let project = resolvedCurrentProject()
+
+    return EaselAgentInstructions.appendingHiddenContext(
+      hiddenContext,
+      projectPath: currentWorkingDirectory,
+      projectKind: project?.kind,
+      projectFidelity: prototypeFidelity(for: project),
+      designSystem: project?.designSystem,
+      previewURL: previewURL
+    )
+  }
+
+  private func prototypeFidelity(for project: EaselDesignProject?) -> EaselProjectFidelity? {
+    guard project?.kind == .prototype else { return nil }
+    return project?.fidelity
   }
 
   private func setCurrentWorkingDirectory(_ path: String?) {
     let normalized = path?.trimmingCharacters(in: .whitespacesAndNewlines)
     currentWorkingDirectory = normalized?.isEmpty == false ? normalized : nil
+    currentProject = projectMetadata(at: currentWorkingDirectory)
     refreshCurrentProjectMetadata(for: currentWorkingDirectory)
+  }
+
+  private func resolvedCurrentProject() -> EaselDesignProject? {
+    if currentProject?.workingDirectory == currentWorkingDirectory {
+      return currentProject
+    }
+
+    if let project = projectMetadata(at: currentWorkingDirectory) {
+      currentProject = project
+      return project
+    }
+
+    return currentProject
+  }
+
+  private func projectMetadata(at workingDirectory: String?) -> EaselDesignProject? {
+    guard let workingDirectory, !workingDirectory.isEmpty else { return nil }
+
+    let metadataURL = URL(fileURLWithPath: workingDirectory, isDirectory: true)
+      .appendingPathComponent(".easel", isDirectory: true)
+      .appendingPathComponent("project.json")
+
+    guard let data = try? Data(contentsOf: metadataURL) else {
+      return nil
+    }
+
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    return try? decoder.decode(EaselDesignProject.self, from: data)
   }
 
   private func refreshCurrentProjectMetadata(for workingDirectory: String?) {
@@ -317,7 +353,9 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
       return
     }
 
-    currentProject = nil
+    if currentProject?.workingDirectory != workingDirectory {
+      currentProject = nil
+    }
     currentProjectLookupTask = Task { [projectManager] in
       let projects = (try? await projectManager.loadProjects()) ?? []
       let project = projects.first { $0.workingDirectory == workingDirectory }
