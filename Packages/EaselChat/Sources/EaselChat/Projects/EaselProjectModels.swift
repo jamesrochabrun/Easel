@@ -77,7 +77,7 @@ public enum EaselProjectFidelity: String, CaseIterable, Codable, Identifiable, S
     switch self {
     case .wireframe:
       return """
-      Build a low-fidelity product wireframe, not a finished UI. This overrides polished frontend defaults. Use grayscale only, simple typography, boxes, dashed outlines, placeholder labels, and simple icons. Do not use photos, gradients, decorative shadows, brand color palettes, custom illustration, or motion unless explicitly requested by the user. Prioritize information architecture, screen flow, layout, hierarchy, navigation, and interaction states.
+      Help the user explore design ideas quickly. Interview them, then generate multiple rough wireframes to map out the design space before committing to a direction. Prioritize breadth over polish: show 3-5 distinctly different approaches for each idea. Use simple shapes, placeholder text, and minimal color to keep the focus on structure and flow. Use a sketchy vibe -- handwritten but readable fonts; b&w with some color; low-fi and simple. Provide simple tweaks; show options side-by-side if small or using a tab control if large.
       """
     case .highFidelity:
       return """

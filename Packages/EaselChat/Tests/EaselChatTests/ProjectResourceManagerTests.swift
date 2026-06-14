@@ -105,6 +105,37 @@ struct ProjectResourceManagerTests {
   }
 
   @Test
+  func importTextResourceWritesManagedMarkdownResource() async throws {
+    let rootDirectory = temporaryRoot(named: "ProjectResourceTextTests")
+    defer {
+      try? FileManager.default.removeItem(at: rootDirectory)
+    }
+
+    let projectManager = LocalEaselProjectManager(rootDirectory: rootDirectory)
+    let project = try await projectManager.createProject(from: EaselProjectCreateRequest(
+      name: "Wireframe Notes",
+      kind: .prototype,
+      designSystem: .none,
+      fidelity: .wireframe
+    ))
+
+    let manager = LocalProjectResourceManager()
+    let resources = try await manager.importTextResource(
+      named: "wireframe-notes.md",
+      contents: "# Wireframe notes\n\nCheckout flow ideas",
+      intoProjectAt: project.workingDirectory
+    )
+
+    let projectURL = URL(fileURLWithPath: project.workingDirectory)
+    let notesURL = projectURL.appendingPathComponent("resources/wireframe-notes.md")
+    let notes = try String(contentsOf: notesURL, encoding: .utf8)
+
+    #expect(FileManager.default.fileExists(atPath: notesURL.path))
+    #expect(notes.contains("Checkout flow ideas"))
+    #expect(resources.contains { $0.relativePath == "resources/wireframe-notes.md" })
+  }
+
+  @Test
   func importReferenceCodebaseAddsReadOnlyReferenceWithoutCopyingRepository() async throws {
     let rootDirectory = temporaryRoot(named: "ProjectResourceCodebaseTests")
     let sourceDirectory = temporaryRoot(named: "ProjectResourceCodebaseSourceTests")

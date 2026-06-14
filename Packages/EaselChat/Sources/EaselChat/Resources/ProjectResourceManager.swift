@@ -12,6 +12,7 @@ public protocol ProjectResourceManaging: Sendable {
   func loadPreview(for item: ProjectResourcePanelItem) async throws -> ProjectResourcePreview
   func saveText(_ text: String, for item: ProjectResourcePanelItem) async throws -> ProjectResourcePreview
   func importResources(from sourceURLs: [URL], intoProjectAt projectPath: String) async throws -> [ProjectResource]
+  func importTextResource(named fileName: String, contents: String, intoProjectAt projectPath: String) async throws -> [ProjectResource]
   func importReferenceCodebase(from sourceURL: URL, intoProjectAt projectPath: String) async throws -> [ProjectResource]
   func deleteItem(_ item: ProjectResourcePanelItem) async throws
 }
@@ -208,6 +209,29 @@ public actor LocalProjectResourceManager: ProjectResourceManaging {
       throw ProjectResourceError.noImportableFiles
     }
 
+    try touchProjectMetadata(in: projectURL)
+    return try await loadResources(forProjectAt: projectPath)
+  }
+
+  public func importTextResource(
+    named fileName: String,
+    contents: String,
+    intoProjectAt projectPath: String
+  ) async throws -> [ProjectResource] {
+    let projectURL = try validatedProjectURL(for: projectPath)
+    let trimmedContents = contents.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedContents.isEmpty else {
+      throw ProjectResourceError.noImportableFiles
+    }
+
+    let resourcesURL = projectURL.appendingPathComponent(ProjectResource.resourcesDirectoryName, isDirectory: true)
+    try fileManager.createDirectory(at: resourcesURL, withIntermediateDirectories: true)
+
+    let destinationURL = uniqueDestinationURL(
+      for: sanitizedFileName(fileName),
+      in: resourcesURL
+    )
+    try write(contents, to: destinationURL)
     try touchProjectMetadata(in: projectURL)
     return try await loadResources(forProjectAt: projectPath)
   }

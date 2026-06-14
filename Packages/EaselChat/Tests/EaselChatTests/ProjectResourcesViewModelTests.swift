@@ -312,6 +312,14 @@ private actor StubProjectResourceManager: ProjectResourceManaging {
     return importedResources
   }
 
+  func importTextResource(
+    named fileName: String,
+    contents: String,
+    intoProjectAt projectPath: String
+  ) async throws -> [ProjectResource] {
+    importedResources
+  }
+
   func importReferenceCodebase(from sourceURL: URL, intoProjectAt projectPath: String) async throws -> [ProjectResource] {
     importedResources
   }

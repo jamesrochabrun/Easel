@@ -104,10 +104,10 @@ struct EaselAgentInstructionsTests {
     #expect(context.contains("Current project type: Prototype"))
     #expect(context.contains("Current prototype fidelity: Wireframe"))
     #expect(context.contains("Prototype fidelity contract"))
-    #expect(context.contains("low-fidelity product wireframe"))
-    #expect(context.contains("overrides polished frontend defaults"))
-    #expect(context.contains("Use grayscale only"))
-    #expect(context.contains("Do not use photos"))
+    #expect(context.contains("explore design ideas quickly"))
+    #expect(context.contains("generate multiple rough wireframes"))
+    #expect(context.contains("3-5 distinctly different approaches"))
+    #expect(context.contains("sketchy vibe"))
   }
 
   @Test

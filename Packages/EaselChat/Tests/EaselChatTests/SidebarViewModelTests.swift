@@ -72,12 +72,47 @@ struct SidebarViewModelTests {
 
     await viewModel.createProjectAndStartSession(context: HighFidelityProjectContext(
       resourceURLs: [screenshotURL, figURL],
-      codebaseURLs: [repoURL]
+      codebaseURLs: [repoURL],
+      textResources: [
+        ProjectTextResource(fileName: "wireframe-notes.md", contents: "Checkout notes")
+      ]
     ))
 
     #expect(await resourceManager.importedResourceURLs() == [screenshotURL, figURL])
     #expect(await resourceManager.importedCodebaseURLs() == [repoURL])
+    #expect(await resourceManager.importedTextResources() == [
+      ProjectTextResource(fileName: "wireframe-notes.md", contents: "Checkout notes")
+    ])
     #expect(launchedProject?.project == project)
+  }
+
+  @Test
+  func requestingWireframeContextUsesWireframePanelOnly() {
+    let project = EaselDesignProject(
+      id: UUID(),
+      name: "Wire",
+      kind: .prototype,
+      designSystem: .none,
+      fidelity: .wireframe,
+      workingDirectory: "/tmp/wire",
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+    let viewModel = SidebarViewModel(
+      sessionStorage: NoOpSessionStorage(),
+      projectManager: SidebarProjectManagerStub(project: project),
+      designSystemManager: SidebarDesignSystemManagerStub()
+    )
+    viewModel.projectName = "Wire"
+    viewModel.selectedFidelity = .wireframe
+
+    #expect(viewModel.shouldRequestWireframeContext)
+    #expect(viewModel.shouldRequestHighFidelityContext == false)
+
+    viewModel.requestWireframeContext()
+
+    #expect(viewModel.wireframeContextRequest != nil)
+    #expect(viewModel.highFidelityContextRequest == nil)
   }
 
   @Test
@@ -599,6 +634,7 @@ private actor SidebarProjectManagerStub: EaselProjectManaging {
 private actor SidebarProjectResourceManagerStub: ProjectResourceManaging {
   private var resourceURLs: [URL] = []
   private var codebaseURLs: [URL] = []
+  private var textResources: [ProjectTextResource] = []
 
   func loadResources(forProjectAt projectPath: String) async throws -> [ProjectResource] {
     []
@@ -621,6 +657,15 @@ private actor SidebarProjectResourceManagerStub: ProjectResourceManaging {
     return []
   }
 
+  func importTextResource(
+    named fileName: String,
+    contents: String,
+    intoProjectAt projectPath: String
+  ) async throws -> [ProjectResource] {
+    textResources.append(ProjectTextResource(fileName: fileName, contents: contents))
+    return []
+  }
+
   func importReferenceCodebase(from sourceURL: URL, intoProjectAt projectPath: String) async throws -> [ProjectResource] {
     codebaseURLs.append(sourceURL)
     return []
@@ -634,6 +679,10 @@ private actor SidebarProjectResourceManagerStub: ProjectResourceManaging {
 
   func importedCodebaseURLs() -> [URL] {
     codebaseURLs
+  }
+
+  func importedTextResources() -> [ProjectTextResource] {
+    textResources
   }
 }
 

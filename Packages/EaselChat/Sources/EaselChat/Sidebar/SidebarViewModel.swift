@@ -27,6 +27,7 @@ public final class SidebarViewModel {
   var projectDeletionError: String?
   var designSystemError: String?
   var highFidelityContextRequest: HighFidelityProjectContextRequest?
+  var wireframeContextRequest: WireframeProjectContextRequest?
 
   // MARK: - Callbacks
 
@@ -107,6 +108,10 @@ public final class SidebarViewModel {
 
   var shouldRequestHighFidelityContext: Bool {
     selectedProjectKind == .prototype && projectCreationFidelity == .highFidelity
+  }
+
+  var shouldRequestWireframeContext: Bool {
+    selectedProjectKind == .prototype && projectCreationFidelity == .wireframe
   }
 
   // MARK: - Public Methods
@@ -238,6 +243,15 @@ public final class SidebarViewModel {
     highFidelityContextRequest = nil
   }
 
+  func requestWireframeContext() {
+    guard !projectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+    wireframeContextRequest = WireframeProjectContextRequest()
+  }
+
+  func clearWireframeContextRequest() {
+    wireframeContextRequest = nil
+  }
+
   func requestDesignSystemForHighFidelityContext() {
     shouldResumeHighFidelityContextAfterDesignSystemSelection = true
     clearHighFidelityContextRequest()
@@ -353,6 +367,7 @@ public final class SidebarViewModel {
     guard !name.isEmpty else { return }
 
     clearHighFidelityContextRequest()
+    clearWireframeContextRequest()
     isCreatingProject = true
     creationError = nil
     projectDeletionError = nil
@@ -413,6 +428,14 @@ public final class SidebarViewModel {
     for codebaseURL in context.codebaseURLs {
       _ = try await resourceManager.importReferenceCodebase(
         from: codebaseURL,
+        intoProjectAt: project.workingDirectory
+      )
+    }
+
+    for textResource in context.textResources {
+      _ = try await resourceManager.importTextResource(
+        named: textResource.fileName,
+        contents: textResource.contents,
         intoProjectAt: project.workingDirectory
       )
     }
