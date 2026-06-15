@@ -18,5 +18,7 @@ struct LocalAgentHandoffProviderPicker: View {
     }
     .pickerStyle(.segmented)
     .labelsHidden()
+    .fixedSize()
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 }

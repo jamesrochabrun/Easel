@@ -664,7 +664,7 @@ struct CanvasContentView: View {
       Spacer()
 
       Button(action: showLocalAgentHandoff) {
-        Label("Share Handoff", systemImage: "square.and.arrow.up")
+        Label("Send Handoff", systemImage: "paperplane")
           .font(.system(size: 13, weight: .medium))
           .labelStyle(.iconOnly)
           .frame(width: 28, height: 28)
@@ -672,7 +672,7 @@ struct CanvasContentView: View {
       .buttonStyle(.plain)
       .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
       .disabled(chatService.localAgentHandoffContext() == nil)
-      .help("Share Handoff")
+      .help("Send Handoff")
 
       Button(action: toggleCanvasFullWidth) {
         Label(canvasWidthButtonTitle, systemImage: canvasWidthButtonSystemImage)

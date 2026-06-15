@@ -41,15 +41,17 @@ final class LocalAgentHandoffPromptBuilderTests: XCTestCase {
     XCTAssertTrue(prompt.contains("Implement: the designs in this project"))
   }
 
-  func testPrototypePromptIncludesFidelityAndDesignSystemContext() {
+  func testPrototypePromptProductionizesAndOmitsDesignDiscovery() {
     let prompt = LocalAgentHandoffPromptBuilder.prompt(
       details: "ship it",
       context: context(project: prototypeProject())
     )
 
-    XCTAssertTrue(prompt.contains("Current project type: Prototype"))
-    XCTAssertTrue(prompt.contains("Current prototype fidelity: High fidelity"))
+    XCTAssertTrue(prompt.contains("handed off a prototype to productionize"))
     XCTAssertTrue(prompt.contains("Active design system: Studio System"))
+    XCTAssertFalse(prompt.contains("Current project type: Prototype"))
+    XCTAssertFalse(prompt.contains("Current prototype fidelity"))
+    XCTAssertFalse(prompt.contains("Ask 2-4 concise clarifying questions"))
   }
 
   func testSlideDeckPromptIncludesSlideContract() {

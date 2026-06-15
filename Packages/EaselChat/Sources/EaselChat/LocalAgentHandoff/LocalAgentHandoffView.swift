@@ -12,9 +12,14 @@ public struct LocalAgentHandoffView: View {
   let context: LocalAgentHandoffContext?
   let onClose: () -> Void
 
-  @State private var isRepositoryImporterPresented = false
-  @State private var isProjectRootImporterPresented = false
+  @State private var isFolderImporterPresented = false
+  @State private var folderImportMode: FolderImportMode = .repository
   @Environment(\.colorScheme) private var colorScheme
+
+  private enum FolderImportMode {
+    case repository
+    case projectRoot
+  }
 
   public init(
     viewModel: LocalAgentHandoffViewModel,
@@ -35,25 +40,22 @@ public struct LocalAgentHandoffView: View {
         .frame(height: 1)
 
       ScrollView {
-        VStack(alignment: .leading, spacing: 24) {
-          HStack(alignment: .top, spacing: 22) {
-            LocalAgentHandoffSection(title: "Agent") {
-              LocalAgentHandoffProviderPicker(viewModel: viewModel)
-            }
-            .frame(width: 220)
+        VStack(alignment: .leading, spacing: 26) {
+          LocalAgentHandoffSection(title: "Agent") {
+            LocalAgentHandoffProviderPicker(viewModel: viewModel)
+          }
 
-            LocalAgentHandoffSection(title: "Target") {
-              LocalAgentHandoffTargetPicker(
-                viewModel: viewModel,
-                context: context,
-                onSelectRepository: showRepositoryImporter,
-                onCreateProject: createProjectFolder
-              )
-            }
-            .layoutPriority(1)
+          LocalAgentHandoffSection(title: "Destination") {
+            LocalAgentHandoffTargetPicker(
+              viewModel: viewModel,
+              context: context,
+              onSelectRepository: showRepositoryImporter,
+              onCreateProject: createProjectFolder
+            )
           }
 
           LocalAgentHandoffDetailsSection(viewModel: viewModel)
+
           LocalAgentHandoffResourcesSection(context: context)
 
           LocalAgentHandoffStatusView(
@@ -61,7 +63,7 @@ public struct LocalAgentHandoffView: View {
             successMessage: viewModel.successMessage
           )
         }
-        .frame(maxWidth: 680)
+        .frame(maxWidth: 560, alignment: .leading)
         .padding(.horizontal, 36)
         .padding(.vertical, 30)
         .frame(maxWidth: .infinity)
@@ -76,27 +78,19 @@ public struct LocalAgentHandoffView: View {
     }
     .background(EaselDesignSystem.Palette.canvas(for: colorScheme))
     .fileImporter(
-      isPresented: $isRepositoryImporterPresented,
+      isPresented: $isFolderImporterPresented,
       allowedContentTypes: [.folder],
       allowsMultipleSelection: false
     ) { result in
       switch result {
       case let .success(urls):
         guard let url = urls.first else { return }
-        viewModel.selectRepository(url)
-      case let .failure(error):
-        viewModel.reportRepositorySelectionFailure(error)
-      }
-    }
-    .fileImporter(
-      isPresented: $isProjectRootImporterPresented,
-      allowedContentTypes: [.folder],
-      allowsMultipleSelection: false
-    ) { result in
-      switch result {
-      case let .success(urls):
-        guard let url = urls.first else { return }
-        createProjectFolder(in: url)
+        switch folderImportMode {
+        case .repository:
+          viewModel.selectRepository(url)
+        case .projectRoot:
+          createProjectFolder(in: url)
+        }
       case let .failure(error):
         viewModel.reportRepositorySelectionFailure(error)
       }
@@ -116,11 +110,13 @@ public struct LocalAgentHandoffView: View {
   }
 
   private func showRepositoryImporter() {
-    isRepositoryImporterPresented = true
+    folderImportMode = .repository
+    isFolderImporterPresented = true
   }
 
   private func createProjectFolder() {
-    isProjectRootImporterPresented = true
+    folderImportMode = .projectRoot
+    isFolderImporterPresented = true
   }
 
   private func createProjectFolder(in parentDirectory: URL) {
