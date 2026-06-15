@@ -77,6 +77,42 @@ struct EaselProjectManagerTests {
   }
 
   @Test
+  func createHighFidelityPrototypeStoresCodebasePath() async throws {
+    let rootDirectory = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: rootDirectory) }
+
+    let manager = LocalEaselProjectManager(rootDirectory: rootDirectory)
+    let project = try await manager.createProject(from: EaselProjectCreateRequest(
+      name: "Checkout Flow",
+      kind: .prototype,
+      designSystem: .none,
+      fidelity: .highFidelity,
+      codebasePath: "/tmp/shop-app"
+    ))
+
+    let loadedProject = try #require(try await manager.loadProjects().first)
+    #expect(project.codebasePath == "/tmp/shop-app")
+    #expect(loadedProject.codebasePath == "/tmp/shop-app")
+  }
+
+  @Test
+  func createNonHighFidelityProjectDropsCodebasePath() async throws {
+    let rootDirectory = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: rootDirectory) }
+
+    let manager = LocalEaselProjectManager(rootDirectory: rootDirectory)
+    let project = try await manager.createProject(from: EaselProjectCreateRequest(
+      name: "Wireframe",
+      kind: .prototype,
+      designSystem: .none,
+      fidelity: .wireframe,
+      codebasePath: "/tmp/shop-app"
+    ))
+
+    #expect(project.codebasePath == nil)
+  }
+
+  @Test
   func createSlideDeckNormalizesFidelityAndOmitsFidelityFromReadme() async throws {
     let rootDirectory = temporaryRoot()
     defer { try? FileManager.default.removeItem(at: rootDirectory) }

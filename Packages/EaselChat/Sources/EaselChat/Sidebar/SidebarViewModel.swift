@@ -22,6 +22,7 @@ public final class SidebarViewModel {
   var projectName: String = ""
   var selectedDesignSystem: EaselDesignSystemChoice = .preset(.none)
   var selectedFidelity: EaselProjectFidelity = .highFidelity
+  var selectedCodebasePath: String?
   var isCreatingProject = false
   var creationError: String?
   var projectDeletionError: String?
@@ -83,6 +84,10 @@ public final class SidebarViewModel {
     selectedProjectKind == .prototype
   }
 
+  var shouldShowCodebasePicker: Bool {
+    selectedProjectKind == .prototype && selectedFidelity == .highFidelity
+  }
+
   var filteredProjectGroups: [ProjectGroup] {
     projectGroups.filter { group in
       group.matchesSearchText(projectSearchText)
@@ -112,6 +117,15 @@ public final class SidebarViewModel {
 
   var shouldRequestWireframeContext: Bool {
     selectedProjectKind == .prototype && projectCreationFidelity == .wireframe
+  }
+
+  private var projectCreationCodebasePath: String? {
+    guard shouldShowCodebasePicker else {
+      return nil
+    }
+
+    let trimmed = selectedCodebasePath?.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed?.isEmpty == false ? trimmed : nil
   }
 
   // MARK: - Public Methods
@@ -222,6 +236,19 @@ public final class SidebarViewModel {
 
   public func selectDesignSystem(_ choice: EaselDesignSystemChoice) {
     selectedDesignSystem = choice
+  }
+
+  public func selectCodebase(_ url: URL) {
+    selectedCodebasePath = url.standardizedFileURL.resolvingSymlinksInPath().path
+    creationError = nil
+  }
+
+  public func clearCodebasePath() {
+    selectedCodebasePath = nil
+  }
+
+  public func reportCodebaseSelectionFailure(_ error: Error) {
+    creationError = error.localizedDescription
   }
 
   public func createPrototypeProject(fromPrompt prompt: String) async {
@@ -377,7 +404,8 @@ public final class SidebarViewModel {
       name: name,
       kind: selectedProjectKind,
       designSystem: selectedDesignSystem,
-      fidelity: projectCreationFidelity
+      fidelity: projectCreationFidelity,
+      codebasePath: projectCreationCodebasePath
     )
 
     do {

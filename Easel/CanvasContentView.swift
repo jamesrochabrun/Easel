@@ -22,11 +22,13 @@ struct CanvasContentView: View {
   @State private var resourcesViewModel = ProjectResourcesViewModel()
   @State private var designSystemSetupViewModel = DesignSystemSetupViewModel()
   @State private var designSystemBrowserViewModel = DesignSystemBrowserViewModel()
+  @State private var localAgentHandoffViewModel = LocalAgentHandoffViewModel()
   @State private var contentMode: CanvasContentMode = .designs
   @State private var selectedCanvasSurface: CanvasSurface = .canvas
   @State private var panelLayoutState: CanvasPanelLayoutState = .allPanels
   @State private var isDesignSystemSetupPresented = false
   @State private var isDesignSystemBrowserPresented = false
+  @State private var isLocalAgentHandoffPresented = false
   @State private var didHandleInitialPrompt = false
   @Environment(\.colorScheme) private var colorScheme
 
@@ -100,6 +102,16 @@ struct CanvasContentView: View {
     .background(EaselDesignSystem.Palette.canvas(for: colorScheme))
     .ignoresSafeArea(.container, edges: .top)
     .tint(EaselDesignSystem.Palette.accent)
+    .sheet(isPresented: $isLocalAgentHandoffPresented) {
+      LocalAgentHandoffView(
+        viewModel: localAgentHandoffViewModel,
+        context: chatService.localAgentHandoffContext(),
+        onClose: {
+          isLocalAgentHandoffPresented = false
+        }
+      )
+      .frame(minWidth: 760, idealWidth: 820, minHeight: 620, idealHeight: 680)
+    }
     .task {
       if let appDelegate = NSApp.delegate as? AppDelegate {
         appDelegate.serverManager = serverManager
@@ -651,6 +663,17 @@ struct CanvasContentView: View {
 
       Spacer()
 
+      Button(action: showLocalAgentHandoff) {
+        Label("Share Handoff", systemImage: "square.and.arrow.up")
+          .font(.system(size: 13, weight: .medium))
+          .labelStyle(.iconOnly)
+          .frame(width: 28, height: 28)
+      }
+      .buttonStyle(.plain)
+      .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
+      .disabled(chatService.localAgentHandoffContext() == nil)
+      .help("Share Handoff")
+
       Button(action: toggleCanvasFullWidth) {
         Label(canvasWidthButtonTitle, systemImage: canvasWidthButtonSystemImage)
           .font(.system(size: 13, weight: .medium))
@@ -710,6 +733,11 @@ struct CanvasContentView: View {
     panelLayoutState.isCanvasFullWidth
       ? "arrow.down.right.and.arrow.up.left"
       : "arrow.up.left.and.arrow.down.right"
+  }
+
+  private func showLocalAgentHandoff() {
+    localAgentHandoffViewModel.prepareForPresentation(context: chatService.localAgentHandoffContext())
+    isLocalAgentHandoffPresented = true
   }
 
   private var isSlideDeckProject: Bool {

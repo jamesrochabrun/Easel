@@ -97,29 +97,34 @@ public struct EaselProjectCreateRequest: Sendable, Equatable {
   public let kind: EaselProjectKind
   public let designSystem: EaselDesignSystemChoice
   public let fidelity: EaselProjectFidelity
+  public let codebasePath: String?
 
   public init(
     name: String,
     kind: EaselProjectKind,
     designSystem: EaselDesignSystemChoice,
-    fidelity: EaselProjectFidelity
+    fidelity: EaselProjectFidelity,
+    codebasePath: String? = nil
   ) {
     self.name = name
     self.kind = kind
     self.designSystem = designSystem
     self.fidelity = fidelity
+    self.codebasePath = codebasePath
   }
 
   public init(
     name: String,
     kind: EaselProjectKind,
     designSystem: EaselDesignSystemPreset,
-    fidelity: EaselProjectFidelity
+    fidelity: EaselProjectFidelity,
+    codebasePath: String? = nil
   ) {
     self.name = name
     self.kind = kind
     self.designSystem = .preset(designSystem)
     self.fidelity = fidelity
+    self.codebasePath = codebasePath
   }
 }
 
@@ -130,6 +135,7 @@ public struct EaselDesignProject: Codable, Identifiable, Equatable, Sendable {
   public let designSystem: EaselDesignSystemChoice
   public let fidelity: EaselProjectFidelity
   public let workingDirectory: String
+  public let codebasePath: String?
   public let createdAt: Date
   public let updatedAt: Date
 
@@ -140,6 +146,7 @@ public struct EaselDesignProject: Codable, Identifiable, Equatable, Sendable {
     designSystem: EaselDesignSystemChoice,
     fidelity: EaselProjectFidelity,
     workingDirectory: String,
+    codebasePath: String? = nil,
     createdAt: Date,
     updatedAt: Date
   ) {
@@ -149,6 +156,7 @@ public struct EaselDesignProject: Codable, Identifiable, Equatable, Sendable {
     self.designSystem = designSystem
     self.fidelity = fidelity
     self.workingDirectory = workingDirectory
+    self.codebasePath = codebasePath
     self.createdAt = createdAt
     self.updatedAt = updatedAt
   }
@@ -160,6 +168,7 @@ public struct EaselDesignProject: Codable, Identifiable, Equatable, Sendable {
     designSystem: EaselDesignSystemPreset,
     fidelity: EaselProjectFidelity,
     workingDirectory: String,
+    codebasePath: String? = nil,
     createdAt: Date,
     updatedAt: Date
   ) {
@@ -169,6 +178,7 @@ public struct EaselDesignProject: Codable, Identifiable, Equatable, Sendable {
     self.designSystem = .preset(designSystem)
     self.fidelity = fidelity
     self.workingDirectory = workingDirectory
+    self.codebasePath = codebasePath
     self.createdAt = createdAt
     self.updatedAt = updatedAt
   }

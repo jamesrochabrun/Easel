@@ -260,6 +260,32 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
     currentWorkingDirectory = project?.workingDirectory
   }
 
+  public func localAgentHandoffContext() -> LocalAgentHandoffContext? {
+    guard let currentWorkingDirectory else {
+      return nil
+    }
+
+    let claudeCommand: String
+    if let claudePath = normalized(globalPreferences?.claudePath) {
+      claudeCommand = claudePath
+    } else {
+      claudeCommand = normalized(globalPreferences?.claudeCommand) ?? "claude"
+    }
+
+    return LocalAgentHandoffContext(
+      easelProjectPath: currentWorkingDirectory,
+      codebasePath: normalized(currentProject?.codebasePath),
+      project: currentProject,
+      previewURL: previewURL,
+      claudeCommand: claudeCommand,
+      claudeAdditionalPaths: ChatConfiguration.makeDefault().additionalPaths,
+      codexCommand: normalized(globalPreferences?.codexCommand) ?? "",
+      codexModel: normalized(globalPreferences?.codexModel) ?? "",
+      codexExtraArgs: globalPreferences?.codexExtraArgs ?? "",
+      codexEnvironmentVariables: globalPreferences?.codexEnvironmentVariables ?? [:]
+    )
+  }
+
   // MARK: - Private
 
   private func startPreviewObservation() {
@@ -377,6 +403,11 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
     }
 
     return paths.sorted()
+  }
+
+  private func normalized(_ value: String?) -> String? {
+    let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed?.isEmpty == false ? trimmed : nil
   }
 
   private func refreshCurrentProjectMetadata(for workingDirectory: String?) {
