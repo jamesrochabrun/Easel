@@ -17,6 +17,7 @@ Easel is a Codex-first macOS workspace for AI-assisted product design and fronte
 - **Iterate by clicking, not typing paths** — Toggle the inspector (`Cmd+Shift+I`), click any element in the preview, and type an instruction like "make this button bigger." Easel sends that element as context to the chat. Crop a region, queue multiple elements, or edit the backing source file directly.
 - **Reusable design systems** — Create a design system once (from a description, an imported `DESIGN.md`, or AI-generated) and reuse it across projects so everything you build stays on-brand.
 - **Tweak designs from Claude** — Bring in a design started in Claude as source files, assets, or a `DESIGN.md`-backed design system, then use Codex and the preview inspector to keep refining it locally.
+- **Hand off to Claude or Codex** — When a prototype is ready to become real code, send the whole project to a local Claude Code or Codex CLI session in one click. Easel opens a Terminal session in the target folder, seeded with a prompt that points the agent at your project's README, resources, and design system.
 - **Slide decks** — Build presentation decks the same way you build prototypes: chat to generate slides, browse them in a slide rail, and present in-tab, fullscreen, or in a new tab.
 - **Real files you can edit** — Every project is a real folder of HTML/CSS/JS, assets, and metadata. Browse the design files, manage resources, and drop into the built-in code editor to tweak source by hand whenever you'd rather not round-trip through chat.
 - **A visual design library** — All your projects and design systems appear as a searchable, filterable grid of thumbnails. Click any one to open it in the workspace.
@@ -45,6 +46,20 @@ Everything you create is stored locally and independently of the app, under `~/D
 **Edit code directly when you need to.** Prefer to make a change by hand? Open the source in the built-in editor with syntax highlighting and edit it directly — no need to go through chat for every tweak.
 
 ![Built-in code editor](docs/images/easel-code-editor.png)
+
+## Hand Off to a Coding Agent
+
+When a prototype looks right, hand it off to a local coding agent to turn it into production code. From the workspace toolbar, click **Send Handoff** (the paperplane) to open the handoff dialog and configure it:
+
+1. **Agent** — Choose **Codex** or **Claude**. Easel launches that provider's CLI in a new Terminal window using the CLI's own auth — no API keys to paste.
+2. **Destination** — Pick where the agent should work:
+   - **Implement in Codebase** — use the codebase you've linked to a High Fidelity project (set this from the sidebar).
+   - **Select Repo** — point the agent at an existing folder or repository.
+   - **Create Project** — create a fresh project folder in a directory you choose.
+3. **Details** *(optional)* — Add a sentence on what to implement. Left blank, the agent is told to build "the designs in this project."
+4. **Easel Resources** — Review the resources that will be handed over.
+
+Click **Send** and Easel opens Terminal, starts the agent in the chosen working directory, and seeds it with a prompt that tells it to read your project's `README.md`, inspect `resources/` for assets and design inputs, build from `resources/design-system/DESIGN.md` when present, and treat the Easel project as read-only source material. For prototypes, the agent is asked to *productionize* the design — preserving its layout, visuals, states, and interactions — rather than restart the design process.
 
 ## Requirements
 
