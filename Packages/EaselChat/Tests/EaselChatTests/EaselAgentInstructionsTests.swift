@@ -26,6 +26,11 @@ struct EaselAgentInstructionsTests {
     #expect(prefix.contains("resources/design-system/DESIGN.md"))
     #expect(prefix.contains("source of truth"))
     #expect(prefix.contains("component families"))
+    // Slide deck projects get presentation-design guidance in addition to the layout contract.
+    #expect(prefix.contains("For slide deck creation"))
+    #expect(prefix.contains("you are a presentation designer"))
+    #expect(prefix.contains("You are not building a website"))
+    #expect(prefix.contains("Show the user an outline first"))
     // Referenced codebases must remain untouched by the Easel session.
     #expect(prefix.contains("resources/codebase-references"))
     #expect(prefix.contains("read-only reference context"))
@@ -160,6 +165,12 @@ struct EaselAgentInstructionsTests {
     #expect(context.contains("no body padding"))
     #expect(context.contains("resources/SLIDE_TEMPLATE.md"))
     #expect(context.contains("1280x720"))
+    #expect(context.contains("Slide deck creation contract"))
+    #expect(context.contains("Create a presentation deck as a single self-contained HTML page"))
+    #expect(context.contains("you are a presentation designer"))
+    #expect(context.contains("If a user does not tell you how long they want a presentation to be"))
+    #expect(context.contains("use the questions tool to ASK"))
+    #expect(context.contains("Show the user an outline first"))
     #expect(context.contains("Current prototype fidelity") == false)
     #expect(context.contains("Prototype fidelity contract") == false)
   }

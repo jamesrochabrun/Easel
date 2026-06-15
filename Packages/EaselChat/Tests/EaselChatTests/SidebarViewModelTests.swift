@@ -113,6 +113,38 @@ struct SidebarViewModelTests {
 
     #expect(viewModel.wireframeContextRequest != nil)
     #expect(viewModel.highFidelityContextRequest == nil)
+    #expect(viewModel.slideDeckContextRequest == nil)
+  }
+
+  @Test
+  func requestingSlideDeckContextUsesSlideDeckPanelOnly() {
+    let project = EaselDesignProject(
+      id: UUID(),
+      name: "Roadmap",
+      kind: .slideDeck,
+      designSystem: .none,
+      fidelity: .highFidelity,
+      workingDirectory: "/tmp/roadmap",
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+    let viewModel = SidebarViewModel(
+      sessionStorage: NoOpSessionStorage(),
+      projectManager: SidebarProjectManagerStub(project: project),
+      designSystemManager: SidebarDesignSystemManagerStub()
+    )
+    viewModel.projectName = "Roadmap"
+    viewModel.selectedProjectKind = .slideDeck
+
+    #expect(viewModel.shouldRequestSlideDeckContext)
+    #expect(viewModel.shouldRequestHighFidelityContext == false)
+    #expect(viewModel.shouldRequestWireframeContext == false)
+
+    viewModel.requestSlideDeckContext()
+
+    #expect(viewModel.slideDeckContextRequest != nil)
+    #expect(viewModel.highFidelityContextRequest == nil)
+    #expect(viewModel.wireframeContextRequest == nil)
   }
 
   @Test
@@ -143,6 +175,49 @@ struct SidebarViewModelTests {
     #expect(viewModel.shouldShowFidelityPicker == false)
     #expect(requests.first?.kind == .slideDeck)
     #expect(requests.first?.fidelity == .highFidelity)
+  }
+
+  @Test
+  func creatingSlideDeckAttachesSelectedContextBeforeLaunch() async {
+    let project = EaselDesignProject(
+      id: UUID(),
+      name: "Roadmap",
+      kind: .slideDeck,
+      designSystem: .none,
+      fidelity: .highFidelity,
+      workingDirectory: "/tmp/roadmap",
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+    let resourceManager = SidebarProjectResourceManagerStub()
+    let viewModel = SidebarViewModel(
+      sessionStorage: NoOpSessionStorage(),
+      projectManager: SidebarProjectManagerStub(project: project),
+      designSystemManager: SidebarDesignSystemManagerStub(),
+      resourceManager: resourceManager
+    )
+    viewModel.projectName = "Roadmap"
+    viewModel.selectedProjectKind = .slideDeck
+
+    let sourceDocURL = URL(fileURLWithPath: "/tmp/roadmap/source.docx")
+    let existingDeckURL = URL(fileURLWithPath: "/tmp/roadmap/existing.pptx")
+    var launchedProject: EaselProjectLaunch?
+    viewModel.onProjectLaunchRequested = { launch in
+      launchedProject = launch
+    }
+
+    await viewModel.createProjectAndStartSession(context: HighFidelityProjectContext(
+      resourceURLs: [sourceDocURL, existingDeckURL],
+      textResources: [
+        ProjectTextResource(fileName: "slides-notes.md", contents: "Audience: leadership")
+      ]
+    ))
+
+    #expect(await resourceManager.importedResourceURLs() == [sourceDocURL, existingDeckURL])
+    #expect(await resourceManager.importedTextResources() == [
+      ProjectTextResource(fileName: "slides-notes.md", contents: "Audience: leadership")
+    ])
+    #expect(launchedProject?.project == project)
   }
 
   @Test
