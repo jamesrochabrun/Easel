@@ -29,6 +29,7 @@ public final class SidebarViewModel {
   var designSystemError: String?
   var highFidelityContextRequest: HighFidelityProjectContextRequest?
   var wireframeContextRequest: WireframeProjectContextRequest?
+  var slideDeckContextRequest: SlideDeckProjectContextRequest?
 
   // MARK: - Callbacks
 
@@ -117,6 +118,10 @@ public final class SidebarViewModel {
 
   var shouldRequestWireframeContext: Bool {
     selectedProjectKind == .prototype && projectCreationFidelity == .wireframe
+  }
+
+  var shouldRequestSlideDeckContext: Bool {
+    selectedProjectKind == .slideDeck
   }
 
   private var projectCreationCodebasePath: String? {
@@ -263,6 +268,8 @@ public final class SidebarViewModel {
 
   public func requestHighFidelityContext() {
     guard !projectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+    clearWireframeContextRequest()
+    clearSlideDeckContextRequest()
     highFidelityContextRequest = HighFidelityProjectContextRequest()
   }
 
@@ -272,11 +279,24 @@ public final class SidebarViewModel {
 
   func requestWireframeContext() {
     guard !projectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+    clearHighFidelityContextRequest()
+    clearSlideDeckContextRequest()
     wireframeContextRequest = WireframeProjectContextRequest()
   }
 
   func clearWireframeContextRequest() {
     wireframeContextRequest = nil
+  }
+
+  func requestSlideDeckContext() {
+    guard !projectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+    clearHighFidelityContextRequest()
+    clearWireframeContextRequest()
+    slideDeckContextRequest = SlideDeckProjectContextRequest()
+  }
+
+  func clearSlideDeckContextRequest() {
+    slideDeckContextRequest = nil
   }
 
   func requestDesignSystemForHighFidelityContext() {
@@ -395,6 +415,7 @@ public final class SidebarViewModel {
 
     clearHighFidelityContextRequest()
     clearWireframeContextRequest()
+    clearSlideDeckContextRequest()
     isCreatingProject = true
     creationError = nil
     projectDeletionError = nil

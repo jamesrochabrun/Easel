@@ -117,6 +117,10 @@ public struct SidebarView: View {
       WireframeProjectContextPickerView(onStart: createProject)
         .frame(width: 560, height: 420)
     }
+    .sheet(item: $sidebarViewModel.slideDeckContextRequest) { _ in
+      SlideDeckProjectContextPickerView(onStart: createProject)
+        .frame(width: 640, height: 580)
+    }
     .task {
       await sidebarViewModel.loadSessions()
     }
@@ -826,6 +830,8 @@ public struct SidebarView: View {
       sidebarViewModel.requestHighFidelityContext()
     } else if sidebarViewModel.shouldRequestWireframeContext {
       sidebarViewModel.requestWireframeContext()
+    } else if sidebarViewModel.shouldRequestSlideDeckContext {
+      sidebarViewModel.requestSlideDeckContext()
     } else {
       createProject(.empty)
     }
@@ -838,6 +844,7 @@ public struct SidebarView: View {
   private func createProject(_ context: HighFidelityProjectContext) {
     sidebarViewModel.clearHighFidelityContextRequest()
     sidebarViewModel.clearWireframeContextRequest()
+    sidebarViewModel.clearSlideDeckContextRequest()
     Task {
       await sidebarViewModel.createProjectAndStartSession(context: context)
     }
