@@ -26,12 +26,14 @@ struct CodexCommandResolver {
   private let fileManager: FileManager
   private let homeDirectory: String
   private let pathEnvironment: String?
+  private let homebrewDirectories: [String]
   private let sdkDetector: () -> String?
 
   init(
     fileManager: FileManager = .default,
     homeDirectory: String = NSHomeDirectory(),
     pathEnvironment: String? = ProcessInfo.processInfo.environment["PATH"],
+    homebrewDirectories: [String] = ["/opt/homebrew/bin", "/usr/local/bin"],
     sdkDetector: @escaping () -> String? = {
       CodexBinaryDetector.detect()?.path
     }
@@ -39,6 +41,7 @@ struct CodexCommandResolver {
     self.fileManager = fileManager
     self.homeDirectory = homeDirectory
     self.pathEnvironment = pathEnvironment
+    self.homebrewDirectories = homebrewDirectories
     self.sdkDetector = sdkDetector
   }
 
@@ -58,6 +61,12 @@ struct CodexCommandResolver {
       return Resolution(path: detected, source: .sdkDetector)
     }
 
+    for candidate in homebrewCandidates() {
+      if fileManager.isExecutableFile(atPath: candidate.path) {
+        return candidate
+      }
+    }
+
     return nil
   }
 
@@ -68,41 +77,50 @@ struct CodexCommandResolver {
   }
 
   private func executableCandidates() -> [Resolution] {
-    let staticCandidates: [Resolution] = [
+    let localCandidates: [Resolution] = [
       Resolution(path: "\(homeDirectory)/.codex/local/codex", source: .localInstall),
+    ]
+
+    let userManagedCandidates: [Resolution] = [
       Resolution(path: "\(homeDirectory)/.local/bin/codex", source: .localInstall),
       Resolution(path: "\(homeDirectory)/.npm-global/bin/codex", source: .npmGlobal),
       Resolution(path: "\(homeDirectory)/.nvm/current/bin/codex", source: .nvm),
       Resolution(path: "\(homeDirectory)/.volta/bin/codex", source: .toolShim),
       Resolution(path: "\(homeDirectory)/.local/share/mise/shims/codex", source: .toolShim),
       Resolution(path: "\(homeDirectory)/.asdf/shims/codex", source: .toolShim),
-      Resolution(path: "/opt/homebrew/bin/codex", source: .homebrew),
-      Resolution(path: "/usr/local/bin/codex", source: .homebrew),
     ]
 
-    let dynamicCandidates = nvmVersionCandidates()
-      + fnmVersionCandidates()
-      + pathDirectories().map { Resolution(path: "\($0)/codex", source: .path) }
+    let environmentCandidates = pathDirectories()
+      .map { Resolution(path: "\($0)/codex", source: .path) }
 
-    return staticCandidates + dynamicCandidates
+    let scannedCandidates = nvmVersionCandidates()
+      + fnmVersionCandidates()
+
+    return localCandidates
+      + environmentCandidates
+      + userManagedCandidates
+      + scannedCandidates
   }
 
   private func candidateDirectories() -> [String] {
-    [
+    uniqueDirectories([
       "\(homeDirectory)/.codex/local",
+    ] + pathDirectories() + [
       "\(homeDirectory)/.npm-global/bin",
       "\(homeDirectory)/.nvm/current/bin",
       "\(homeDirectory)/.volta/bin",
       "\(homeDirectory)/.local/share/mise/shims",
       "\(homeDirectory)/.asdf/shims",
-      "/opt/homebrew/bin",
-      "/usr/local/bin",
       "/usr/bin",
       "\(homeDirectory)/.bun/bin",
       "\(homeDirectory)/.deno/bin",
       "\(homeDirectory)/.cargo/bin",
       "\(homeDirectory)/.local/bin",
-    ] + nvmVersionDirectories() + fnmVersionDirectories()
+    ] + nvmVersionDirectories() + fnmVersionDirectories() + homebrewDirectories)
+  }
+
+  private func homebrewCandidates() -> [Resolution] {
+    homebrewDirectories.map { Resolution(path: "\($0)/codex", source: .homebrew) }
   }
 
   private func nvmVersionCandidates() -> [Resolution] {

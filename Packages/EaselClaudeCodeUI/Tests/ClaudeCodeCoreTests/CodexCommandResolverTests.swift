@@ -78,6 +78,17 @@ final class CodexCommandResolverTests: XCTestCase {
     XCTAssertEqual(resolution.source, .nvm)
   }
 
+  func testNvmVersionInstallWinsOverHomebrewFallback() throws {
+    try makeExecutable(".nvm/versions/node/v22.16.0/bin/codex")
+    try makeExecutable("homebrew/bin/codex")
+    let resolver = makeResolver(homebrewDirectories: [path("homebrew/bin")])
+
+    let resolution = try XCTUnwrap(resolver.resolve())
+
+    XCTAssertEqual(resolution.path, path(".nvm/versions/node/v22.16.0/bin/codex"))
+    XCTAssertEqual(resolution.source, .nvm)
+  }
+
   func testFindsToolShimInstall() throws {
     try makeExecutable(".local/share/mise/shims/codex")
 
@@ -97,21 +108,72 @@ final class CodexCommandResolverTests: XCTestCase {
     XCTAssertEqual(resolution.source, .path)
   }
 
-  func testSearchPathDirectoriesIncludeUserNpmGlobalAndIncomingPath() {
-    let resolver = makeResolver(pathEnvironment: "/tmp/custom:/opt/homebrew/bin")
+  func testPathInstallWinsOverHomebrewFallback() throws {
+    try makeExecutable("custom-bin/codex")
+    try makeExecutable("homebrew/bin/codex")
+    let resolver = makeResolver(
+      pathEnvironment: "~/custom-bin",
+      homebrewDirectories: [path("homebrew/bin")]
+    )
+
+    let resolution = try XCTUnwrap(resolver.resolve())
+
+    XCTAssertEqual(resolution.path, path("custom-bin/codex"))
+    XCTAssertEqual(resolution.source, .path)
+  }
+
+  func testSDKDetectorWinsOverHomebrewFallback() throws {
+    try makeExecutable("sdk/bin/codex")
+    try makeExecutable("homebrew/bin/codex")
+    let resolver = makeResolver(
+      homebrewDirectories: [path("homebrew/bin")],
+      sdkDetector: { self.path("sdk/bin/codex") }
+    )
+
+    let resolution = try XCTUnwrap(resolver.resolve())
+
+    XCTAssertEqual(resolution.path, path("sdk/bin/codex"))
+    XCTAssertEqual(resolution.source, .sdkDetector)
+  }
+
+  func testFindsHomebrewInstallAsFallback() throws {
+    try makeExecutable("homebrew/bin/codex")
+    let resolver = makeResolver(homebrewDirectories: [path("homebrew/bin")])
+
+    let resolution = try XCTUnwrap(resolver.resolve())
+
+    XCTAssertEqual(resolution.path, path("homebrew/bin/codex"))
+    XCTAssertEqual(resolution.source, .homebrew)
+  }
+
+  func testSearchPathDirectoriesIncludeUserNpmGlobalAndIncomingPath() throws {
+    let homebrewDirectory = path("homebrew/bin")
+    let resolver = makeResolver(
+      pathEnvironment: "/tmp/custom:\(homebrewDirectory)",
+      homebrewDirectories: [homebrewDirectory]
+    )
 
     let directories = resolver.searchPathDirectories()
 
     XCTAssertTrue(directories.contains(path(".npm-global/bin")))
     XCTAssertTrue(directories.contains("/tmp/custom"))
-    XCTAssertEqual(directories.filter { $0 == "/opt/homebrew/bin" }.count, 1)
+    XCTAssertEqual(directories.filter { $0 == homebrewDirectory }.count, 1)
+    XCTAssertLessThan(
+      try XCTUnwrap(directories.firstIndex(of: "/tmp/custom")),
+      try XCTUnwrap(directories.firstIndex(of: homebrewDirectory))
+    )
   }
 
-  private func makeResolver(pathEnvironment: String? = nil) -> CodexCommandResolver {
+  private func makeResolver(
+    pathEnvironment: String? = nil,
+    homebrewDirectories: [String] = [],
+    sdkDetector: @escaping () -> String? = { nil }
+  ) -> CodexCommandResolver {
     CodexCommandResolver(
       homeDirectory: temporaryHome.path,
       pathEnvironment: pathEnvironment,
-      sdkDetector: { nil }
+      homebrewDirectories: homebrewDirectories,
+      sdkDetector: sdkDetector
     )
   }
 
