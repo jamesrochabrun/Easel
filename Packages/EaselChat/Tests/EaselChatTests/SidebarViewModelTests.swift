@@ -146,6 +146,37 @@ struct SidebarViewModelTests {
   }
 
   @Test
+  func creatingHighFidelityPrototypePassesSelectedCodebasePath() async {
+    let project = EaselDesignProject(
+      id: UUID(),
+      name: "Checkout",
+      kind: .prototype,
+      designSystem: .none,
+      fidelity: .highFidelity,
+      workingDirectory: "/tmp/checkout",
+      codebasePath: "/tmp/shop-app",
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+    let projectManager = SidebarProjectManagerStub(project: project)
+    let viewModel = SidebarViewModel(
+      sessionStorage: NoOpSessionStorage(),
+      projectManager: projectManager,
+      designSystemManager: SidebarDesignSystemManagerStub()
+    )
+    viewModel.projectName = "Checkout"
+    viewModel.selectedProjectKind = .prototype
+    viewModel.selectedFidelity = .highFidelity
+    viewModel.selectCodebase(URL(fileURLWithPath: "/tmp/shop-app"))
+
+    await viewModel.createProjectAndStartSession()
+
+    let requests = await projectManager.createdRequests()
+    #expect(viewModel.shouldShowCodebasePicker)
+    #expect(requests.first?.codebasePath == "/tmp/shop-app")
+  }
+
+  @Test
   func designSystemChoicesExcludeUnbackedBuiltInPresets() async {
     let customSystem = EaselDesignSystemProfile(
       id: UUID(),

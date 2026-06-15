@@ -89,6 +89,7 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
       designSystem: request.designSystem,
       fidelity: fidelity,
       workingDirectory: directoryURL.path,
+      codebasePath: normalizedCodebasePath(for: request, fidelity: fidelity),
       createdAt: now,
       updatedAt: now
     )
@@ -237,6 +238,18 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
 
   private func effectiveFidelity(for request: EaselProjectCreateRequest) -> EaselProjectFidelity {
     request.kind == .prototype ? request.fidelity : .highFidelity
+  }
+
+  private func normalizedCodebasePath(
+    for request: EaselProjectCreateRequest,
+    fidelity: EaselProjectFidelity
+  ) -> String? {
+    guard request.kind == .prototype, fidelity == .highFidelity else {
+      return nil
+    }
+
+    let trimmed = request.codebasePath?.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed?.isEmpty == false ? trimmed : nil
   }
 
   private func normalizedProjectName(_ rawName: String, kind: EaselProjectKind) -> String {

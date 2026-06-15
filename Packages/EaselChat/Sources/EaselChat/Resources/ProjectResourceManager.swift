@@ -536,6 +536,7 @@ public actor LocalProjectResourceManager: ProjectResourceManaging {
       designSystem: existingProject.designSystem,
       fidelity: existingProject.fidelity,
       workingDirectory: existingProject.workingDirectory,
+      codebasePath: existingProject.codebasePath,
       createdAt: existingProject.createdAt,
       updatedAt: Date()
     )

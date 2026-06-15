@@ -8,9 +8,104 @@
 import Foundation
 import AppKit
 import ClaudeCodeSDK
+import CodexSDK
 
 /// Helper object to handle launching Terminal with Claude sessions
 public struct TerminalLauncher {
+
+  public static func launchLocalAgent(_ request: LocalAgentLaunchRequest) async throws {
+    let scriptContent = try localAgentScriptContent(for: request)
+    let scriptURL = try writeLaunchScript(content: scriptContent, prefix: "easel_agent")
+    let opened = await MainActor.run {
+      NSWorkspace.shared.open(scriptURL)
+    }
+
+    guard opened else {
+      try? FileManager.default.removeItem(at: scriptURL)
+      throw LocalAgentLaunchError.terminalOpenFailed
+    }
+
+    Task {
+      try? await Task.sleep(for: .seconds(5))
+      try? FileManager.default.removeItem(at: scriptURL)
+    }
+  }
+
+  static func localAgentScriptContent(for request: LocalAgentLaunchRequest) throws -> String {
+    let command = try localAgentShellCommand(for: request)
+    let exports = environmentExports(for: request.environment)
+    let lines = [
+      "#!/bin/bash",
+      exports.isEmpty ? nil : exports,
+      command
+    ].compactMap { $0 }
+
+    return lines.joined(separator: "\n") + "\n"
+  }
+
+  static func localAgentShellCommand(for request: LocalAgentLaunchRequest) throws -> String {
+    let workingDirectory = request.workingDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !workingDirectory.isEmpty else {
+      throw LocalAgentLaunchError.missingWorkingDirectory
+    }
+
+    guard let escapedWorkingDirectory = shellEscapeSingleQuoted(workingDirectory) else {
+      throw LocalAgentLaunchError.invalidShellValue("Working directory")
+    }
+
+    let commandName = normalizedCommand(request.command, provider: request.provider)
+    let executablePath: String?
+    switch request.provider {
+    case .codex:
+      executablePath = findCodexExecutable(
+        command: commandName,
+        additionalPaths: request.additionalPaths
+      )
+    case .claude:
+      executablePath = findClaudeExecutable(
+        command: commandName,
+        additionalPaths: request.additionalPaths
+      )
+    }
+
+    guard let executablePath else {
+      throw LocalAgentLaunchError.executableNotFound(commandName)
+    }
+    guard let escapedExecutablePath = shellEscapeSingleQuoted(executablePath) else {
+      throw LocalAgentLaunchError.invalidShellValue("Executable path")
+    }
+
+    let joinedArguments = localAgentArguments(for: request)
+      .map(shellEscapeSingleQuotedAllowingNewlines)
+      .joined(separator: " ")
+
+    if joinedArguments.isEmpty {
+      return "cd \(escapedWorkingDirectory) && exec \(escapedExecutablePath)"
+    }
+
+    return "cd \(escapedWorkingDirectory) && exec \(escapedExecutablePath) \(joinedArguments)"
+  }
+
+  static func localAgentArguments(for request: LocalAgentLaunchRequest) -> [String] {
+    switch request.provider {
+    case .codex:
+      var arguments: [String] = []
+      if let model = normalizedOptionalArgument(request.codexModel) {
+        arguments += ["--model", model]
+      }
+      arguments.append(contentsOf: request.extraArguments)
+      if let prompt = normalizedOptionalArgument(request.prompt) {
+        arguments.append(prompt)
+      }
+      return arguments
+
+    case .claude:
+      if let prompt = normalizedOptionalArgument(request.prompt) {
+        return [prompt]
+      }
+      return []
+    }
+  }
   
   /// Launches Terminal with a Claude session resume command
   /// - Parameters:
@@ -101,7 +196,61 @@ public struct TerminalLauncher {
     command: String,
     additionalPaths: [String]?
   ) -> String? {
+    findExecutable(command: command, additionalPaths: additionalPaths)
+  }
+
+  /// Finds the full path to the Codex executable, preferring local installs.
+  /// - Parameters:
+  ///   - command: The command name to search for (e.g. "codex")
+  ///   - additionalPaths: Additional paths to search from configuration
+  /// - Returns: The full path to the executable if found, nil otherwise
+  public static func findCodexExecutable(
+    command: String = "codex",
+    additionalPaths: [String]?
+  ) -> String? {
+    let command = command.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !command.isEmpty else { return nil }
+
     let fileManager = FileManager.default
+    let homeDir = NSHomeDirectory()
+
+    let localCodexPath = "\(homeDir)/.codex/local/\(command)"
+    if fileManager.isExecutableFile(atPath: localCodexPath) {
+      return localCodexPath
+    }
+
+    if let nvmPath = CodexSDK.NvmPathDetector.detectNvmPath() {
+      let nvmCodexPath = "\(nvmPath)/\(command)"
+      if fileManager.isExecutableFile(atPath: nvmCodexPath) {
+        return nvmCodexPath
+      }
+    }
+
+    if command == "codex", let detected = CodexSDK.CodexBinaryDetector.detect() {
+      return detected.path
+    }
+
+    return findExecutable(command: command, additionalPaths: additionalPaths)
+  }
+
+  /// Finds the full path to a CLI executable.
+  /// - Parameters:
+  ///   - command: The command name or executable path to search for
+  ///   - additionalPaths: Additional paths to search from configuration
+  /// - Returns: The full path to the executable if found, nil otherwise
+  public static func findExecutable(
+    command: String,
+    additionalPaths: [String]?
+  ) -> String? {
+    let fileManager = FileManager.default
+    let command = command.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !command.isEmpty else { return nil }
+
+    if command.contains("/") {
+      let path = (command as NSString).expandingTildeInPath
+      return fileManager.isExecutableFile(atPath: path) ? path : nil
+    }
+
     let homeDir = NSHomeDirectory()
     
     // Default search paths
@@ -117,12 +266,12 @@ public struct TerminalLauncher {
     ]
     
     // Combine additional paths with default paths
-    let allPaths = (additionalPaths ?? []) + defaultPaths
+    let allPaths = uniquePaths((additionalPaths ?? []) + defaultPaths)
     
     // Search for the command in all paths
     for path in allPaths {
       let fullPath = "\(path)/\(command)"
-      if fileManager.fileExists(atPath: fullPath) {
+      if fileManager.isExecutableFile(atPath: fullPath) {
         return fullPath
       }
     }
@@ -152,5 +301,66 @@ public struct TerminalLauncher {
     }
     
     return nil
+  }
+
+  private static func normalizedCommand(_ command: String, provider: LocalAgentProvider) -> String {
+    let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? provider.defaultCommand : trimmed
+  }
+
+  private static func normalizedOptionalArgument(_ value: String?) -> String? {
+    let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed?.isEmpty == false ? trimmed : nil
+  }
+
+  private static func shellEscapeSingleQuoted(_ value: String) -> String? {
+    if value.contains("\n") || value.contains("\r") {
+      return nil
+    }
+
+    return shellEscapeSingleQuotedAllowingNewlines(value)
+  }
+
+  private static func shellEscapeSingleQuotedAllowingNewlines(_ value: String) -> String {
+    let escaped = value.replacingOccurrences(of: "'", with: "'\\''")
+    return "'\(escaped)'"
+  }
+
+  private static func environmentExports(for environment: [String: String]) -> String {
+    environment
+      .filter { isValidEnvironmentName($0.key) }
+      .sorted { $0.key < $1.key }
+      .map { "export \($0.key)=\(shellEscapeSingleQuotedAllowingNewlines($0.value))" }
+      .joined(separator: "\n")
+  }
+
+  private static func isValidEnvironmentName(_ name: String) -> Bool {
+    guard let first = name.unicodeScalars.first else { return false }
+    guard first == "_" || CharacterSet.letters.contains(first) else { return false }
+
+    return name.unicodeScalars.allSatisfy { scalar in
+      scalar == "_" || CharacterSet.alphanumerics.contains(scalar)
+    }
+  }
+
+  private static func uniquePaths(_ paths: [String]) -> [String] {
+    var seen = Set<String>()
+    return paths.filter { seen.insert($0).inserted }
+  }
+
+  private static func writeLaunchScript(content: String, prefix: String) throws -> URL {
+    let scriptURL = URL(fileURLWithPath: NSTemporaryDirectory())
+      .appendingPathComponent("\(prefix)_\(UUID().uuidString).command")
+
+    do {
+      try Data(content.utf8).write(to: scriptURL, options: .atomic)
+      try FileManager.default.setAttributes(
+        [.posixPermissions: 0o700],
+        ofItemAtPath: scriptURL.path
+      )
+      return scriptURL
+    } catch {
+      throw LocalAgentLaunchError.scriptWriteFailed(error.localizedDescription)
+    }
   }
 }

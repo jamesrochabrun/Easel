@@ -8,6 +8,7 @@ import EaselDesignSystems
 import EaselKit
 import Foundation
 import SwiftUI
+import UniformTypeIdentifiers
 
 public struct SidebarView: View {
   @Bindable var sidebarViewModel: SidebarViewModel
@@ -20,6 +21,7 @@ public struct SidebarView: View {
   @State private var projectToDelete: ProjectGroup?
   @State private var designSystemToDelete: EaselDesignSystemProfile?
   @State private var designSystemDeleteConfirmationName = ""
+  @State private var isCodebaseImporterPresented = false
   @Environment(\.colorScheme) private var colorScheme
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   private let projectKindChangeAnimation = Animation.easeInOut(duration: 0.22)
@@ -117,6 +119,19 @@ public struct SidebarView: View {
     }
     .task {
       await sidebarViewModel.loadSessions()
+    }
+    .fileImporter(
+      isPresented: $isCodebaseImporterPresented,
+      allowedContentTypes: [.folder],
+      allowsMultipleSelection: false
+    ) { result in
+      switch result {
+      case let .success(urls):
+        guard let url = urls.first else { return }
+        sidebarViewModel.selectCodebase(url)
+      case let .failure(error):
+        sidebarViewModel.reportCodebaseSelectionFailure(error)
+      }
     }
   }
 
@@ -273,6 +288,15 @@ public struct SidebarView: View {
       if sidebarViewModel.shouldShowFidelityPicker {
         fidelityPicker
           .transition(projectKindContentTransition)
+      }
+
+      if sidebarViewModel.shouldShowCodebasePicker {
+        HighFidelityCodebasePicker(
+          codebasePath: sidebarViewModel.selectedCodebasePath,
+          onSelect: showCodebaseImporter,
+          onClear: sidebarViewModel.clearCodebasePath
+        )
+        .transition(projectKindContentTransition)
       }
 
       if let creationError = sidebarViewModel.creationError {
@@ -756,6 +780,10 @@ public struct SidebarView: View {
 
   private func projectHeaderScrollID(for projectID: String) -> ProjectHeaderScrollID {
     ProjectHeaderScrollID(projectID: projectID)
+  }
+
+  private func showCodebaseImporter() {
+    isCodebaseImporterPresented = true
   }
 
   private var projectDeleteConfirmationMessage: String {
