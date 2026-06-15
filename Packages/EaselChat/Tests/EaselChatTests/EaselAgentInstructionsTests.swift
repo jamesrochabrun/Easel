@@ -26,6 +26,10 @@ struct EaselAgentInstructionsTests {
     #expect(prefix.contains("resources/design-system/DESIGN.md"))
     #expect(prefix.contains("source of truth"))
     #expect(prefix.contains("component families"))
+    // Referenced codebases must remain untouched by the Easel session.
+    #expect(prefix.contains("resources/codebase-references"))
+    #expect(prefix.contains("read-only reference context"))
+    #expect(prefix.contains("never modify files there"))
   }
 
   @Test
@@ -82,8 +86,27 @@ struct EaselAgentInstructionsTests {
     #expect(context.contains("Do not launch an external browser app"))
     #expect(context.contains("cannot bind network sockets"))
     #expect(context.contains("resources/ folder"))
+    #expect(context.contains("resources/codebase-references"))
+    #expect(context.contains("Inspect them only"))
     #expect(context.contains("Current project path: /tmp/easel"))
     #expect(context.contains("Current embedded preview URL: http://127.0.0.1:4173/"))
+  }
+
+  @Test
+  func hiddenContextIncludesProjectResourceManifest() {
+    let context = EaselAgentInstructions.hiddenContext(
+      projectPath: "/tmp/easel",
+      resourcePaths: [
+        "resources/hero.png",
+        "resources/codebase-references/App.md",
+      ],
+      previewURL: nil
+    )
+
+    #expect(context.contains("Available project resources and design files"))
+    #expect(context.contains("- `resources/hero.png`"))
+    #expect(context.contains("- `resources/codebase-references/App.md`"))
+    #expect(context.contains("Inspect these resources"))
   }
 
   @Test
@@ -97,11 +120,10 @@ struct EaselAgentInstructionsTests {
 
     #expect(context.contains("Current project type: Prototype"))
     #expect(context.contains("Current prototype fidelity: Wireframe"))
+    #expect(context.contains("The prototype fidelity contract specializes the bundled frontend skill"))
     #expect(context.contains("Prototype fidelity contract"))
-    #expect(context.contains("low-fidelity product wireframe"))
-    #expect(context.contains("overrides polished frontend defaults"))
-    #expect(context.contains("Use grayscale only"))
-    #expect(context.contains("Do not use photos"))
+    #expect(context.contains("Help the user explore design ideas quickly"))
+    #expect(context.contains("show 3-5 distinctly different approaches"))
   }
 
   @Test
@@ -115,10 +137,11 @@ struct EaselAgentInstructionsTests {
 
     #expect(context.contains("Current project type: Prototype"))
     #expect(context.contains("Current prototype fidelity: High fidelity"))
+    #expect(context.contains("The prototype fidelity contract specializes the bundled frontend skill"))
     #expect(context.contains("Prototype fidelity contract"))
-    #expect(context.contains("polished product prototype"))
-    #expect(context.contains("realistic content"))
-    #expect(context.contains("meaningful UI states"))
+    #expect(context.contains("Create a high-fidelity, polished design"))
+    #expect(context.contains("Ask 2-4 concise clarifying questions and wait"))
+    #expect(context.contains("Good hi-fi designs do not start from scratch"))
   }
 
   @Test

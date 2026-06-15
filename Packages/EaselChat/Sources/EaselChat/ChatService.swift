@@ -111,6 +111,9 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
           }
         }
       )
+      vm.runtimeHiddenContextProvider = { [weak self] in
+        self?.makeHiddenContextForCurrentState(nil)
+      }
 
       if let dir = config.workingDirectory {
         vm.projectPath = dir
@@ -287,26 +290,93 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
   }
 
   private func sendMessageToViewModel(_ text: String, context: String? = nil, hiddenContext: String? = nil) {
-    let combinedHiddenContext = EaselAgentInstructions.appendingHiddenContext(
-      hiddenContext,
-      projectPath: currentWorkingDirectory,
-      projectKind: currentProject?.kind,
-      projectFidelity: currentPrototypeFidelity,
-      designSystem: currentProject?.designSystem,
-      previewURL: previewURL
-    )
-    chatViewModel?.sendMessage(text, context: context, hiddenContext: combinedHiddenContext)
+    chatViewModel?.sendMessage(text, context: context, hiddenContext: hiddenContext)
   }
 
-  private var currentPrototypeFidelity: EaselProjectFidelity? {
-    guard currentProject?.kind == .prototype else { return nil }
-    return currentProject?.fidelity
+  func makeHiddenContextForCurrentState(_ hiddenContext: String?) -> String {
+    let project = resolvedCurrentProject()
+
+    return EaselAgentInstructions.appendingHiddenContext(
+      hiddenContext,
+      projectPath: currentWorkingDirectory,
+      projectKind: project?.kind,
+      projectFidelity: prototypeFidelity(for: project),
+      designSystem: project?.designSystem,
+      resourcePaths: projectResourcePaths(at: currentWorkingDirectory),
+      previewURL: previewURL
+    )
+  }
+
+  private func prototypeFidelity(for project: EaselDesignProject?) -> EaselProjectFidelity? {
+    guard project?.kind == .prototype else { return nil }
+    return project?.fidelity
   }
 
   private func setCurrentWorkingDirectory(_ path: String?) {
     let normalized = path?.trimmingCharacters(in: .whitespacesAndNewlines)
     currentWorkingDirectory = normalized?.isEmpty == false ? normalized : nil
+    currentProject = projectMetadata(at: currentWorkingDirectory)
     refreshCurrentProjectMetadata(for: currentWorkingDirectory)
+  }
+
+  private func resolvedCurrentProject() -> EaselDesignProject? {
+    if currentProject?.workingDirectory == currentWorkingDirectory {
+      return currentProject
+    }
+
+    if let project = projectMetadata(at: currentWorkingDirectory) {
+      currentProject = project
+      return project
+    }
+
+    return currentProject
+  }
+
+  private func projectMetadata(at workingDirectory: String?) -> EaselDesignProject? {
+    guard let workingDirectory, !workingDirectory.isEmpty else { return nil }
+
+    let metadataURL = URL(fileURLWithPath: workingDirectory, isDirectory: true)
+      .appendingPathComponent(".easel", isDirectory: true)
+      .appendingPathComponent("project.json")
+
+    guard let data = try? Data(contentsOf: metadataURL) else {
+      return nil
+    }
+
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    return try? decoder.decode(EaselDesignProject.self, from: data)
+  }
+
+  private func projectResourcePaths(at workingDirectory: String?) -> [String] {
+    guard let workingDirectory, !workingDirectory.isEmpty else { return [] }
+
+    let projectURL = URL(fileURLWithPath: workingDirectory, isDirectory: true)
+      .resolvingSymlinksInPath()
+    let resourcesURL = projectURL.appendingPathComponent(ProjectResource.resourcesDirectoryName, isDirectory: true)
+    guard let enumerator = FileManager.default.enumerator(
+      at: resourcesURL,
+      includingPropertiesForKeys: [.isRegularFileKey],
+      options: [.skipsHiddenFiles]
+    ) else {
+      return []
+    }
+
+    var paths: [String] = []
+    for case let fileURL as URL in enumerator {
+      guard paths.count < 80 else { break }
+
+      let values = try? fileURL.resourceValues(forKeys: [.isRegularFileKey])
+      guard values?.isRegularFile == true else { continue }
+
+      let filePath = fileURL.resolvingSymlinksInPath().path
+      guard filePath.hasPrefix(projectURL.path + "/") else { continue }
+
+      let relativePath = String(filePath.dropFirst(projectURL.path.count + 1))
+      paths.append(relativePath)
+    }
+
+    return paths.sorted()
   }
 
   private func refreshCurrentProjectMetadata(for workingDirectory: String?) {
@@ -317,7 +387,9 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
       return
     }
 
-    currentProject = nil
+    if currentProject?.workingDirectory != workingDirectory {
+      currentProject = nil
+    }
     currentProjectLookupTask = Task { [projectManager] in
       let projects = (try? await projectManager.loadProjects()) ?? []
       let project = projects.first { $0.workingDirectory == workingDirectory }

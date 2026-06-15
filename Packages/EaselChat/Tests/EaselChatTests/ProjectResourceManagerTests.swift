@@ -105,6 +105,86 @@ struct ProjectResourceManagerTests {
   }
 
   @Test
+  func importTextResourceWritesManagedMarkdownResource() async throws {
+    let rootDirectory = temporaryRoot(named: "ProjectResourceTextTests")
+    defer {
+      try? FileManager.default.removeItem(at: rootDirectory)
+    }
+
+    let projectManager = LocalEaselProjectManager(rootDirectory: rootDirectory)
+    let project = try await projectManager.createProject(from: EaselProjectCreateRequest(
+      name: "Wireframe Notes",
+      kind: .prototype,
+      designSystem: .none,
+      fidelity: .wireframe
+    ))
+
+    let manager = LocalProjectResourceManager()
+    let resources = try await manager.importTextResource(
+      named: "wireframe-notes.md",
+      contents: "# Wireframe notes\n\nCheckout flow ideas",
+      intoProjectAt: project.workingDirectory
+    )
+
+    let projectURL = URL(fileURLWithPath: project.workingDirectory)
+    let notesURL = projectURL.appendingPathComponent("resources/wireframe-notes.md")
+    let notes = try String(contentsOf: notesURL, encoding: .utf8)
+
+    #expect(FileManager.default.fileExists(atPath: notesURL.path))
+    #expect(notes.contains("Checkout flow ideas"))
+    #expect(resources.contains { $0.relativePath == "resources/wireframe-notes.md" })
+  }
+
+  @Test
+  func importReferenceCodebaseAddsReadOnlyReferenceWithoutCopyingRepository() async throws {
+    let rootDirectory = temporaryRoot(named: "ProjectResourceCodebaseTests")
+    let sourceDirectory = temporaryRoot(named: "ProjectResourceCodebaseSourceTests")
+    defer {
+      try? FileManager.default.removeItem(at: rootDirectory)
+      try? FileManager.default.removeItem(at: sourceDirectory)
+    }
+
+    let projectManager = LocalEaselProjectManager(rootDirectory: rootDirectory)
+    let project = try await projectManager.createProject(from: EaselProjectCreateRequest(
+      name: "Reference Codebase",
+      kind: .prototype,
+      designSystem: .none,
+      fidelity: .highFidelity
+    ))
+
+    let appSourceURL = sourceDirectory.appendingPathComponent("src/App.swift")
+    let dependencyURL = sourceDirectory.appendingPathComponent("node_modules/pkg/index.js")
+    try FileManager.default.createDirectory(at: appSourceURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: dependencyURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try write("struct App {}", to: appSourceURL)
+    try write("generated dependency", to: dependencyURL)
+
+    let manager = LocalProjectResourceManager()
+    let resources = try await manager.importReferenceCodebase(
+      from: sourceDirectory,
+      intoProjectAt: project.workingDirectory
+    )
+
+    let projectURL = URL(fileURLWithPath: project.workingDirectory)
+    let referenceURL = projectURL
+      .appendingPathComponent("resources/codebase-references", isDirectory: true)
+      .appendingPathComponent("\(sourceDirectory.lastPathComponent).md")
+    let copiedRoot = projectURL.appendingPathComponent("resources/codebase", isDirectory: true)
+    let referenceText = try String(contentsOf: referenceURL, encoding: .utf8)
+
+    #expect(FileManager.default.fileExists(atPath: referenceURL.path))
+    #expect(FileManager.default.fileExists(atPath: copiedRoot.path) == false)
+    #expect(FileManager.default.fileExists(atPath: appSourceURL.path))
+    #expect(referenceText.contains(sourceDirectory.path))
+    #expect(referenceText.contains("read-only reference context"))
+    #expect(referenceText.contains("Do not modify files in this repository."))
+    #expect(resources.contains {
+      $0.relativePath.hasSuffix("resources/codebase-references/\(sourceDirectory.lastPathComponent).md")
+    })
+    #expect(resources.contains { $0.relativePath.hasSuffix("src/App.swift") } == false)
+  }
+
+  @Test
   func loadProjectStructureGroupsGeneratedFilesAndSkipsManagedResources() async throws {
     let rootDirectory = temporaryRoot(named: "ProjectResourceStructureTests")
     defer {

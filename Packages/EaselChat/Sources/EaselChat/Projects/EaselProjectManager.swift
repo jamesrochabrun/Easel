@@ -329,6 +329,8 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
     \(slideDeckGuidance)
     Add project assets to `resources/` so Codex can inspect and use them while designing.
 
+    Reference codebases, if present, are listed under `resources/codebase-references/`. Treat those external repositories as read-only context: inspect them only, never modify files or run commands that write inside them, and make all implementation changes inside this Easel project folder.
+
     Run `npm run dev` to preview this folder in Easel.
     """
   }

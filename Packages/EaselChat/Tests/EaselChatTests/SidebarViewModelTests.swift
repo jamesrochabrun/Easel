@@ -42,6 +42,80 @@ struct SidebarViewModelTests {
   }
 
   @Test
+  func creatingProjectAttachesSelectedContextBeforeLaunch() async {
+    let project = EaselDesignProject(
+      id: UUID(),
+      name: "Context",
+      kind: .prototype,
+      designSystem: .none,
+      fidelity: .highFidelity,
+      workingDirectory: "/tmp/context",
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+    let resourceManager = SidebarProjectResourceManagerStub()
+    let viewModel = SidebarViewModel(
+      sessionStorage: NoOpSessionStorage(),
+      projectManager: SidebarProjectManagerStub(project: project),
+      designSystemManager: SidebarDesignSystemManagerStub(),
+      resourceManager: resourceManager
+    )
+    viewModel.projectName = "Context"
+
+    let screenshotURL = URL(fileURLWithPath: "/tmp/context/screenshot.png")
+    let figURL = URL(fileURLWithPath: "/tmp/context/source.fig")
+    let repoURL = URL(fileURLWithPath: "/tmp/reference-repo", isDirectory: true)
+    var launchedProject: EaselProjectLaunch?
+    viewModel.onProjectLaunchRequested = { launch in
+      launchedProject = launch
+    }
+
+    await viewModel.createProjectAndStartSession(context: HighFidelityProjectContext(
+      resourceURLs: [screenshotURL, figURL],
+      codebaseURLs: [repoURL],
+      textResources: [
+        ProjectTextResource(fileName: "wireframe-notes.md", contents: "Checkout notes")
+      ]
+    ))
+
+    #expect(await resourceManager.importedResourceURLs() == [screenshotURL, figURL])
+    #expect(await resourceManager.importedCodebaseURLs() == [repoURL])
+    #expect(await resourceManager.importedTextResources() == [
+      ProjectTextResource(fileName: "wireframe-notes.md", contents: "Checkout notes")
+    ])
+    #expect(launchedProject?.project == project)
+  }
+
+  @Test
+  func requestingWireframeContextUsesWireframePanelOnly() {
+    let project = EaselDesignProject(
+      id: UUID(),
+      name: "Wire",
+      kind: .prototype,
+      designSystem: .none,
+      fidelity: .wireframe,
+      workingDirectory: "/tmp/wire",
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+    let viewModel = SidebarViewModel(
+      sessionStorage: NoOpSessionStorage(),
+      projectManager: SidebarProjectManagerStub(project: project),
+      designSystemManager: SidebarDesignSystemManagerStub()
+    )
+    viewModel.projectName = "Wire"
+    viewModel.selectedFidelity = .wireframe
+
+    #expect(viewModel.shouldRequestWireframeContext)
+    #expect(viewModel.shouldRequestHighFidelityContext == false)
+
+    viewModel.requestWireframeContext()
+
+    #expect(viewModel.wireframeContextRequest != nil)
+    #expect(viewModel.highFidelityContextRequest == nil)
+  }
+
+  @Test
   func creatingSlideDeckUsesHighFidelityWhenFidelityPickerIsHidden() async {
     let project = EaselDesignProject(
       id: UUID(),
@@ -554,6 +628,61 @@ private actor SidebarProjectManagerStub: EaselProjectManaging {
 
   func createdRequests() -> [EaselProjectCreateRequest] {
     createRequests
+  }
+}
+
+private actor SidebarProjectResourceManagerStub: ProjectResourceManaging {
+  private var resourceURLs: [URL] = []
+  private var codebaseURLs: [URL] = []
+  private var textResources: [ProjectTextResource] = []
+
+  func loadResources(forProjectAt projectPath: String) async throws -> [ProjectResource] {
+    []
+  }
+
+  func loadProjectStructure(forProjectAt projectPath: String) async throws -> [ProjectStructureSection] {
+    []
+  }
+
+  func loadPreview(for item: ProjectResourcePanelItem) async throws -> ProjectResourcePreview {
+    ProjectResourcePreview(itemID: item.id, content: .visual)
+  }
+
+  func saveText(_ text: String, for item: ProjectResourcePanelItem) async throws -> ProjectResourcePreview {
+    ProjectResourcePreview(itemID: item.id, content: .text(text))
+  }
+
+  func importResources(from sourceURLs: [URL], intoProjectAt projectPath: String) async throws -> [ProjectResource] {
+    resourceURLs.append(contentsOf: sourceURLs)
+    return []
+  }
+
+  func importTextResource(
+    named fileName: String,
+    contents: String,
+    intoProjectAt projectPath: String
+  ) async throws -> [ProjectResource] {
+    textResources.append(ProjectTextResource(fileName: fileName, contents: contents))
+    return []
+  }
+
+  func importReferenceCodebase(from sourceURL: URL, intoProjectAt projectPath: String) async throws -> [ProjectResource] {
+    codebaseURLs.append(sourceURL)
+    return []
+  }
+
+  func deleteItem(_ item: ProjectResourcePanelItem) async throws {}
+
+  func importedResourceURLs() -> [URL] {
+    resourceURLs
+  }
+
+  func importedCodebaseURLs() -> [URL] {
+    codebaseURLs
+  }
+
+  func importedTextResources() -> [ProjectTextResource] {
+    textResources
   }
 }
 

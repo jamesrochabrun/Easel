@@ -216,7 +216,14 @@ struct CanvasContentView: View {
       DesignSystemSetupView(
         viewModel: designSystemSetupViewModel,
         onCancel: {
+          let shouldResumeContext = sidebarViewModel?.consumeHighFidelityContextResumeRequest() == true
           isDesignSystemSetupPresented = false
+          if shouldResumeContext {
+            Task { @MainActor in
+              await Task.yield()
+              sidebarViewModel?.requestHighFidelityContext()
+            }
+          }
         },
         onCreated: handleDesignSystemCreated
       )
@@ -232,7 +239,14 @@ struct CanvasContentView: View {
             isDesignSystemSetupPresented = true
           },
           onDone: {
+            let shouldResumeContext = sidebarViewModel.consumeHighFidelityContextResumeRequest()
             isDesignSystemBrowserPresented = false
+            if shouldResumeContext {
+              Task { @MainActor in
+                await Task.yield()
+                sidebarViewModel.requestHighFidelityContext()
+              }
+            }
           }
         )
         .frame(minWidth: 1040, minHeight: 720)
@@ -494,6 +508,19 @@ struct CanvasContentView: View {
 
   private func handleDesignSystemCreated(_ launch: EaselDesignSystemLaunch) {
     isDesignSystemSetupPresented = false
+
+    if let sidebarViewModel,
+       sidebarViewModel.consumeHighFidelityContextResumeRequest() {
+      sidebarViewModel.selectDesignSystem(.custom(launch.profile))
+      Task {
+        await sidebarViewModel.loadSessions()
+        await designLibraryViewModel?.refresh()
+        await Task.yield()
+        sidebarViewModel.requestHighFidelityContext()
+      }
+      return
+    }
+
     enterWorkspace()
     selectedCanvasSurface = .canvas
     sidebarViewModel?.selectDesignSystem(.custom(launch.profile))

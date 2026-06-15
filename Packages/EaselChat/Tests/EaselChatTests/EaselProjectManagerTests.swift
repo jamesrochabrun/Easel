@@ -34,6 +34,9 @@ struct EaselProjectManagerTests {
 
     let readme = try String(contentsOf: projectURL.appendingPathComponent("README.md"), encoding: .utf8)
     #expect(readme.contains("- Fidelity: High fidelity"))
+    #expect(readme.contains("resources/codebase-references"))
+    #expect(readme.contains("read-only context"))
+    #expect(readme.contains("make all implementation changes inside this Easel project folder"))
 
     let metadataURL = projectURL
       .appendingPathComponent(".easel", isDirectory: true)
