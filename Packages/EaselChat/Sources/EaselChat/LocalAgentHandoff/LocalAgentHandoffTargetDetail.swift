@@ -34,14 +34,21 @@ struct LocalAgentHandoffTargetDetail: View {
         HStack(spacing: 8) {
           LocalAgentHandoffPathBadge(path: selectedRepositoryPath, isSelected: true)
 
-          Button("Change", systemImage: "folder.badge.plus", action: onSelectRepository)
+          Button("Change folder", systemImage: "folder", action: onSelectRepository)
             .labelStyle(.iconOnly)
             .buttonStyle(.bordered)
-            .help("Change repo")
+            .help("Choose a different repository")
         }
       } else {
-        Button("Select Repo", systemImage: "folder.badge.plus", action: onSelectRepository)
-          .buttonStyle(.bordered)
+        VStack(alignment: .leading, spacing: 8) {
+          Text("Choose an existing repository for the agent to work in.")
+            .font(.callout)
+            .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
+
+          Button("Choose Folder…", systemImage: "folder", action: onSelectRepository)
+            .buttonStyle(.bordered)
+            .help("Choose an existing repository")
+        }
       }
 
     case .newProject:
@@ -49,16 +56,19 @@ struct LocalAgentHandoffTargetDetail: View {
         LocalAgentHandoffPathBadge(path: createdProjectPath, isSelected: true)
       } else {
         VStack(alignment: .leading, spacing: 8) {
-          Text("Select a root folder for your project.")
+          Text("Choose a root folder where the new project will be created.")
             .font(.callout)
             .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
 
           Button(action: onCreateProject) {
-            Label(isCreatingProject ? "Creating Project" : "Select Root Folder", systemImage: isCreatingProject ? "hourglass" : "folder.badge.plus")
+            Label(
+              isCreatingProject ? "Creating Project…" : "Choose Folder…",
+              systemImage: isCreatingProject ? "hourglass" : "folder.badge.plus"
+            )
           }
           .buttonStyle(.bordered)
           .disabled(!canCreateProject)
-          .help("Select a root folder for your project")
+          .help("Choose a root folder for the new project")
         }
       }
     }

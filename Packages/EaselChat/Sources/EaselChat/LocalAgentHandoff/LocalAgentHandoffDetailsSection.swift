@@ -12,20 +12,26 @@ struct LocalAgentHandoffDetailsSection: View {
   @Environment(\.colorScheme) private var colorScheme
 
   var body: some View {
-    LocalAgentHandoffSection(title: "Implement") {
+    LocalAgentHandoffSection(
+      title: "Give the agent more detail on what to implement",
+      isOptional: true
+    ) {
       TextField(
         LocalAgentHandoffPromptBuilder.defaultDetails,
         text: $viewModel.details,
         axis: .vertical
       )
       .textFieldStyle(.plain)
-      .font(.title3)
-      .lineLimit(4...)
-      .padding(18)
-      .frame(minHeight: 118, alignment: .topLeading)
-      .background(EaselDesignSystem.Palette.surface(for: colorScheme), in: RoundedRectangle(cornerRadius: 8))
+      .font(.body)
+      .lineLimit(3...6)
+      .padding(14)
+      .frame(minHeight: 96, alignment: .topLeading)
+      .background(
+        EaselDesignSystem.Palette.surface(for: colorScheme),
+        in: RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.card)
+      )
       .overlay {
-        RoundedRectangle(cornerRadius: 8)
+        RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.card)
           .stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1)
       }
     }

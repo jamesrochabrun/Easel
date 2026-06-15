@@ -10,7 +10,7 @@ import Foundation
 public final class LocalAgentHandoffViewModel {
   public var selectedProvider: LocalAgentProvider = .codex
   public var selectedTarget: LocalAgentHandoffTarget = .newProject
-  public var details = LocalAgentHandoffPromptBuilder.defaultDetails
+  public var details = ""
   public private(set) var selectedRepositoryPath: String?
   public private(set) var createdProjectPath: String?
   public private(set) var isCreatingProject = false

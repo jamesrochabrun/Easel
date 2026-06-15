@@ -37,15 +37,13 @@ enum LocalAgentHandoffPromptBuilder {
     ]
 
     if let project = context.project {
-      lines.append("Current project type: \(project.kind.displayName)")
+      switch project.kind {
+      case .prototype:
+        lines.append(prototypeHandoffMission)
 
-      if project.kind == .slideDeck {
+      case .slideDeck:
+        lines.append("Current project type: \(project.kind.displayName)")
         lines.append("Slide deck contract: \(SlideDeckContract.authoringSummary)")
-      }
-
-      if project.kind == .prototype {
-        lines.append("Current prototype fidelity: \(project.fidelity.displayName)")
-        lines.append("Prototype fidelity contract: \(project.fidelity.agentGuidance)")
       }
 
       if project.designSystem.kind == .custom {
@@ -59,6 +57,10 @@ enum LocalAgentHandoffPromptBuilder {
 
     return lines.joined(separator: "\n")
   }
+
+  private static let prototypeHandoffMission = """
+  You are being handed off a prototype to productionize. Turn it into production-ready, maintainable code rooted in the design context and resources above. The design exploration and clarifying questions are already complete — do not restart the design process or ask design questions. Build the real implementation directly from the Easel resources, preserving the prototype's layout, visuals, states, and interactions.
+  """
 
   private static func normalizedDetails(_ details: String) -> String {
     let trimmed = details.trimmingCharacters(in: .whitespacesAndNewlines)
