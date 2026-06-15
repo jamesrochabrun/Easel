@@ -144,6 +144,6 @@ private struct FixedLocalAgentWorkspaceCreator: LocalAgentHandoffWorkspaceCreati
 
   func createWorkspace(for context: LocalAgentHandoffContext, in parentDirectory: URL) async throws -> String {
     XCTAssertEqual(parentDirectory.path, "/tmp/root")
-    path
+    return path
   }
 }
