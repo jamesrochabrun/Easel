@@ -663,6 +663,12 @@ struct CanvasContentView: View {
 
       Spacer()
 
+      #if DEBUG
+        if chatService.currentWorkingDirectory != nil {
+          CanvasProjectTokenBadge(summary: chatService.currentWorkspaceUsageSummary)
+        }
+      #endif
+
       Button(action: showLocalAgentHandoff) {
         Label("Send Handoff", systemImage: "paperplane")
           .font(.system(size: 13, weight: .medium))

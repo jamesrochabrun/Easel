@@ -83,4 +83,58 @@ final class SimplifiedClaudeCodeSQLiteStorageTests: XCTestCase {
     XCTAssertEqual(newSession.messages.map(\.id), messages.map(\.id))
     XCTAssertEqual(newSession.messages.map(\.content), ["first", "reply"])
   }
+
+  func testRecordUsagePersistsSessionAndWorkingDirectorySummaries() async throws {
+    let storage = SimplifiedClaudeCodeSQLiteStorage(applicationSupportDirectory: temporaryRoot)
+    let workingDirectory = "/tmp/easel"
+
+    try await storage.saveSession(
+      id: "session-1",
+      firstMessage: "first",
+      workingDirectory: workingDirectory,
+      branchName: nil,
+      isWorktree: false
+    )
+    try await storage.saveSession(
+      id: "session-2",
+      firstMessage: "second",
+      workingDirectory: workingDirectory,
+      branchName: nil,
+      isWorktree: false
+    )
+
+    try await storage.recordUsage(
+      id: "session-1",
+      usage: SessionUsageRecord(
+        provider: .codex,
+        modelIdentifier: "gpt-5.5",
+        inputTokens: 1_000,
+        outputTokens: 200,
+        cachedInputTokens: 100,
+        reasoningOutputTokens: 25
+      )
+    )
+    try await storage.recordUsage(
+      id: "session-2",
+      usage: SessionUsageRecord(
+        provider: .codex,
+        modelIdentifier: "gpt-5.5",
+        inputTokens: 500,
+        outputTokens: 50
+      )
+    )
+
+    let storedSession = try await storage.getSession(id: "session-1")
+    let session = try XCTUnwrap(storedSession)
+    XCTAssertEqual(session.usageSummary.inputTokens, 1_000)
+    XCTAssertEqual(session.usageSummary.outputTokens, 200)
+    XCTAssertEqual(session.usageSummary.cachedInputTokens, 100)
+    XCTAssertEqual(session.usageSummary.reasoningOutputTokens, 25)
+
+    let workspaceSummary = try await storage.usageSummaryForWorkingDirectory(workingDirectory)
+    XCTAssertEqual(workspaceSummary.inputTokens, 1_500)
+    XCTAssertEqual(workspaceSummary.outputTokens, 250)
+    XCTAssertEqual(workspaceSummary.cachedInputTokens, 100)
+    XCTAssertEqual(workspaceSummary.reasoningOutputTokens, 25)
+  }
 }

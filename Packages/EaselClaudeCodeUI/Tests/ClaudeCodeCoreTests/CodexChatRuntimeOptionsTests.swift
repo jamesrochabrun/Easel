@@ -38,6 +38,20 @@ final class CodexChatRuntimeOptionsTests: XCTestCase {
   }
 
   @MainActor
+  func testDeveloperInstructionsAreNotPassedToResumeOptions() {
+    let options = CodexChatRuntime.makeOptions(
+      isFirstTurn: false,
+      currentSessionId: "thread-id",
+      workingDirectory: "/tmp/easel",
+      developerInstructions: "You are a frontend designer-agent.",
+      configOverrides: [:]
+    )
+
+    XCTAssertNil(options.configOverrides["developer_instructions"])
+    XCTAssertEqual(options.resumeSessionId, "thread-id")
+  }
+
+  @MainActor
   func testSelectedModelIsPassedToFirstTurnOptions() {
     let options = CodexChatRuntime.makeOptions(
       isFirstTurn: true,

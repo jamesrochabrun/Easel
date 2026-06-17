@@ -257,7 +257,6 @@ enum EaselAgentInstructions {
 
       if projectKind == .slideDeck {
         lines.append("Slide deck contract: \(SlideDeckContract.authoringSummary)")
-        lines.append("Slide deck creation contract: \(slideDeckCreationGuidance)")
       }
 
       if projectKind == .prototype, let projectFidelity {
@@ -306,5 +305,38 @@ enum EaselAgentInstructions {
         return trimmed?.isEmpty == false ? trimmed : nil
       }
       .joined(separator: "\n\n")
+  }
+
+  static func resourceManifestDeltaContext(
+    addedPaths: [String],
+    updatedPaths: [String],
+    removedPaths: [String]
+  ) -> String? {
+    guard !addedPaths.isEmpty || !updatedPaths.isEmpty || !removedPaths.isEmpty else {
+      return nil
+    }
+
+    var lines = [
+      "--- Easel Resource Update ---",
+      "Project resources or design files changed since the previous message.",
+    ]
+
+    appendResourceDeltaSection(title: "Added resources:", paths: addedPaths, to: &lines)
+    appendResourceDeltaSection(title: "Updated resources:", paths: updatedPaths, to: &lines)
+    appendResourceDeltaSection(title: "Removed resources:", paths: removedPaths, to: &lines)
+
+    lines.append("Use these updates when the user's request references recent assets, design files, or project resources.")
+    return lines.joined(separator: "\n")
+  }
+
+  private static func appendResourceDeltaSection(
+    title: String,
+    paths: [String],
+    to lines: inout [String]
+  ) {
+    guard !paths.isEmpty else { return }
+
+    lines.append(title)
+    lines.append(contentsOf: paths.map { "- `\($0)`" })
   }
 }

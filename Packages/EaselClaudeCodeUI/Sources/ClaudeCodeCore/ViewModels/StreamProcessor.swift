@@ -99,6 +99,7 @@ final class StreamProcessor {
     onError: ((Error) -> Void)? = nil,
     onTokenUsageUpdate: ((Int, Int) -> Void)? = nil,
     onCostUpdate: ((Double) -> Void)? = nil,
+    onUsageRecord: ((SessionUsageRecord) -> Void)? = nil,
     onResultReceived: (() -> Void)? = nil
   ) async {
     // Reset the continuation resumed flag for this new stream
@@ -238,7 +239,7 @@ final class StreamProcessor {
             hasReceivedData = true // Mark that we received data
             timeoutTask?.cancel() // Cancel timeout when data arrives
             guard let self = self else { return }
-            self.processChunk(chunk, messageId: messageId, state: state, firstMessageInSession: firstMessageInSession, onTokenUsageUpdate: onTokenUsageUpdate, onCostUpdate: onCostUpdate, onResultReceived: onResultReceived)
+            self.processChunk(chunk, messageId: messageId, state: state, firstMessageInSession: firstMessageInSession, onTokenUsageUpdate: onTokenUsageUpdate, onCostUpdate: onCostUpdate, onUsageRecord: onUsageRecord, onResultReceived: onResultReceived)
           }
         )
       
@@ -248,7 +249,7 @@ final class StreamProcessor {
     }
   }
   
-  private func processChunk(_ chunk: ResponseChunk, messageId: UUID, state: StreamState, firstMessageInSession: String?, onTokenUsageUpdate: ((Int, Int) -> Void)?, onCostUpdate: ((Double) -> Void)?, onResultReceived: (() -> Void)?) {
+  private func processChunk(_ chunk: ResponseChunk, messageId: UUID, state: StreamState, firstMessageInSession: String?, onTokenUsageUpdate: ((Int, Int) -> Void)?, onCostUpdate: ((Double) -> Void)?, onUsageRecord: ((SessionUsageRecord) -> Void)?, onResultReceived: (() -> Void)?) {
     switch chunk {
     case .initSystem(let initMessage):
       handleInitSystem(initMessage, firstMessageInSession: firstMessageInSession)
@@ -260,7 +261,7 @@ final class StreamProcessor {
       handleUserMessage(userMessage, state: state)
 
     case .result(let resultMessage):
-      handleResult(resultMessage, firstMessageInSession: firstMessageInSession, onTokenUsageUpdate: onTokenUsageUpdate, onCostUpdate: onCostUpdate, onResultReceived: onResultReceived)
+      handleResult(resultMessage, firstMessageInSession: firstMessageInSession, onTokenUsageUpdate: onTokenUsageUpdate, onCostUpdate: onCostUpdate, onUsageRecord: onUsageRecord, onResultReceived: onResultReceived)
     }
   }
   
@@ -596,7 +597,7 @@ final class StreamProcessor {
     }
   }
   
-  private func handleResult(_ resultMessage: ResultMessage, firstMessageInSession: String?, onTokenUsageUpdate: ((Int, Int) -> Void)?, onCostUpdate: ((Double) -> Void)?, onResultReceived: (() -> Void)?) {
+  private func handleResult(_ resultMessage: ResultMessage, firstMessageInSession: String?, onTokenUsageUpdate: ((Int, Int) -> Void)?, onCostUpdate: ((Double) -> Void)?, onUsageRecord: ((SessionUsageRecord) -> Void)?, onResultReceived: (() -> Void)?) {
     if sessionManager.currentSessionId == nil {
       debugLogger.stream("handleResult - No current session, starting new with ID: \(resultMessage.sessionId)")
       let firstMessage = firstMessageInSession ?? "New conversation"
@@ -617,6 +618,20 @@ final class StreamProcessor {
 
     // Update cost
     onCostUpdate?(resultMessage.totalCostUsd)
+
+    if let usage = resultMessage.usage {
+      let usageRecord = SessionUsageRecord(
+        provider: .claude,
+        modelIdentifier: nil,
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        cachedInputTokens: usage.cacheCreationInputTokens + usage.cacheReadInputTokens
+      )
+
+      if usageRecord.hasUsage {
+        onUsageRecord?(usageRecord)
+      }
+    }
 
     // Notify that result has been received (content is complete)
     onResultReceived?()

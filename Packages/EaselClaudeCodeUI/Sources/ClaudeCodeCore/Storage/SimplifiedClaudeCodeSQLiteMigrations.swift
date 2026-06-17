@@ -71,10 +71,12 @@ public actor SimplifiedClaudeCodeSQLiteMigrationManager {
   /// Version 1: Initial schema with sessions, messages, and attachments tables
   /// Version 2: Add git worktree support (branch_name, is_worktree columns)
   /// Version 3: Persist provider tool use IDs on messages
+  /// Version 4: Add aggregate session token usage columns
+  /// Version 5: Add reasoning output token usage column
   ///
   /// WHEN ADDING MIGRATIONS: Update this to the new version number
   /// See MIGRATION_GUIDE.md for instructions
-  public static let CURRENT_SCHEMA_VERSION = 3
+  public static let CURRENT_SCHEMA_VERSION = 5
 
   private let database: Connection
   private let databasePath: String
@@ -155,6 +157,12 @@ public actor SimplifiedClaudeCodeSQLiteMigrationManager {
     }
     if currentVersion < 3 {
       migrations.append(MigrationV3_AddMessageToolUseID())
+    }
+    if currentVersion < 4 {
+      migrations.append(MigrationV4_AddSessionUsageSummary())
+    }
+    if currentVersion < 5 {
+      migrations.append(MigrationV5_AddReasoningOutputTokenUsage())
     }
 
     return migrations
@@ -299,6 +307,42 @@ struct MigrationV3_AddMessageToolUseID: DatabaseMigration {
         ADD COLUMN tool_use_id TEXT DEFAULT NULL
       """)
     }
+  }
+}
+
+struct MigrationV4_AddSessionUsageSummary: DatabaseMigration {
+  var version: Int { 4 }
+  var description: String { "Add aggregate session token usage columns" }
+
+  func migrate(database: Connection) async throws {
+    try database.transaction {
+      try database.execute("""
+        ALTER TABLE sessions
+        ADD COLUMN usage_input_tokens INTEGER DEFAULT 0
+      """)
+
+      try database.execute("""
+        ALTER TABLE sessions
+        ADD COLUMN usage_output_tokens INTEGER DEFAULT 0
+      """)
+
+      try database.execute("""
+        ALTER TABLE sessions
+        ADD COLUMN usage_cached_input_tokens INTEGER DEFAULT 0
+      """)
+    }
+  }
+}
+
+struct MigrationV5_AddReasoningOutputTokenUsage: DatabaseMigration {
+  var version: Int { 5 }
+  var description: String { "Add reasoning output token usage column" }
+
+  func migrate(database: Connection) async throws {
+    try database.execute("""
+      ALTER TABLE sessions
+      ADD COLUMN usage_reasoning_output_tokens INTEGER DEFAULT 0
+    """)
   }
 }
 

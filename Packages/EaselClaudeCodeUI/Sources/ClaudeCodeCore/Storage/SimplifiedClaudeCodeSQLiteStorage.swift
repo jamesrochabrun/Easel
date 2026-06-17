@@ -49,7 +49,8 @@ public actor SimplifiedClaudeCodeSQLiteStorage: SessionStorageProtocol {
         messages: messages,
         workingDirectory: sessionRow[workingDirectoryColumn],
         branchName: sessionRow[branchNameColumn],
-        isWorktree: sessionRow[isWorktreeColumn]
+        isWorktree: sessionRow[isWorktreeColumn],
+        usageSummary: usageSummary(from: sessionRow)
       )
       
       storedSessions.append(storedSession)
@@ -75,7 +76,8 @@ public actor SimplifiedClaudeCodeSQLiteStorage: SessionStorageProtocol {
       messages: messages,
       workingDirectory: sessionRow[workingDirectoryColumn],
       branchName: sessionRow[branchNameColumn],
-      isWorktree: sessionRow[isWorktreeColumn]
+      isWorktree: sessionRow[isWorktreeColumn],
+      usageSummary: usageSummary(from: sessionRow)
     )
     return storedSession
   }
@@ -169,9 +171,22 @@ public actor SimplifiedClaudeCodeSQLiteStorage: SessionStorageProtocol {
           lastAccessedAtColumn <- Date(),
           workingDirectoryColumn <- oldSessionRow[workingDirectoryColumn],
           branchNameColumn <- oldSessionRow[branchNameColumn],
-          isWorktreeColumn <- oldSessionRow[isWorktreeColumn]
+          isWorktreeColumn <- oldSessionRow[isWorktreeColumn],
+          usageInputTokensColumn <- oldSessionRow[usageInputTokensColumn],
+          usageOutputTokensColumn <- oldSessionRow[usageOutputTokensColumn],
+          usageCachedInputTokensColumn <- oldSessionRow[usageCachedInputTokensColumn],
+          usageReasoningOutputTokensColumn <- oldSessionRow[usageReasoningOutputTokensColumn]
         )
         try database.run(insertNewSession)
+      } else {
+        let newSession = sessionsTable.filter(sessionIdColumn == newId)
+        let newSessionRow = try database.pluck(newSession)
+        try database.run(newSession.update(
+          usageInputTokensColumn <- (newSessionRow?[usageInputTokensColumn] ?? 0) + oldSessionRow[usageInputTokensColumn],
+          usageOutputTokensColumn <- (newSessionRow?[usageOutputTokensColumn] ?? 0) + oldSessionRow[usageOutputTokensColumn],
+          usageCachedInputTokensColumn <- (newSessionRow?[usageCachedInputTokensColumn] ?? 0) + oldSessionRow[usageCachedInputTokensColumn],
+          usageReasoningOutputTokensColumn <- (newSessionRow?[usageReasoningOutputTokensColumn] ?? 0) + oldSessionRow[usageReasoningOutputTokensColumn]
+        ))
       }
 
       let oldMessages = messagesTable.filter(messageSessionIdColumn == oldId)
@@ -180,6 +195,38 @@ public actor SimplifiedClaudeCodeSQLiteStorage: SessionStorageProtocol {
       let deleteOldSession = sessionsTable.filter(sessionIdColumn == oldId)
       try database.run(deleteOldSession.delete())
     }
+  }
+
+  public func recordUsage(id: String, usage: SessionUsageRecord) async throws {
+    try await initializeDatabaseIfNeeded()
+
+    let session = sessionsTable.filter(sessionIdColumn == id)
+    guard let sessionRow = try database.pluck(session) else {
+      return
+    }
+
+    try database.run(session.update(
+      usageInputTokensColumn <- sessionRow[usageInputTokensColumn] + usage.inputTokens,
+      usageOutputTokensColumn <- sessionRow[usageOutputTokensColumn] + usage.outputTokens,
+      usageCachedInputTokensColumn <- sessionRow[usageCachedInputTokensColumn] + usage.cachedInputTokens,
+      usageReasoningOutputTokensColumn <- sessionRow[usageReasoningOutputTokensColumn] + usage.reasoningOutputTokens
+    ))
+  }
+
+  public func usageSummaryForWorkingDirectory(_ workingDirectory: String?) async throws -> SessionUsageSummary {
+    try await initializeDatabaseIfNeeded()
+
+    let normalizedDirectory = workingDirectory?.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard let normalizedDirectory, !normalizedDirectory.isEmpty else {
+      return .zero
+    }
+
+    let query = sessionsTable.filter(workingDirectoryColumn == normalizedDirectory)
+    var summary = SessionUsageSummary.zero
+    for sessionRow in try database.prepare(query) {
+      summary = summary.adding(usageSummary(from: sessionRow))
+    }
+    return summary
   }
   
   private var database: Connection!
@@ -198,6 +245,10 @@ public actor SimplifiedClaudeCodeSQLiteStorage: SessionStorageProtocol {
   private let workingDirectoryColumn = Expression<String?>("working_directory")
   private let branchNameColumn = Expression<String?>("branch_name")
   private let isWorktreeColumn = Expression<Bool>("is_worktree")
+  private let usageInputTokensColumn = Expression<Int>("usage_input_tokens")
+  private let usageOutputTokensColumn = Expression<Int>("usage_output_tokens")
+  private let usageCachedInputTokensColumn = Expression<Int>("usage_cached_input_tokens")
+  private let usageReasoningOutputTokensColumn = Expression<Int>("usage_reasoning_output_tokens")
   
   // Message columns
   private let messageIdColumn = Expression<String>("id")
@@ -286,6 +337,10 @@ public actor SimplifiedClaudeCodeSQLiteStorage: SessionStorageProtocol {
       table.column(workingDirectoryColumn)
       table.column(branchNameColumn)
       table.column(isWorktreeColumn, defaultValue: false)
+      table.column(usageInputTokensColumn, defaultValue: 0)
+      table.column(usageOutputTokensColumn, defaultValue: 0)
+      table.column(usageCachedInputTokensColumn, defaultValue: 0)
+      table.column(usageReasoningOutputTokensColumn, defaultValue: 0)
     })
     
     // Create messages table
@@ -370,5 +425,14 @@ public actor SimplifiedClaudeCodeSQLiteStorage: SessionStorageProtocol {
     }
 
     return messages
+  }
+
+  private func usageSummary(from row: Row) -> SessionUsageSummary {
+    SessionUsageSummary(
+      inputTokens: row[usageInputTokensColumn],
+      outputTokens: row[usageOutputTokensColumn],
+      cachedInputTokens: row[usageCachedInputTokensColumn],
+      reasoningOutputTokens: row[usageReasoningOutputTokensColumn]
+    )
   }
 }

@@ -45,11 +45,17 @@ public final class ChatViewModel {
   /// Optional callback invoked when session changes, used for external state synchronization
   private let onSessionChange: ((String) -> Void)?
 
+  /// Optional callback invoked when a session usage total changes.
+  private let onSessionUsageChange: ((String) -> Void)?
+
   /// Optional callback invoked when a user message is sent, used for external logging
   private let onUserMessageSent: ((String, [TextSelection]?, [FileAttachment]?) -> Void)?
 
   /// Optional hidden context supplied by an embedding app for every outgoing turn.
   @ObservationIgnored public var runtimeHiddenContextProvider: (() -> String?)?
+
+  /// Optional hidden context supplied by an embedding app when runtime context is omitted.
+  @ObservationIgnored public var outgoingHiddenContextProvider: (() -> String?)?
 
   /// Controls whether this view model should manage sessions (load, save, switch, etc.)
   /// Set to false when using ChatScreen directly without RootView to avoid unnecessary session operations
@@ -174,6 +180,7 @@ public final class ChatViewModel {
   public private(set) var currentInputTokens: Int = 0
   public private(set) var currentOutputTokens: Int = 0
   public private(set) var currentCostUSD: Double = 0.0
+  public private(set) var currentSessionUsageSummary: SessionUsageSummary = .zero
   
   /// Tracks whether a session has started (first message sent)
   public private(set) var hasSessionStarted: Bool = false
@@ -414,6 +421,7 @@ EOF
       codexDeveloperInstructionsPrefix: nil,
       shouldManageSessions: false,
       onSessionChange: nil,
+      onSessionUsageChange: nil,
       onUserMessageSent: nil
     )
   }
@@ -430,6 +438,7 @@ EOF
     codexDeveloperInstructionsPrefix: String? = nil,
     shouldManageSessions: Bool = true,
     onSessionChange: ((String) -> Void)? = nil,
+    onSessionUsageChange: ((String) -> Void)? = nil,
     onUserMessageSent: ((String, [TextSelection]?, [FileAttachment]?) -> Void)? = nil)
   {
     self.claudeClient = claudeClient
@@ -443,6 +452,7 @@ EOF
     self.codexDeveloperInstructionsPrefix = codexDeveloperInstructionsPrefix
     self.shouldManageSessions = shouldManageSessions
     self.onSessionChange = onSessionChange
+    self.onSessionUsageChange = onSessionUsageChange
     self.onUserMessageSent = onUserMessageSent
     self.activeProvider = globalPreferences.chatProvider.supportedProvider
     self.sessionManager = SessionManager(sessionStorage: sessionStorage, logger: logger)
@@ -636,8 +646,7 @@ EOF
     
     // Build message content for display (just the user's text)
     let displayContent = text
-    
-    let apiContent = makeAPIContent(
+    let apiContent = makeOutgoingAPIContent(
       text: text,
       context: context,
       hiddenContext: hiddenContext,
@@ -701,6 +710,7 @@ EOF
     text: String,
     context: String? = nil,
     hiddenContext: String? = nil,
+    includeRuntimeHiddenContext: Bool = true,
     attachments: [FileAttachment]? = nil
   ) -> String {
     var apiContentParts: [String] = [text]
@@ -717,7 +727,10 @@ EOF
     }
 
     // Add hidden context if present
-    if let combinedHiddenContext = combinedHiddenContext(hiddenContext), !combinedHiddenContext.isEmpty {
+    if let combinedHiddenContext = combinedHiddenContext(
+      hiddenContext,
+      includeRuntimeHiddenContext: includeRuntimeHiddenContext
+    ), !combinedHiddenContext.isEmpty {
       apiContentParts.append(combinedHiddenContext)
     }
 
@@ -732,13 +745,54 @@ EOF
     return apiContentParts.joined(separator: "\n\n")
   }
 
-  private func combinedHiddenContext(_ hiddenContext: String?) -> String? {
-    [hiddenContext, runtimeHiddenContextProvider?()]
+  func makeOutgoingAPIContent(
+    text: String,
+    context: String? = nil,
+    hiddenContext: String? = nil,
+    attachments: [FileAttachment]? = nil
+  ) -> String {
+    let includeRuntimeHiddenContext = shouldIncludeRuntimeHiddenContextForNewMessage()
+    let messageHiddenContext = joinedHiddenContexts([
+      hiddenContext,
+      includeRuntimeHiddenContext ? nil : outgoingHiddenContextProvider?()
+    ])
+
+    return makeAPIContent(
+      text: text,
+      context: context,
+      hiddenContext: messageHiddenContext,
+      includeRuntimeHiddenContext: includeRuntimeHiddenContext,
+      attachments: attachments
+    )
+  }
+
+  private func combinedHiddenContext(
+    _ hiddenContext: String?,
+    includeRuntimeHiddenContext: Bool = true
+  ) -> String? {
+    joinedHiddenContexts([
+      hiddenContext,
+      includeRuntimeHiddenContext ? runtimeHiddenContextProvider?() : nil
+    ])
+  }
+
+  private func joinedHiddenContexts(_ contexts: [String?]) -> String? {
+    let joined = contexts
       .compactMap { value -> String? in
         let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed?.isEmpty == false ? trimmed : nil
       }
       .joined(separator: "\n\n")
+
+    return joined.isEmpty ? nil : joined
+  }
+
+  private func shouldIncludeRuntimeHiddenContextForNewMessage() -> Bool {
+    guard activeProvider == .codex else {
+      return true
+    }
+
+    return sessionManager.currentSessionId == nil
   }
   
   /// Clears the conversation history and starts a new session
@@ -753,6 +807,7 @@ EOF
     errorQueue.removeAll()
     firstMessageInSession = nil
     hasSessionStarted = false
+    currentSessionUsageSummary = .zero
     endLoadingState()
     codexRuntime?.resetSession()
     codexTask = nil
@@ -772,6 +827,7 @@ EOF
         self.errorInfo = nil
         self.firstMessageInSession = nil
         self.hasSessionStarted = false
+        self.currentSessionUsageSummary = .zero
         
         // Clear the current path to force user to select a new one
         self.settingsStorage.clearProjectPath()
@@ -934,6 +990,36 @@ EOF
     }
     currentCostUSD = costUSD
   }
+
+  private func recordCompletedTurnUsage(_ record: SessionUsageRecord) {
+    updateTokenUsage(inputTokens: record.inputTokens, outputTokens: record.outputTokens)
+
+    guard let sessionId = currentSessionId else {
+      return
+    }
+
+    currentSessionUsageSummary = currentSessionUsageSummary.adding(record)
+
+    guard shouldManageSessions else {
+      onSessionUsageChange?(sessionId)
+      return
+    }
+
+    Task { [sessionStorage, weak self] in
+      do {
+        try await sessionStorage.recordUsage(id: sessionId, usage: record)
+      } catch {
+        await MainActor.run {
+          self?.debugLogger.chat("recordCompletedTurnUsage - ERROR: Failed to persist usage: \(error)")
+          self?.logger.error("Failed to persist usage for session \(sessionId): \(error)")
+        }
+      }
+
+      await MainActor.run {
+        self?.onSessionUsageChange?(sessionId)
+      }
+    }
+  }
   
   /// Loads all available sessions
   public func loadSessions() async {
@@ -944,11 +1030,13 @@ EOF
   
   /// Selects an existing session (without resuming)
   public func selectSession(id: String) {
-    guard let sessionId = sessions.first(where: { $0.id == id })?.id else { return }
+    guard let session = sessions.first(where: { $0.id == id }) else { return }
+    let sessionId = session.id
 
     // Notify settings storage of session change
     // Clear current messages
     messageStore.clear()
+    currentSessionUsageSummary = session.usageSummary
 
     // Set the session ID
     sessionManager.selectSession(id: sessionId)
@@ -1017,6 +1105,7 @@ EOF
     do {
       if let session = try await sessionStorage.getSession(id: id) {
         messageStore.loadMessages(session.messages)
+        currentSessionUsageSummary = session.usageSummary
         if isDebugEnabled {
           let log = "Loaded \(session.messages.count) messages for session \(id)"
           logger.debug("\(log)")
@@ -1051,7 +1140,12 @@ EOF
     settingsStorage.setProjectPath(projectPath)
   }
 
-  public func injectSession(sessionId: String, messages: [ChatMessage], workingDirectory: String? = nil) {
+  public func injectSession(
+    sessionId: String,
+    messages: [ChatMessage],
+    workingDirectory: String? = nil,
+    usageSummary: SessionUsageSummary = .zero
+  ) {
     // Stop any in-flight turn from the previous session/workspace so it can't
     // stream into or persist over the session we're about to load.
     stopActiveGeneration()
@@ -1059,6 +1153,7 @@ EOF
     // Set up the session
     sessionManager.selectSession(id: sessionId)
     handleSessionChange(sessionId)
+    currentSessionUsageSummary = usageSummary
 
     // Set working directory if provided
     if let dir = workingDirectory {
@@ -1382,6 +1477,9 @@ EOF
       environmentOverrides: globalPreferences.codexEnvironmentVariables,
       onSessionChange: { [weak self] sessionId in
         self?.handleRuntimeSessionChange(sessionId)
+      },
+      onUsageRecorded: { [weak self] record in
+        self?.recordCompletedTurnUsage(record)
       }
     )
     codexRuntime = runtime
@@ -1591,6 +1689,11 @@ EOF
         onCostUpdate: { [weak self] costUSD in
           Task { @MainActor in
             self?.updateCost(costUSD)
+          }
+        },
+        onUsageRecord: { [weak self] record in
+          Task { @MainActor in
+            self?.recordCompletedTurnUsage(record)
           }
         },
         onResultReceived: { [weak self] in

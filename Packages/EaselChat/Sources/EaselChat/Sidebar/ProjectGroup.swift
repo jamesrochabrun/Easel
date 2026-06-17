@@ -63,6 +63,10 @@ struct ProjectGroup: Identifiable {
     return displayName.isEmpty ? nil : displayName
   }
 
+  var usageSummary: SessionUsageSummary {
+    sessions.map(\.usageSummary).reduce(.zero) { $0.adding($1) }
+  }
+
   func matchesSearchText(_ searchText: String) -> Bool {
     let query = Self.normalizedSearchText(searchText)
     guard !query.isEmpty else { return true }

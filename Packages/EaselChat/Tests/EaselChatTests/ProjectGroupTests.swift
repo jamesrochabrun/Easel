@@ -69,6 +69,47 @@ struct ProjectGroupTests {
   }
 
   @Test
+  func groupUsageSummarySumsStoredSessions() {
+    let group = ProjectGroup(
+      id: "/tmp/checkout",
+      displayName: "Checkout",
+      project: nil,
+      workingDirectory: "/tmp/checkout",
+      sessions: [
+        StoredSession(
+          id: "one",
+          createdAt: Date(),
+          firstUserMessage: "One",
+          lastAccessedAt: Date(),
+          workingDirectory: "/tmp/checkout",
+          usageSummary: SessionUsageSummary(
+            inputTokens: 100,
+            outputTokens: 20,
+            cachedInputTokens: 10,
+            reasoningOutputTokens: 5
+          )
+        ),
+        StoredSession(
+          id: "two",
+          createdAt: Date(),
+          firstUserMessage: "Two",
+          lastAccessedAt: Date(),
+          workingDirectory: "/tmp/checkout",
+          usageSummary: SessionUsageSummary(
+            inputTokens: 50,
+            outputTokens: 5
+          )
+        )
+      ]
+    )
+
+    #expect(group.usageSummary.inputTokens == 150)
+    #expect(group.usageSummary.outputTokens == 25)
+    #expect(group.usageSummary.cachedInputTokens == 10)
+    #expect(group.usageSummary.reasoningOutputTokens == 5)
+  }
+
+  @Test
   func groupsSurfaceDesignSystemsAsRows() {
     let designSystem = EaselDesignSystemProfile(
       id: UUID(),
