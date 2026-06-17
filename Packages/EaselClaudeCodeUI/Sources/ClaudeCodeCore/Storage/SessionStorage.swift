@@ -21,6 +21,8 @@ public struct StoredSession: Codable, Identifiable, Sendable {
   public let branchName: String?
   /// Whether this session is in a git worktree
   public let isWorktree: Bool
+  /// Aggregate token usage recorded for this session.
+  public let usageSummary: SessionUsageSummary
 
   /// Creates a new StoredSession instance.
   /// - Parameters:
@@ -40,7 +42,8 @@ public struct StoredSession: Codable, Identifiable, Sendable {
     messages: [ChatMessage] = [],
     workingDirectory: String? = nil,
     branchName: String? = nil,
-    isWorktree: Bool = false
+    isWorktree: Bool = false,
+    usageSummary: SessionUsageSummary = .zero
   ) {
     self.id = id
     self.createdAt = createdAt
@@ -50,6 +53,32 @@ public struct StoredSession: Codable, Identifiable, Sendable {
     self.workingDirectory = workingDirectory
     self.branchName = branchName
     self.isWorktree = isWorktree
+    self.usageSummary = usageSummary
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case id
+    case createdAt
+    case firstUserMessage
+    case lastAccessedAt
+    case messages
+    case workingDirectory
+    case branchName
+    case isWorktree
+    case usageSummary
+  }
+
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    id = try container.decode(String.self, forKey: .id)
+    createdAt = try container.decode(Date.self, forKey: .createdAt)
+    firstUserMessage = try container.decode(String.self, forKey: .firstUserMessage)
+    lastAccessedAt = try container.decode(Date.self, forKey: .lastAccessedAt)
+    messages = try container.decodeIfPresent([ChatMessage].self, forKey: .messages) ?? []
+    workingDirectory = try container.decodeIfPresent(String.self, forKey: .workingDirectory)
+    branchName = try container.decodeIfPresent(String.self, forKey: .branchName)
+    isWorktree = try container.decodeIfPresent(Bool.self, forKey: .isWorktree) ?? false
+    usageSummary = try container.decodeIfPresent(SessionUsageSummary.self, forKey: .usageSummary) ?? .zero
   }
   
   /// Computed title based on first user message
@@ -92,6 +121,29 @@ public protocol SessionStorageProtocol {
   
   /// Updates the session ID (when Claude returns a new ID for the same conversation)
   func updateSessionId(oldId: String, newId: String) async throws
+
+  /// Adds token usage for a completed turn.
+  func recordUsage(id: String, usage: SessionUsageRecord) async throws
+
+  /// Returns aggregate usage for all sessions associated with a working directory.
+  func usageSummaryForWorkingDirectory(_ workingDirectory: String?) async throws -> SessionUsageSummary
+}
+
+public extension SessionStorageProtocol {
+  func recordUsage(id: String, usage: SessionUsageRecord) async throws {}
+
+  func usageSummaryForWorkingDirectory(_ workingDirectory: String?) async throws -> SessionUsageSummary {
+    let normalizedDirectory = workingDirectory?.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard let normalizedDirectory, !normalizedDirectory.isEmpty else {
+      return .zero
+    }
+
+    let sessions = try await getAllSessions()
+    return sessions
+      .filter { $0.workingDirectory == normalizedDirectory }
+      .map(\.usageSummary)
+      .reduce(.zero) { $0.adding($1) }
+  }
 }
 
 /// No-operation implementation of SessionStorage for direct ChatScreen usage.

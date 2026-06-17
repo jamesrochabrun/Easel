@@ -34,6 +34,16 @@ struct SidebarSessionRow: View {
 
             Spacer()
 
+            #if DEBUG
+              if session.usageSummary.hasUsage {
+                Text(session.usageSummary.formattedTotalTokens)
+                  .font(.system(.caption2, design: .monospaced))
+                  .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
+                  .lineLimit(1)
+                  .help("Exact provider-reported session API usage: \(session.usageSummary.formattedBreakdown)")
+              }
+            #endif
+
             Text(relativeTime)
               .font(.system(.caption2, design: .monospaced))
               .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))

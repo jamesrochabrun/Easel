@@ -26,6 +26,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
   public private(set) var currentSessionId: String?
   public private(set) var currentWorkingDirectory: String?
   public private(set) var currentProject: EaselDesignProject?
+  public private(set) var currentWorkspaceUsageSummary: SessionUsageSummary = .zero
   public private(set) var sessionStorage: SessionStorageProtocol
   public var mcpToolsDiscoveryService: MCPToolsDiscoveryService { mcpToolsDiscovery }
 
@@ -40,6 +41,8 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
   private let logger: ClaudeCodeLogger
   private var previewURLSource: PreviewURLSource?
   private var currentProjectLookupTask: Task<Void, Never>?
+  private var currentWorkspaceUsageTask: Task<Void, Never>?
+  private var lastSentResourceManifestByWorkingDirectory: [String: [String: ProjectResourceFileSignature]] = [:]
 
   // MARK: - Init
 
@@ -107,6 +110,13 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
         onSessionChange: { [weak self] newSessionId in
           Task { @MainActor in
             self?.currentSessionId = newSessionId
+            self?.refreshCurrentWorkspaceUsage()
+            self?.onSessionChanged?()
+          }
+        },
+        onSessionUsageChange: { [weak self] _ in
+          Task { @MainActor in
+            self?.refreshCurrentWorkspaceUsage()
             self?.onSessionChanged?()
           }
         }
@@ -185,7 +195,8 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
     chatViewModel?.injectSession(
       sessionId: sessionToLoad.id,
       messages: sessionToLoad.messages,
-      workingDirectory: sessionToLoad.workingDirectory
+      workingDirectory: sessionToLoad.workingDirectory,
+      usageSummary: sessionToLoad.usageSummary
     )
 
     currentSessionId = session.id
@@ -223,6 +234,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
 
     currentSessionId = nil
     clearPreviewURL()
+    refreshCurrentWorkspaceUsage()
     startPreviewObservation()
   }
 
@@ -232,6 +244,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
       currentSessionId = nil
       chatViewModel?.clearConversation()
     }
+    refreshCurrentWorkspaceUsage()
   }
 
   public func clearActiveWorkspace() {
@@ -258,6 +271,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
     currentProjectLookupTask?.cancel()
     currentProject = project
     currentWorkingDirectory = project?.workingDirectory
+    refreshCurrentWorkspaceUsage()
   }
 
   public func localAgentHandoffContext() -> LocalAgentHandoffContext? {
@@ -316,11 +330,25 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
   }
 
   private func sendMessageToViewModel(_ text: String, context: String? = nil, hiddenContext: String? = nil) {
-    chatViewModel?.sendMessage(text, context: context, hiddenContext: hiddenContext)
+    guard let chatViewModel else { return }
+
+    let messageHiddenContext = joinedHiddenContexts([
+      hiddenContext,
+      resourceManifestDeltaContextForOutgoingMessage()
+    ])
+    chatViewModel.sendMessage(text, context: context, hiddenContext: messageHiddenContext)
   }
 
-  func makeHiddenContextForCurrentState(_ hiddenContext: String?) -> String {
+  func makeHiddenContextForCurrentState(
+    _ hiddenContext: String?,
+    shouldRecordResourceManifest: Bool = true
+  ) -> String {
     let project = resolvedCurrentProject()
+    let resourceManifest = projectResourceManifest(at: currentWorkingDirectory)
+
+    if shouldRecordResourceManifest {
+      recordResourceManifest(resourceManifest, for: currentWorkingDirectory)
+    }
 
     return EaselAgentInstructions.appendingHiddenContext(
       hiddenContext,
@@ -328,8 +356,43 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
       projectKind: project?.kind,
       projectFidelity: prototypeFidelity(for: project),
       designSystem: project?.designSystem,
-      resourcePaths: projectResourcePaths(at: currentWorkingDirectory),
+      resourcePaths: resourceManifest.map(\.relativePath),
       previewURL: previewURL
+    )
+  }
+
+  func makeResourceManifestDeltaContextForCurrentState() -> String? {
+    guard let key = resourceManifestKey(for: currentWorkingDirectory) else {
+      return nil
+    }
+
+    let currentManifest = projectResourceManifest(at: currentWorkingDirectory)
+    let currentFiles = resourceManifestMap(currentManifest)
+
+    guard let previousFiles = lastSentResourceManifestByWorkingDirectory[key] else {
+      lastSentResourceManifestByWorkingDirectory[key] = currentFiles
+      return nil
+    }
+
+    lastSentResourceManifestByWorkingDirectory[key] = currentFiles
+
+    let addedPaths = currentFiles.keys
+      .filter { previousFiles[$0] == nil }
+      .sorted()
+    let removedPaths = previousFiles.keys
+      .filter { currentFiles[$0] == nil }
+      .sorted()
+    let updatedPaths = currentFiles.keys
+      .filter { path in
+        guard let previousSignature = previousFiles[path] else { return false }
+        return previousSignature != currentFiles[path]
+      }
+      .sorted()
+
+    return EaselAgentInstructions.resourceManifestDeltaContext(
+      addedPaths: addedPaths,
+      updatedPaths: updatedPaths,
+      removedPaths: removedPaths
     )
   }
 
@@ -342,7 +405,27 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
     let normalized = path?.trimmingCharacters(in: .whitespacesAndNewlines)
     currentWorkingDirectory = normalized?.isEmpty == false ? normalized : nil
     currentProject = projectMetadata(at: currentWorkingDirectory)
+    refreshCurrentWorkspaceUsage()
     refreshCurrentProjectMetadata(for: currentWorkingDirectory)
+  }
+
+  private func refreshCurrentWorkspaceUsage() {
+    currentWorkspaceUsageTask?.cancel()
+
+    guard let workingDirectory = currentWorkingDirectory else {
+      currentWorkspaceUsageSummary = .zero
+      return
+    }
+
+    currentWorkspaceUsageTask = Task { [sessionStorage] in
+      let summary = (try? await sessionStorage.usageSummaryForWorkingDirectory(workingDirectory)) ?? .zero
+      guard !Task.isCancelled else { return }
+
+      await MainActor.run { [weak self] in
+        guard self?.currentWorkingDirectory == workingDirectory else { return }
+        self?.currentWorkspaceUsageSummary = summary
+      }
+    }
   }
 
   private func resolvedCurrentProject() -> EaselDesignProject? {
@@ -374,7 +457,48 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
     return try? decoder.decode(EaselDesignProject.self, from: data)
   }
 
-  private func projectResourcePaths(at workingDirectory: String?) -> [String] {
+  private func resourceManifestDeltaContextForOutgoingMessage() -> String? {
+    guard currentSessionId != nil else {
+      recordResourceManifest(projectResourceManifest(at: currentWorkingDirectory), for: currentWorkingDirectory)
+      return nil
+    }
+
+    return makeResourceManifestDeltaContextForCurrentState()
+  }
+
+  private func joinedHiddenContexts(_ contexts: [String?]) -> String? {
+    let joined = contexts
+      .compactMap { value -> String? in
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed?.isEmpty == false ? trimmed : nil
+      }
+      .joined(separator: "\n\n")
+
+    return joined.isEmpty ? nil : joined
+  }
+
+  private func recordResourceManifest(
+    _ manifest: [ProjectResourceManifestEntry],
+    for workingDirectory: String?
+  ) {
+    guard let key = resourceManifestKey(for: workingDirectory) else { return }
+    lastSentResourceManifestByWorkingDirectory[key] = resourceManifestMap(manifest)
+  }
+
+  private func resourceManifestMap(
+    _ manifest: [ProjectResourceManifestEntry]
+  ) -> [String: ProjectResourceFileSignature] {
+    Dictionary(uniqueKeysWithValues: manifest.map { ($0.relativePath, $0.signature) })
+  }
+
+  private func resourceManifestKey(for workingDirectory: String?) -> String? {
+    guard let workingDirectory, !workingDirectory.isEmpty else { return nil }
+    return URL(fileURLWithPath: workingDirectory, isDirectory: true)
+      .resolvingSymlinksInPath()
+      .path
+  }
+
+  private func projectResourceManifest(at workingDirectory: String?) -> [ProjectResourceManifestEntry] {
     guard let workingDirectory, !workingDirectory.isEmpty else { return [] }
 
     let projectURL = URL(fileURLWithPath: workingDirectory, isDirectory: true)
@@ -382,27 +506,35 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
     let resourcesURL = projectURL.appendingPathComponent(ProjectResource.resourcesDirectoryName, isDirectory: true)
     guard let enumerator = FileManager.default.enumerator(
       at: resourcesURL,
-      includingPropertiesForKeys: [.isRegularFileKey],
+      includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey, .isRegularFileKey],
       options: [.skipsHiddenFiles]
     ) else {
       return []
     }
 
-    var paths: [String] = []
+    var manifest: [ProjectResourceManifestEntry] = []
     for case let fileURL as URL in enumerator {
-      guard paths.count < 80 else { break }
+      guard manifest.count < 80 else { break }
 
-      let values = try? fileURL.resourceValues(forKeys: [.isRegularFileKey])
+      let values = try? fileURL.resourceValues(
+        forKeys: [.contentModificationDateKey, .fileSizeKey, .isRegularFileKey]
+      )
       guard values?.isRegularFile == true else { continue }
 
       let filePath = fileURL.resolvingSymlinksInPath().path
       guard filePath.hasPrefix(projectURL.path + "/") else { continue }
 
       let relativePath = String(filePath.dropFirst(projectURL.path.count + 1))
-      paths.append(relativePath)
+      manifest.append(ProjectResourceManifestEntry(
+        relativePath: relativePath,
+        signature: ProjectResourceFileSignature(
+          modificationDate: values?.contentModificationDate,
+          fileSize: values?.fileSize
+        )
+      ))
     }
 
-    return paths.sorted()
+    return manifest.sorted { $0.relativePath < $1.relativePath }
   }
 
   private func normalized(_ value: String?) -> String? {
@@ -433,6 +565,11 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
       }
     }
   }
+}
+
+private struct ProjectResourceManifestEntry {
+  let relativePath: String
+  let signature: ProjectResourceFileSignature
 }
 
 private enum PreviewURLSource {

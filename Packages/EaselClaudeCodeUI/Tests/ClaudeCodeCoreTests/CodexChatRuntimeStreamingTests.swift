@@ -47,7 +47,45 @@ final class CodexChatRuntimeStreamingTests: XCTestCase {
     XCTAssertTrue(messages[3].isComplete)
   }
 
+  @MainActor
+  func testTurnCompletedRecordsTokenUsage() throws {
+    let store = MessageStore()
+    let sessionManager = SessionManager(sessionStorage: NoOpSessionStorage())
+    var recordedUsage: SessionUsageRecord?
+    let runtime = CodexChatRuntime(
+      messageDisplay: store,
+      sessionManager: sessionManager,
+      workingDirectory: "/tmp/easel",
+      modelIdentifier: "gpt-5.5",
+      onSessionChange: nil,
+      onUsageRecorded: { record in
+        recordedUsage = record
+      }
+    )
+    let state = CodexChatRuntime.StreamState(
+      messageId: UUID(),
+      firstMessageInSession: "Build a dashboard",
+      modelIdentifier: "gpt-5.5"
+    )
+
+    runtime.process(try decodeEvent("""
+      {"type":"turn.completed","usage":{"input_tokens":1000,"cached_input_tokens":200,"output_tokens":100,"reasoning_output_tokens":25}}
+      """), state: state)
+
+    let usage = try XCTUnwrap(recordedUsage)
+    XCTAssertEqual(usage.provider, .codex)
+    XCTAssertEqual(usage.modelIdentifier, "gpt-5.5")
+    XCTAssertEqual(usage.inputTokens, 1_000)
+    XCTAssertEqual(usage.cachedInputTokens, 200)
+    XCTAssertEqual(usage.outputTokens, 100)
+    XCTAssertEqual(usage.reasoningOutputTokens, 25)
+  }
+
   private func decodeEvent(_ json: String) throws -> CodexJSONEvent {
-    try JSONDecoder().decode(CodexJSONEvent.self, from: Data(json.utf8))
+    let decoder = JSONDecoder()
+    decoder.keyDecodingStrategy = .convertFromSnakeCase
+    var event = try decoder.decode(CodexJSONEvent.self, from: Data(json.utf8))
+    event.rawLine = json
+    return event
   }
 }

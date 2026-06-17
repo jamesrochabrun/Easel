@@ -49,6 +49,12 @@ struct ProjectHeaderView: View {
           designSystemChip(title: designSystemChipTitle)
         }
 
+        #if DEBUG
+          if project.usageSummary.hasUsage {
+            usageTokenChip(project.usageSummary)
+          }
+        #endif
+
         HStack(spacing: 4) {
           ProjectHeaderActionButton(
             title: "New Codex session",
@@ -132,5 +138,15 @@ struct ProjectHeaderView: View {
       }
       .accessibilityLabel("Design system \(title)")
       .help("Design system: \(title)")
+  }
+
+  private func usageTokenChip(_ summary: SessionUsageSummary) -> some View {
+    Label(summary.formattedTotalTokens, systemImage: "number")
+      .font(EaselDesignSystem.Typography.interface(size: 10, weight: .semibold))
+      .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
+      .lineLimit(1)
+      .labelStyle(.titleAndIcon)
+      .help("Exact provider-reported project API usage, including hidden instructions, tools, context, and visible messages: \(summary.formattedBreakdown)")
+      .accessibilityLabel("Project API token usage \(summary.formattedBreakdown)")
   }
 }

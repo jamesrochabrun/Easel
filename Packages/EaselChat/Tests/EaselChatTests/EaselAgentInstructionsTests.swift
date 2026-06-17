@@ -115,6 +115,34 @@ struct EaselAgentInstructionsTests {
   }
 
   @Test
+  func resourceManifestDeltaContextIncludesAddedUpdatedAndRemovedPaths() {
+    let context = EaselAgentInstructions.resourceManifestDeltaContext(
+      addedPaths: ["resources/new.png"],
+      updatedPaths: ["resources/design-system/DESIGN.md"],
+      removedPaths: ["resources/old.png"]
+    )
+
+    #expect(context?.contains("--- Easel Resource Update ---") == true)
+    #expect(context?.contains("Added resources:") == true)
+    #expect(context?.contains("- `resources/new.png`") == true)
+    #expect(context?.contains("Updated resources:") == true)
+    #expect(context?.contains("- `resources/design-system/DESIGN.md`") == true)
+    #expect(context?.contains("Removed resources:") == true)
+    #expect(context?.contains("- `resources/old.png`") == true)
+  }
+
+  @Test
+  func resourceManifestDeltaContextReturnsNilWhenNothingChanged() {
+    let context = EaselAgentInstructions.resourceManifestDeltaContext(
+      addedPaths: [],
+      updatedPaths: [],
+      removedPaths: []
+    )
+
+    #expect(context == nil)
+  }
+
+  @Test
   func hiddenContextIncludesPrototypeFidelityGuidance() {
     let context = EaselAgentInstructions.hiddenContext(
       projectPath: "/tmp/prototype",
@@ -165,12 +193,9 @@ struct EaselAgentInstructionsTests {
     #expect(context.contains("no body padding"))
     #expect(context.contains("resources/SLIDE_TEMPLATE.md"))
     #expect(context.contains("1280x720"))
-    #expect(context.contains("Slide deck creation contract"))
-    #expect(context.contains("Create a presentation deck as a single self-contained HTML page"))
-    #expect(context.contains("you are a presentation designer"))
-    #expect(context.contains("If a user does not tell you how long they want a presentation to be"))
-    #expect(context.contains("use the questions tool to ASK"))
-    #expect(context.contains("Show the user an outline first"))
+    #expect(context.contains("Slide deck creation contract") == false)
+    #expect(context.contains("Create a presentation deck as a single self-contained HTML page") == false)
+    #expect(context.contains("you are a presentation designer") == false)
     #expect(context.contains("Current prototype fidelity") == false)
     #expect(context.contains("Prototype fidelity contract") == false)
   }

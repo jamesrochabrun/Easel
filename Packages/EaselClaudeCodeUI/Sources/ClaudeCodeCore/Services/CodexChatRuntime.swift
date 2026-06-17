@@ -21,6 +21,7 @@ final class CodexChatRuntime {
   private let messageDisplay: ChatMessageDisplay
   private let sessionManager: SessionManager
   private let onSessionChange: ((String) -> Void)?
+  private let onUsageRecorded: ((SessionUsageRecord) -> Void)?
   private var hasSession = false
   private var isCancelled = false
   /// Monotonically increasing token identifying the active turn. Each `send`
@@ -39,7 +40,8 @@ final class CodexChatRuntime {
     commandOverride: String? = nil,
     extraArguments: [String] = [],
     environmentOverrides: [String: String] = [:],
-    onSessionChange: ((String) -> Void)?
+    onSessionChange: ((String) -> Void)?,
+    onUsageRecorded: ((SessionUsageRecord) -> Void)? = nil
   ) {
     self.messageDisplay = messageDisplay
     self.sessionManager = sessionManager
@@ -50,6 +52,7 @@ final class CodexChatRuntime {
     self.extraArguments = extraArguments
     self.environmentOverrides = environmentOverrides
     self.onSessionChange = onSessionChange
+    self.onUsageRecorded = onUsageRecorded
   }
 
   func markSessionRestored() {
@@ -134,7 +137,11 @@ final class CodexChatRuntime {
     activeGeneration &+= 1
     let generation = activeGeneration
 
-    let state = StreamState(messageId: messageId, firstMessageInSession: firstMessageInSession)
+    let state = StreamState(
+      messageId: messageId,
+      firstMessageInSession: firstMessageInSession,
+      modelIdentifier: modelIdentifier
+    )
     let isFirstTurn = !hasSession
     let options = Self.makeOptions(
       isFirstTurn: isFirstTurn,
@@ -253,7 +260,7 @@ final class CodexChatRuntime {
       options.extraFlags.append(contentsOf: extraArguments)
     }
 
-    if let developerInstructions = tomlString(developerInstructions) {
+    if isFirstTurn, let developerInstructions = tomlString(developerInstructions) {
       options.configOverrides["developer_instructions"] = developerInstructions
     }
 
@@ -376,6 +383,11 @@ final class CodexChatRuntime {
   func process(_ event: CodexJSONEvent, state: StreamState) {
     if event.type == "thread.started", let threadId = event.threadId {
       updateSessionId(threadId, firstMessageInSession: state.firstMessageInSession)
+      return
+    }
+
+    if event.type == "turn.completed", let usage = event.usage {
+      recordUsage(usage, rawLine: event.rawLine, state: state)
       return
     }
 
@@ -625,6 +637,42 @@ final class CodexChatRuntime {
     onSessionChange?(sessionId)
   }
 
+  private func recordUsage(_ usage: CodexUsage, rawLine: String?, state: StreamState) {
+    let inputTokens = usage.inputTokens ?? 0
+    let outputTokens = usage.outputTokens ?? 0
+    let cachedInputTokens = usage.cachedInputTokens ?? 0
+    let reasoningOutputTokens = Self.reasoningOutputTokens(from: rawLine)
+    guard inputTokens > 0 || outputTokens > 0 || cachedInputTokens > 0 || reasoningOutputTokens > 0 else {
+      return
+    }
+
+    ensureSessionExists(firstMessageInSession: state.firstMessageInSession)
+
+    onUsageRecorded?(SessionUsageRecord(
+      provider: .codex,
+      modelIdentifier: state.modelIdentifier,
+      inputTokens: inputTokens,
+      outputTokens: outputTokens,
+      cachedInputTokens: cachedInputTokens,
+      reasoningOutputTokens: reasoningOutputTokens
+    ))
+  }
+
+  private static func reasoningOutputTokens(from rawLine: String?) -> Int {
+    guard let rawLine,
+          let data = rawLine.data(using: .utf8) else {
+      return 0
+    }
+
+    let decoder = JSONDecoder()
+    decoder.keyDecodingStrategy = .convertFromSnakeCase
+    guard let envelope = try? decoder.decode(CodexUsageEnvelope.self, from: data) else {
+      return 0
+    }
+
+    return max(0, envelope.usage?.reasoningOutputTokens ?? 0)
+  }
+
   private func markItemDisplayed(_ id: String?, state: StreamState) {
     guard let id else { return }
     state.displayedItemIds.insert(id)
@@ -667,6 +715,7 @@ final class CodexChatRuntime {
   final class StreamState {
     let messageId: UUID
     let firstMessageInSession: String?
+    let modelIdentifier: String?
     var assistantBuffer = ""
     var assistantMessageCreated = false
     var streamingAssistantMessageId: UUID?
@@ -674,9 +723,10 @@ final class CodexChatRuntime {
     var displayedItemIds: Set<String> = []
     var commandByItemId: [String: String] = [:]
 
-    init(messageId: UUID, firstMessageInSession: String?) {
+    init(messageId: UUID, firstMessageInSession: String?, modelIdentifier: String? = nil) {
       self.messageId = messageId
       self.firstMessageInSession = firstMessageInSession
+      self.modelIdentifier = modelIdentifier
     }
   }
 }
@@ -712,4 +762,12 @@ private enum CodexStderrParser {
     if line == "user" || line == "assistant" { return true }
     return false
   }
+}
+
+private struct CodexUsageEnvelope: Decodable {
+  let usage: CodexUsageDetails?
+}
+
+private struct CodexUsageDetails: Decodable {
+  let reasoningOutputTokens: Int?
 }

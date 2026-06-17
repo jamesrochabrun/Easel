@@ -274,10 +274,13 @@ extension ChatInputView {
 
   private var composerFooter: some View {
     HStack(spacing: 8) {
-      Text("return send")
-      Text("shift return new line")
-
       Spacer(minLength: 12)
+
+      #if DEBUG
+        if viewModel.activeSessionId != nil || viewModel.currentSessionUsageSummary.hasUsage {
+          SessionTokenBadge(summary: viewModel.currentSessionUsageSummary)
+        }
+      #endif
 
       if viewModel.activeProvider == .codex {
         CodexModelBadge(modelIdentifier: globalPreferences.codexModel)

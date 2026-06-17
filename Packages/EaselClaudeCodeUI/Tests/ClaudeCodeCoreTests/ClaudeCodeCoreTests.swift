@@ -38,6 +38,31 @@ final class ClaudeCodeCoreTests: XCTestCase {
   }
 
   @MainActor
+  func testRuntimeHiddenContextCanBeExcludedFromAPIContent() {
+    let viewModel = ChatViewModel(
+      claudeClient: HangingClaudeCodeClient(),
+      sessionStorage: NoOpSessionStorage(),
+      settingsStorage: SettingsStorageManager(),
+      globalPreferences: GlobalPreferencesStorage(),
+      customPermissionService: MockCustomPermissionService(),
+      shouldManageSessions: false
+    )
+    viewModel.runtimeHiddenContextProvider = {
+      "Runtime project context"
+    }
+
+    let content = viewModel.makeAPIContent(
+      text: "ok",
+      hiddenContext: "Caller hidden context",
+      includeRuntimeHiddenContext: false
+    )
+
+    XCTAssertTrue(content.contains("ok"))
+    XCTAssertTrue(content.contains("Caller hidden context"))
+    XCTAssertFalse(content.contains("Runtime project context"))
+  }
+
+  @MainActor
   func testLoadingIndicatorIsScopedToActiveSession() async throws {
     let client = HangingClaudeCodeClient()
     let viewModel = ChatViewModel(

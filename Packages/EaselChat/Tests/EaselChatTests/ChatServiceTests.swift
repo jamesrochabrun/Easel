@@ -84,6 +84,44 @@ struct ChatServiceTests {
   }
 
   @Test
+  func resourceManifestDeltaContextReportsChangesAfterFullContextSnapshot() async throws {
+    let rootDirectory = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: rootDirectory) }
+
+    let projectManager = LocalEaselProjectManager(rootDirectory: rootDirectory)
+    let project = try await projectManager.createProject(from: EaselProjectCreateRequest(
+      name: "Asset Delta",
+      kind: .prototype,
+      designSystem: .none,
+      fidelity: .highFidelity
+    ))
+    let projectURL = URL(fileURLWithPath: project.workingDirectory, isDirectory: true)
+    let existingURL = projectURL.appendingPathComponent("resources/existing.png")
+    let removedURL = projectURL.appendingPathComponent("resources/remove-me.png")
+    let addedURL = projectURL.appendingPathComponent("resources/new.png")
+    try Data("original image".utf8).write(to: existingURL)
+    try Data("obsolete image".utf8).write(to: removedURL)
+    let service = ChatService(projectManager: projectManager)
+
+    await service.startNewSession(workingDirectory: project.workingDirectory)
+    _ = service.makeHiddenContextForCurrentState(nil)
+
+    try await Task.sleep(for: .milliseconds(20))
+    try Data("updated image contents".utf8).write(to: existingURL)
+    try Data("new image".utf8).write(to: addedURL)
+    try FileManager.default.removeItem(at: removedURL)
+
+    let context = service.makeResourceManifestDeltaContextForCurrentState()
+    #expect(context?.contains("Added resources:") == true)
+    #expect(context?.contains("- `resources/new.png`") == true)
+    #expect(context?.contains("Updated resources:") == true)
+    #expect(context?.contains("- `resources/existing.png`") == true)
+    #expect(context?.contains("Removed resources:") == true)
+    #expect(context?.contains("- `resources/remove-me.png`") == true)
+    #expect(service.makeResourceManifestDeltaContextForCurrentState() == nil)
+  }
+
+  @Test
   func clearingActiveWorkspaceDropsProjectAndPreviewState() {
     let service = ChatService()
     let project = EaselDesignProject(
