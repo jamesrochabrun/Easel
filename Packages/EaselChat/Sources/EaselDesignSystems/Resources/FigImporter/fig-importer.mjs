@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseFig, parseFigBinary, resolveVectorNodePaths } from "openfig-core";
 
-const parserVersion = "0.4.0";
+const parserVersion = "0.3.7";
 const inputPath = process.argv[2];
 const outputPath = process.argv[3];
 // Optional: directory (under the design system's .easel/assets) where extracted
