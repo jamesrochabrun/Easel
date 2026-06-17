@@ -54,6 +54,9 @@ public final class ChatViewModel {
   /// Optional hidden context supplied by an embedding app for every outgoing turn.
   @ObservationIgnored public var runtimeHiddenContextProvider: (() -> String?)?
 
+  /// Optional hidden context supplied by an embedding app when runtime context is omitted.
+  @ObservationIgnored public var outgoingHiddenContextProvider: (() -> String?)?
+
   /// Controls whether this view model should manage sessions (load, save, switch, etc.)
   /// Set to false when using ChatScreen directly without RootView to avoid unnecessary session operations
   public let shouldManageSessions: Bool
@@ -643,12 +646,10 @@ EOF
     
     // Build message content for display (just the user's text)
     let displayContent = text
-    
-    let apiContent = makeAPIContent(
+    let apiContent = makeOutgoingAPIContent(
       text: text,
       context: context,
       hiddenContext: hiddenContext,
-      includeRuntimeHiddenContext: shouldIncludeRuntimeHiddenContextForNewMessage(),
       attachments: attachments
     )
 
@@ -744,19 +745,46 @@ EOF
     return apiContentParts.joined(separator: "\n\n")
   }
 
+  func makeOutgoingAPIContent(
+    text: String,
+    context: String? = nil,
+    hiddenContext: String? = nil,
+    attachments: [FileAttachment]? = nil
+  ) -> String {
+    let includeRuntimeHiddenContext = shouldIncludeRuntimeHiddenContextForNewMessage()
+    let messageHiddenContext = joinedHiddenContexts([
+      hiddenContext,
+      includeRuntimeHiddenContext ? nil : outgoingHiddenContextProvider?()
+    ])
+
+    return makeAPIContent(
+      text: text,
+      context: context,
+      hiddenContext: messageHiddenContext,
+      includeRuntimeHiddenContext: includeRuntimeHiddenContext,
+      attachments: attachments
+    )
+  }
+
   private func combinedHiddenContext(
     _ hiddenContext: String?,
     includeRuntimeHiddenContext: Bool = true
   ) -> String? {
-    [
+    joinedHiddenContexts([
       hiddenContext,
       includeRuntimeHiddenContext ? runtimeHiddenContextProvider?() : nil
-    ]
+    ])
+  }
+
+  private func joinedHiddenContexts(_ contexts: [String?]) -> String? {
+    let joined = contexts
       .compactMap { value -> String? in
         let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed?.isEmpty == false ? trimmed : nil
       }
       .joined(separator: "\n\n")
+
+    return joined.isEmpty ? nil : joined
   }
 
   private func shouldIncludeRuntimeHiddenContextForNewMessage() -> Bool {

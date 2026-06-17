@@ -63,6 +63,48 @@ final class ClaudeCodeCoreTests: XCTestCase {
   }
 
   @MainActor
+  func testOutgoingHiddenContextReplacesRuntimeContextForCodexFollowUps() {
+    let viewModel = ChatViewModel(
+      claudeClient: HangingClaudeCodeClient(),
+      sessionStorage: NoOpSessionStorage(),
+      settingsStorage: SettingsStorageManager(),
+      globalPreferences: GlobalPreferencesStorage(),
+      customPermissionService: MockCustomPermissionService(),
+      shouldManageSessions: false
+    )
+    var runtimeCallCount = 0
+    var outgoingCallCount = 0
+    viewModel.runtimeHiddenContextProvider = {
+      runtimeCallCount += 1
+      return "Runtime project context"
+    }
+    viewModel.outgoingHiddenContextProvider = {
+      outgoingCallCount += 1
+      return "Resource delta context"
+    }
+
+    let initialContent = viewModel.makeOutgoingAPIContent(text: "hello")
+
+    XCTAssertTrue(initialContent.contains("Runtime project context"))
+    XCTAssertFalse(initialContent.contains("Resource delta context"))
+    XCTAssertEqual(runtimeCallCount, 1)
+    XCTAssertEqual(outgoingCallCount, 0)
+
+    viewModel.injectSession(
+      sessionId: "session-a",
+      messages: [],
+      workingDirectory: NSTemporaryDirectory()
+    )
+
+    let followUpContent = viewModel.makeOutgoingAPIContent(text: "again")
+
+    XCTAssertFalse(followUpContent.contains("Runtime project context"))
+    XCTAssertTrue(followUpContent.contains("Resource delta context"))
+    XCTAssertEqual(runtimeCallCount, 1)
+    XCTAssertEqual(outgoingCallCount, 1)
+  }
+
+  @MainActor
   func testLoadingIndicatorIsScopedToActiveSession() async throws {
     let client = HangingClaudeCodeClient()
     let viewModel = ChatViewModel(

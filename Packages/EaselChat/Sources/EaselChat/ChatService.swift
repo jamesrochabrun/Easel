@@ -12,6 +12,11 @@ import OSLog
 
 private let chatLog = Logger(subsystem: "com.easel.chat", category: "ChatService")
 
+private struct ResourceManifestCacheKey: Hashable {
+  let sessionId: String
+  let workingDirectory: String
+}
+
 @Observable @MainActor
 public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, PreviewURLProviding {
 
@@ -42,7 +47,8 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
   private var previewURLSource: PreviewURLSource?
   private var currentProjectLookupTask: Task<Void, Never>?
   private var currentWorkspaceUsageTask: Task<Void, Never>?
-  private var lastSentResourceManifestByWorkingDirectory: [String: [String: ProjectResourceFileSignature]] = [:]
+  private var lastSentResourceManifestBySession: [ResourceManifestCacheKey: [String: ProjectResourceFileSignature]] = [:]
+  private var pendingResourceManifestByWorkingDirectory: [String: [String: ProjectResourceFileSignature]] = [:]
 
   // MARK: - Init
 
@@ -109,7 +115,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
         shouldManageSessions: true,
         onSessionChange: { [weak self] newSessionId in
           Task { @MainActor in
-            self?.currentSessionId = newSessionId
+            self?.setCurrentSessionId(newSessionId)
             self?.refreshCurrentWorkspaceUsage()
             self?.onSessionChanged?()
           }
@@ -123,6 +129,9 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
       )
       vm.runtimeHiddenContextProvider = { [weak self] in
         self?.makeHiddenContextForCurrentState(nil)
+      }
+      vm.outgoingHiddenContextProvider = { [weak self] in
+        self?.resourceManifestDeltaContextForOutgoingMessage()
       }
 
       if let dir = config.workingDirectory {
@@ -191,6 +200,10 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
       sessionToLoad = session
     }
 
+    if let workingDirectory = sessionToLoad.workingDirectory {
+      setCurrentWorkingDirectory(workingDirectory)
+    }
+
     // injectSession handles updating working directory on the existing client
     chatViewModel?.injectSession(
       sessionId: sessionToLoad.id,
@@ -199,8 +212,8 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
       usageSummary: sessionToLoad.usageSummary
     )
 
-    currentSessionId = session.id
-    setCurrentWorkingDirectory(chatViewModel?.projectPath)
+    setCurrentWorkingDirectory(sessionToLoad.workingDirectory ?? chatViewModel?.projectPath)
+    setCurrentSessionId(session.id)
     clearPreviewURL()
 
     // Immediately scan loaded messages for a dev server URL
@@ -232,7 +245,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
       setCurrentWorkingDirectory(chatViewModel?.projectPath)
     }
 
-    currentSessionId = nil
+    setCurrentSessionId(nil)
     clearPreviewURL()
     refreshCurrentWorkspaceUsage()
     startPreviewObservation()
@@ -241,7 +254,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
   public func deleteSession(_ session: StoredSession) async {
     try? await sessionStorage.deleteSession(id: session.id)
     if currentSessionId == session.id {
-      currentSessionId = nil
+      setCurrentSessionId(nil)
       chatViewModel?.clearConversation()
     }
     refreshCurrentWorkspaceUsage()
@@ -249,7 +262,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
 
   public func clearActiveWorkspace() {
     previewURLObserver.stopObserving()
-    currentSessionId = nil
+    setCurrentSessionId(nil)
     chatViewModel?.clearConversation()
     chatViewModel?.setWorkingDirectory("")
     setCurrentWorkingDirectory(nil)
@@ -332,11 +345,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
   private func sendMessageToViewModel(_ text: String, context: String? = nil, hiddenContext: String? = nil) {
     guard let chatViewModel else { return }
 
-    let messageHiddenContext = joinedHiddenContexts([
-      hiddenContext,
-      resourceManifestDeltaContextForOutgoingMessage()
-    ])
-    chatViewModel.sendMessage(text, context: context, hiddenContext: messageHiddenContext)
+    chatViewModel.sendMessage(text, context: context, hiddenContext: hiddenContext)
   }
 
   func makeHiddenContextForCurrentState(
@@ -347,7 +356,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
     let resourceManifest = projectResourceManifest(at: currentWorkingDirectory)
 
     if shouldRecordResourceManifest {
-      recordResourceManifest(resourceManifest, for: currentWorkingDirectory)
+      recordResourceManifest(resourceManifest, for: currentWorkingDirectory, sessionId: currentSessionId)
     }
 
     return EaselAgentInstructions.appendingHiddenContext(
@@ -362,19 +371,29 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
   }
 
   func makeResourceManifestDeltaContextForCurrentState() -> String? {
-    guard let key = resourceManifestKey(for: currentWorkingDirectory) else {
+    guard let workingDirectoryKey = resourceManifestKey(for: currentWorkingDirectory) else {
       return nil
     }
 
     let currentManifest = projectResourceManifest(at: currentWorkingDirectory)
     let currentFiles = resourceManifestMap(currentManifest)
-
-    guard let previousFiles = lastSentResourceManifestByWorkingDirectory[key] else {
-      lastSentResourceManifestByWorkingDirectory[key] = currentFiles
+    guard let sessionId = currentSessionId else {
+      pendingResourceManifestByWorkingDirectory[workingDirectoryKey] = currentFiles
       return nil
     }
 
-    lastSentResourceManifestByWorkingDirectory[key] = currentFiles
+    let cacheKey = ResourceManifestCacheKey(sessionId: sessionId, workingDirectory: workingDirectoryKey)
+    let previousFiles: [String: ProjectResourceFileSignature]
+    if let cachedFiles = lastSentResourceManifestBySession[cacheKey] {
+      previousFiles = cachedFiles
+    } else if let pendingFiles = pendingResourceManifestByWorkingDirectory.removeValue(forKey: workingDirectoryKey) {
+      previousFiles = pendingFiles
+    } else {
+      lastSentResourceManifestBySession[cacheKey] = currentFiles
+      return nil
+    }
+
+    lastSentResourceManifestBySession[cacheKey] = currentFiles
 
     let addedPaths = currentFiles.keys
       .filter { previousFiles[$0] == nil }
@@ -459,30 +478,28 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
 
   private func resourceManifestDeltaContextForOutgoingMessage() -> String? {
     guard currentSessionId != nil else {
-      recordResourceManifest(projectResourceManifest(at: currentWorkingDirectory), for: currentWorkingDirectory)
+      recordResourceManifest(projectResourceManifest(at: currentWorkingDirectory), for: currentWorkingDirectory, sessionId: nil)
       return nil
     }
 
     return makeResourceManifestDeltaContextForCurrentState()
   }
 
-  private func joinedHiddenContexts(_ contexts: [String?]) -> String? {
-    let joined = contexts
-      .compactMap { value -> String? in
-        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed?.isEmpty == false ? trimmed : nil
-      }
-      .joined(separator: "\n\n")
-
-    return joined.isEmpty ? nil : joined
-  }
-
   private func recordResourceManifest(
     _ manifest: [ProjectResourceManifestEntry],
-    for workingDirectory: String?
+    for workingDirectory: String?,
+    sessionId: String?
   ) {
-    guard let key = resourceManifestKey(for: workingDirectory) else { return }
-    lastSentResourceManifestByWorkingDirectory[key] = resourceManifestMap(manifest)
+    guard let workingDirectoryKey = resourceManifestKey(for: workingDirectory) else { return }
+    let files = resourceManifestMap(manifest)
+
+    if let sessionId {
+      let cacheKey = ResourceManifestCacheKey(sessionId: sessionId, workingDirectory: workingDirectoryKey)
+      lastSentResourceManifestBySession[cacheKey] = files
+      pendingResourceManifestByWorkingDirectory.removeValue(forKey: workingDirectoryKey)
+    } else {
+      pendingResourceManifestByWorkingDirectory[workingDirectoryKey] = files
+    }
   }
 
   private func resourceManifestMap(
@@ -496,6 +513,23 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
     return URL(fileURLWithPath: workingDirectory, isDirectory: true)
       .resolvingSymlinksInPath()
       .path
+  }
+
+  private func setCurrentSessionId(_ sessionId: String?) {
+    currentSessionId = sessionId
+
+    guard let sessionId else { return }
+    migratePendingResourceManifest(to: sessionId, workingDirectory: currentWorkingDirectory)
+  }
+
+  private func migratePendingResourceManifest(to sessionId: String, workingDirectory: String?) {
+    guard let workingDirectoryKey = resourceManifestKey(for: workingDirectory),
+          let pendingFiles = pendingResourceManifestByWorkingDirectory.removeValue(forKey: workingDirectoryKey) else {
+      return
+    }
+
+    let cacheKey = ResourceManifestCacheKey(sessionId: sessionId, workingDirectory: workingDirectoryKey)
+    lastSentResourceManifestBySession[cacheKey] = pendingFiles
   }
 
   private func projectResourceManifest(at workingDirectory: String?) -> [ProjectResourceManifestEntry] {
