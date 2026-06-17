@@ -654,9 +654,14 @@ enum EaselDesignSystemCatalogHTMLRenderer {
           if (diag.totalNodeCount) parts.push(diag.totalNodeCount.toLocaleString() + " nodes");
           if (diag.failedCount) parts.push(diag.failedCount + " failed");
           if (parts.length) diagnosticsEl.append(el("div", { text: parts.join(" · ") }));
-          if (diag.warnings && diag.warnings.length) {
+          const hiddenWarnings = new Set([
+            "Component families are grouped by Figma layer name and may be noisy.",
+            "Tokens are inferred from local node styles, not from a published token library.",
+          ]);
+          const warnings = (diag.warnings || []).filter((warning) => !hiddenWarnings.has(warning));
+          if (warnings.length) {
             const ul = el("ul");
-            for (const w of diag.warnings) ul.append(el("li", { text: w }));
+            for (const w of warnings) ul.append(el("li", { text: w }));
             diagnosticsEl.append(ul);
           }
           diagnosticsEl.hidden = diagnosticsEl.childNodes.length === 0;

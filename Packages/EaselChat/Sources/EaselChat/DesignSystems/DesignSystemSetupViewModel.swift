@@ -50,6 +50,7 @@ public final class DesignSystemSetupViewModel {
 
   public init(
     designSystemManager: any EaselDesignSystemManaging = LocalEaselDesignSystemManager(
+      importScheduling: .immediate,
       designMarkdownGenerator: ClaudeDesignMarkdownGenerator()
     )
   ) {

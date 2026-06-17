@@ -269,7 +269,7 @@ extension DesignMarkdownEmitter {
 
   private static func elevationProse(_ effects: [EaselDesignSystemEffectToken]) -> String {
     var lines = ["Elevation is expressed through the following effects:"]
-    for effect in effects.prefix(12) {
+    for effect in effects {
       lines.append("- **\(effect.name)** — \(effect.kind)")
     }
     return lines.joined(separator: "\n")
@@ -282,7 +282,7 @@ extension DesignMarkdownEmitter {
 
   private static func componentsProse(_ families: [EaselDesignSystemComponentFamily]) -> String {
     var lines: [String] = []
-    for family in families.prefix(40) {
+    for family in families {
       var line = "- **\(family.title)** (\(family.category))"
       if family.variantCount > 1 { line += " — \(family.variantCount) variants" }
       lines.append(line)

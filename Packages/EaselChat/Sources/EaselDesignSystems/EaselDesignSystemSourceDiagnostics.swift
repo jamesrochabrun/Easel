@@ -7,7 +7,7 @@ import Foundation
 
 /// Honest reporting about how the `.fig` source(s) were parsed, surfaced so the
 /// catalog never silently overstates fidelity. Includes parse counts, node
-/// totals, parser identity, and free-form warnings about noisy extraction.
+/// totals, parser identity, and free-form warnings about actionable import issues.
 public struct EaselDesignSystemSourceDiagnostics: Codable, Equatable, Sendable {
   public let parsedCount: Int
   public let failedCount: Int

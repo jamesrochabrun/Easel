@@ -102,6 +102,34 @@ struct DesignMarkdownEmitterTests {
     #expect(throws: Never.self) { try DesignMarkdownLinter.validate(document) }
   }
 
+  @Test
+  func buildsCatalogDocumentWithoutTruncatingEffectsOrComponentFamilies() {
+    let effects = (1...13).map { effect(name: "Shadow \($0)", kind: "drop-shadow") }
+    let families = (1...41).map { family(title: "Component \($0)", category: "Components") }
+    let catalog = EaselDesignSystemCatalog(
+      name: "Aurora",
+      summary: "A complete component library.",
+      generatedAt: nil,
+      componentGroups: [],
+      tokens: EaselDesignSystemTokenSet(
+        colors: [],
+        typography: [],
+        spacing: [],
+        radii: [],
+        effects: effects
+      ),
+      componentFamilies: families
+    )
+    let profile = makeProfile(name: "Aurora", blurb: "A complete component library.")
+
+    let document = DesignMarkdownEmitter.makeDocument(fromCatalog: catalog, profile: profile)
+
+    let elevation = try! #require(document.sections.first { $0.kind == .elevation }?.body)
+    let components = try! #require(document.sections.first { $0.kind == .components }?.body)
+    #expect(elevation.contains("Shadow 13"))
+    #expect(components.contains("Component 41"))
+  }
+
   // MARK: - Builders
 
   private func color(name: String, hex: String, confidence: Double) -> EaselDesignSystemColorToken {

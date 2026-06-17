@@ -275,7 +275,7 @@ protocol EaselFigFileParsing: Sendable {
 struct NodeEaselFigFileParser: EaselFigFileParsing {
   // Bumping this string forces the cached workspace (and its copy of
   // fig-importer.mjs) to be refreshed so script changes take effect.
-  private let parserVersion = "0.4.0"
+  private let parserVersion = "0.3.7"
 
   init() {}
 
@@ -1095,15 +1095,8 @@ enum EaselDesignSystemManifestNormalizer {
     let skipped = sources.filter { $0.status == .skipped }
     let parser = parsed.first
 
-    var warnings: [String] = []
-    if !manifest.components.isEmpty {
-      warnings.append("Component families are grouped by Figma layer name and may be noisy.")
-    }
-    if !manifest.tokens.colors.isEmpty || !manifest.tokens.typography.isEmpty {
-      warnings.append("Tokens are inferred from local node styles, not from a published token library.")
-    }
-    for source in failed {
-      warnings.append("Could not parse \(source.fileName): \(source.errorMessage ?? "unknown error").")
+    let warnings = failed.map { source in
+      "Could not parse \(source.fileName): \(source.errorMessage ?? "unknown error")."
     }
 
     return EaselDesignSystemSourceDiagnostics(
@@ -1147,7 +1140,6 @@ enum EaselDesignSystemManifestNormalizer {
         }
         return lhs.value.count > rhs.value.count
       }
-      .prefix(24)
       .enumerated()
       .map { index, element in
         let node = element.value.node
@@ -1184,7 +1176,6 @@ enum EaselDesignSystemManifestNormalizer {
         }
         return lhs.value.count > rhs.value.count
       }
-      .prefix(16)
       .enumerated()
       .compactMap { index, element in
         let node = element.value.node
@@ -1294,9 +1285,6 @@ enum EaselDesignSystemManifestNormalizer {
             sourceNodeName: node.name,
             confidence: 0.58
           ))
-          if tokens.count >= 12 {
-            return tokens
-          }
         }
       }
     }
@@ -1427,8 +1415,6 @@ enum EaselDesignSystemManifestNormalizer {
         }
         return lhs.confidence > rhs.confidence
       }
-      .prefix(80)
-      .map { $0 }
   }
 
   /// Parses a Figma variant node name such as

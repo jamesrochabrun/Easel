@@ -374,7 +374,7 @@ struct DesignSystemReferenceView: View {
         Text(diagnosticsSummary(diagnostics))
           .font(.caption)
           .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
-        ForEach(Array(diagnostics.warnings.enumerated()), id: \.offset) { _, warning in
+        ForEach(Array(actionableWarnings(diagnostics.warnings).enumerated()), id: \.offset) { _, warning in
           HStack(alignment: .top, spacing: 6) {
             Image(systemName: "exclamationmark.triangle")
               .font(.caption2)
@@ -391,6 +391,15 @@ struct DesignSystemReferenceView: View {
       .background(EaselDesignSystem.Palette.subtleSurface(for: colorScheme), in: RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.card))
     }
   }
+
+  private func actionableWarnings(_ warnings: [String]) -> [String] {
+    warnings.filter { !Self.nonActionableDiagnosticWarnings.contains($0) }
+  }
+
+  private static let nonActionableDiagnosticWarnings: Set<String> = [
+    "Component families are grouped by Figma layer name and may be noisy.",
+    "Tokens are inferred from local node styles, not from a published token library.",
+  ]
 
   private func diagnosticsSummary(_ diagnostics: EaselDesignSystemSourceDiagnostics) -> String {
     var parts: [String] = []

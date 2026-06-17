@@ -374,11 +374,88 @@ struct EaselDesignSystemManagerTests {
     #expect(catalog.componentFamilies?.map(\.title).contains("Button / Primary") == true)
     #expect(catalog.sourceDiagnostics?.parsedCount == 1)
     #expect(catalog.sourceDiagnostics?.parserName == "fixture-parser")
+    #expect(catalog.sourceDiagnostics?.warnings.isEmpty == true)
     #expect(FileManager.default.fileExists(atPath: rootDirectory.appendingPathComponent(".easel/imports").path))
 
     let indexHTML = try String(contentsOf: rootDirectory.appendingPathComponent("index.html"), encoding: .utf8)
     #expect(indexHTML.contains(".easel/catalog.json"))
     #expect(indexHTML.contains("Codex will replace this scaffold") == false)
+  }
+
+  @Test
+  func extractImportDiagnosticsKeepFailedSourceWarningsOnly() async throws {
+    let rootDirectory = temporaryRoot(named: "DesignSystemDiagnosticsWarningsTests")
+    defer { try? FileManager.default.removeItem(at: rootDirectory) }
+
+    let goodURL = rootDirectory.appendingPathComponent("Good.fig")
+    let brokenURL = rootDirectory.appendingPathComponent("Broken.fig")
+    try FileManager.default.createDirectory(at: rootDirectory, withIntermediateDirectories: true)
+    try Data([1, 2, 3]).write(to: goodURL)
+    try Data([4, 5, 6]).write(to: brokenURL)
+
+    let document = EaselParsedFigDocument(
+      parser: EaselParsedFigParser(name: "fixture-parser", version: "1.0"),
+      document: EaselParsedFigDocumentInfo(nodeCount: 2, pageCount: 1),
+      nodes: [
+        EaselParsedFigNode(
+          id: "1:1",
+          type: "COMPONENT",
+          name: "Button / Primary",
+          parentID: nil,
+          pageName: "Components",
+          depth: 1,
+          width: 120,
+          height: 44,
+          childCount: 1,
+          fillColors: ["#0055FF"],
+          strokeColors: [],
+          fontFamily: nil,
+          fontStyle: nil,
+          fontSize: nil,
+          text: nil,
+          cornerRadius: nil,
+          effectTypes: []
+        ),
+        EaselParsedFigNode(
+          id: "1:2",
+          type: "TEXT",
+          name: "Label",
+          parentID: "1:1",
+          pageName: "Components",
+          depth: 2,
+          width: 80,
+          height: 20,
+          childCount: 0,
+          fillColors: [],
+          strokeColors: [],
+          fontFamily: "Inter",
+          fontStyle: "Regular",
+          fontSize: 16,
+          text: "Continue",
+          cornerRadius: nil,
+          effectTypes: []
+        ),
+      ]
+    )
+    let importer = LocalEaselDesignSystemImporter(
+      parser: MixedResultFigFileParser(document: document, failingFileName: "Broken.fig")
+    )
+    let result = await importer.importDesignSystemResources(EaselDesignSystemImportRequest(
+      profile: makeProfile(workingDirectory: rootDirectory.path),
+      directoryURL: rootDirectory,
+      figFileURLs: [goodURL, brokenURL],
+      importMode: .extractCatalog
+    ))
+
+    let catalog = try #require(result.catalog)
+    let diagnostics = try #require(catalog.sourceDiagnostics)
+    #expect(diagnostics.parsedCount == 1)
+    #expect(diagnostics.failedCount == 1)
+    #expect(diagnostics.warnings.count == 1)
+    #expect(diagnostics.warnings.first?.contains("Could not parse Broken.fig") == true)
+    #expect(diagnostics.warnings.first?.contains("fixture parse failed") == true)
+    #expect(diagnostics.warnings.contains("Component families are grouped by Figma layer name and may be noisy.") == false)
+    #expect(diagnostics.warnings.contains("Tokens are inferred from local node styles, not from a published token library.") == false)
   }
 
   @Test
@@ -878,6 +955,22 @@ private struct FixtureFigFileParser: EaselFigFileParsing {
   func parseFigFile(at url: URL, assetsDirectory: URL?) async throws -> EaselParsedFigDocument {
     document
   }
+}
+
+private struct MixedResultFigFileParser: EaselFigFileParsing {
+  let document: EaselParsedFigDocument
+  let failingFileName: String
+
+  func parseFigFile(at url: URL, assetsDirectory: URL?) async throws -> EaselParsedFigDocument {
+    if url.lastPathComponent == failingFileName {
+      throw FixtureFigParseError()
+    }
+    return document
+  }
+}
+
+private struct FixtureFigParseError: LocalizedError {
+  var errorDescription: String? { "fixture parse failed" }
 }
 
 private struct FailingFigFileParser: EaselFigFileParsing {
