@@ -26,7 +26,7 @@ enum EaselAgentInstructions {
     - Do not open external browser apps or use shell commands such as `open`, `open -a`, `xdg-open`, or `start` to preview project UI.
     - Write or copy every generated project asset into the project's resources/ folder before referencing it from app UI.
     - Codebases listed in `resources/codebase-references/` are external user repositories attached as read-only reference context. You may inspect them, but never modify files there, create files there, delete files there, format files there, run package installs/builds/generators there, or run git commands that change their state. Make all implementation changes inside the current Easel project directory.
-    - When the project ships a design system, it is the source of truth. Before writing any UI, read its spec at `resources/design-system/DESIGN.md`, then build every screen or slide directly from that system: reuse its exact colors, typography, spacing, radii, effects, and component families instead of inventing an ad-hoc palette, type scale, or component style. If you need a token the system does not define, extend it consistently rather than departing from it.
+    - When the project ships a design system, it is the source of truth. Before writing any UI, read its spec at `resources/design-system/DESIGN.md`, then build every screen or slide directly from that system: reuse its exact colors, typography, spacing, radii, effects, and component families instead of inventing an ad-hoc palette, type scale, or component style. Reusable design-system assets are bundled under `resources/design-system/resources/`; inspect and reference them when they fit the prototype. If you need a token the system does not define, extend it consistently rather than departing from it.
     - For slide deck projects, \(SlideDeckContract.authoringSummary)
     - For slide deck creation, \(slideDeckCreationGuidance)
     """
@@ -267,7 +267,7 @@ enum EaselAgentInstructions {
     }
 
     if let designSystem, designSystem.kind == .custom {
-      lines.append("Active design system: \(designSystem.displayName). Its spec is in this project at resources/design-system/DESIGN.md. Read it before writing UI and build directly from its colors, typography, spacing, radii, effects, and component families — do not improvise a different palette or type scale when the design system already defines one.")
+      lines.append("Active design system: \(designSystem.displayName). Its spec is in this project at resources/design-system/DESIGN.md, with reusable assets under resources/design-system/resources/. Read the spec before writing UI, inspect those assets when relevant, and build directly from its colors, typography, spacing, radii, effects, and component families — do not improvise a different palette or type scale when the design system already defines one.")
     }
 
     if !resourcePaths.isEmpty {
