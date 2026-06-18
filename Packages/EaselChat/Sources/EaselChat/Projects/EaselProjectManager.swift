@@ -30,11 +30,6 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
   private let encoder: JSONEncoder
   private let decoder: JSONDecoder
 
-  private static let skippedReusableResourceDirectoryNames: Set<String> = [
-    ".git", ".svn", ".build", "DerivedData", "node_modules",
-    ".next", ".nuxt", "dist", "build", "coverage", ".cache", ".easel",
-  ]
-
   public init(
     rootDirectory: URL? = nil,
     fileManager: FileManager = .default
@@ -190,48 +185,33 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
       )
     }
 
-    writeDesignSystemBundle(for: project, at: directoryURL)
+    writeDesignSystemBrief(for: project, at: directoryURL)
   }
 
-  /// Provides the custom design system's spec and reusable assets to the
-  /// project. The bundle is copied into project-local resources so prototypes
-  /// can reference it without depending on the design-system source folder.
-  private func writeDesignSystemBundle(for project: EaselDesignProject, at directoryURL: URL) {
+  /// Provides the custom design system's spec to the project so the agent can
+  /// reuse its tokens/components. Prefers the canonical, spec-compliant
+  /// `DESIGN.md` authored by the design system; falls back to a derived brief
+  /// only for legacy systems that predate it.
+  private func writeDesignSystemBrief(for project: EaselDesignProject, at directoryURL: URL) {
     let choice = project.designSystem
     guard choice.kind == .custom, let designSystemDirectory = choice.workingDirectory else {
       return
     }
 
-    let designSystemURL = URL(fileURLWithPath: designSystemDirectory, isDirectory: true)
-    let bundleDirectory = directoryURL
+    let briefDirectory = directoryURL
       .appendingPathComponent(ProjectResource.resourcesDirectoryName, isDirectory: true)
       .appendingPathComponent("design-system", isDirectory: true)
-    try? fileManager.createDirectory(at: bundleDirectory, withIntermediateDirectories: true)
+    try? fileManager.createDirectory(at: briefDirectory, withIntermediateDirectories: true)
+    let destination = briefDirectory.appendingPathComponent("DESIGN.md")
 
-    writeDesignSystemMarkdown(
-      from: designSystemURL,
-      choice: choice,
-      to: bundleDirectory
-    )
-    copyReusableDesignSystemResources(
-      from: designSystemURL,
-      into: bundleDirectory.appendingPathComponent("resources", isDirectory: true)
-    )
-  }
-
-  private func writeDesignSystemMarkdown(
-    from designSystemURL: URL,
-    choice: EaselDesignSystemChoice,
-    to bundleDirectory: URL
-  ) {
-    let destination = bundleDirectory.appendingPathComponent("DESIGN.md")
-    let canonicalURL = designSystemURL.appendingPathComponent("DESIGN.md")
+    let canonicalURL = URL(fileURLWithPath: designSystemDirectory, isDirectory: true)
+      .appendingPathComponent("DESIGN.md")
     if let canonical = try? Data(contentsOf: canonicalURL), !canonical.isEmpty {
       try? canonical.write(to: destination, options: .atomic)
       return
     }
 
-    let catalog = loadDesignSystemCatalog(atDesignSystemDirectory: designSystemURL.path)
+    let catalog = loadDesignSystemCatalog(atDesignSystemDirectory: designSystemDirectory)
     let markdown = DesignSystemBriefBuilder.markdown(
       displayName: choice.displayName,
       detail: choice.detail,
@@ -239,84 +219,6 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
       catalog: catalog
     )
     try? Data(markdown.utf8).write(to: destination, options: .atomic)
-  }
-
-  private func copyReusableDesignSystemResources(from designSystemURL: URL, into resourcesDirectory: URL) {
-    try? fileManager.createDirectory(at: resourcesDirectory, withIntermediateDirectories: true)
-
-    let groups: [(source: URL, destinationName: String)] = [
-      (
-        designSystemURL
-          .appendingPathComponent(".easel", isDirectory: true)
-          .appendingPathComponent("assets", isDirectory: true),
-        "figma-extracted"
-      ),
-      (
-        designSystemURL
-          .appendingPathComponent(ProjectResource.resourcesDirectoryName, isDirectory: true)
-          .appendingPathComponent("assets", isDirectory: true),
-        "imported-assets"
-      ),
-    ]
-
-    for group in groups {
-      let destination = resourcesDirectory.appendingPathComponent(group.destinationName, isDirectory: true)
-      try? copyReusableResourceFiles(from: group.source, to: destination)
-    }
-  }
-
-  private func copyReusableResourceFiles(from sourceDirectory: URL, to destinationDirectory: URL) throws {
-    var isDirectory: ObjCBool = false
-    guard fileManager.fileExists(atPath: sourceDirectory.path, isDirectory: &isDirectory),
-          isDirectory.boolValue else {
-      return
-    }
-
-    try fileManager.createDirectory(at: destinationDirectory, withIntermediateDirectories: true)
-    guard let enumerator = fileManager.enumerator(
-      at: sourceDirectory,
-      includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey],
-      options: [.skipsHiddenFiles]
-    ) else {
-      return
-    }
-
-    while let itemURL = enumerator.nextObject() as? URL {
-      let values = try itemURL.resourceValues(forKeys: [.isDirectoryKey, .isRegularFileKey])
-      if values.isDirectory == true {
-        if Self.skippedReusableResourceDirectoryNames.contains(itemURL.lastPathComponent) {
-          enumerator.skipDescendants()
-        }
-        continue
-      }
-
-      guard values.isRegularFile == true,
-            let relativePath = relativePath(for: itemURL, relativeTo: sourceDirectory) else {
-        continue
-      }
-
-      let destinationURL = destinationDirectory.appendingPathComponent(relativePath)
-      try fileManager.createDirectory(
-        at: destinationURL.deletingLastPathComponent(),
-        withIntermediateDirectories: true
-      )
-      if fileManager.fileExists(atPath: destinationURL.path) {
-        try fileManager.removeItem(at: destinationURL)
-      }
-      try fileManager.copyItem(at: itemURL, to: destinationURL)
-    }
-  }
-
-  private func relativePath(for fileURL: URL, relativeTo rootURL: URL) -> String? {
-    let filePath = fileURL.standardizedFileURL.resolvingSymlinksInPath().path
-    let rootPath = rootURL.standardizedFileURL.resolvingSymlinksInPath().path
-    let rootPrefix = rootPath + "/"
-
-    guard filePath.hasPrefix(rootPrefix) else {
-      return nil
-    }
-
-    return String(filePath.dropFirst(rootPrefix.count))
   }
 
   private func loadDesignSystemCatalog(atDesignSystemDirectory directory: String) -> EaselDesignSystemCatalog? {
@@ -423,7 +325,7 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
     metadataLines.append("- Design system: \(project.designSystem.displayName)")
 
     let designSystemGuidance = project.designSystem.kind == .custom
-      ? "\nThis project uses the **\(project.designSystem.displayName)** design system. Follow `resources/design-system/DESIGN.md` for its colors, type, spacing, and component families. Reusable design-system assets are bundled under `resources/design-system/resources/`.\n"
+      ? "\nThis project uses the **\(project.designSystem.displayName)** design system. Follow `resources/design-system/DESIGN.md` for its colors, type, spacing, and component families, and reuse them throughout the UI.\n"
       : ""
 
     let slideDeckGuidance = project.kind == .slideDeck

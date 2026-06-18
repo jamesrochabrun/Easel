@@ -295,87 +295,10 @@ struct EaselProjectManagerTests {
 
     let readme = try String(contentsOf: projectURL.appendingPathComponent("README.md"), encoding: .utf8)
     #expect(readme.contains("resources/design-system/DESIGN.md"))
-    #expect(readme.contains("resources/design-system/resources/"))
-  }
-
-  @Test
-  func createProjectCopiesCustomDesignSystemReusableAssetsIntoGroupedResources() async throws {
-    let rootDirectory = temporaryRoot()
-    let designSystemDirectory = temporaryRoot()
-    defer {
-      try? FileManager.default.removeItem(at: rootDirectory)
-      try? FileManager.default.removeItem(at: designSystemDirectory)
-    }
-
-    try write("# Plus UI Canonical\n\nUse the system.", to: designSystemDirectory.appendingPathComponent("DESIGN.md"))
-    try writeData(Data([1, 2, 3]), to: designSystemDirectory.appendingPathComponent(".easel/assets/thumbnail.png"))
-    try writeData(Data([4, 5, 6]), to: designSystemDirectory.appendingPathComponent(".easel/assets/images/logo.png"))
-    try writeData(Data([7, 8, 9]), to: designSystemDirectory.appendingPathComponent("resources/assets/fonts/Brand.woff2"))
-    try write("<svg></svg>", to: designSystemDirectory.appendingPathComponent("resources/assets/icons/logo.svg"))
-    try write("ignored dependency", to: designSystemDirectory.appendingPathComponent("resources/assets/node_modules/pkg/index.js"))
-    try writeData(Data([10, 11, 12]), to: designSystemDirectory.appendingPathComponent("resources/figma/System.fig"))
-    try write("struct Button {}", to: designSystemDirectory.appendingPathComponent("resources/code/Button.swift"))
-
-    let profile = EaselDesignSystemProfile(
-      id: UUID(),
-      name: "Plus UI",
-      blurb: "Plus UI kit",
-      notes: "",
-      sourceLinks: [],
-      workingDirectory: designSystemDirectory.path,
-      createdAt: Date(),
-      updatedAt: Date()
-    )
-
-    let manager = LocalEaselProjectManager(rootDirectory: rootDirectory)
-    let project = try await manager.createProject(from: EaselProjectCreateRequest(
-      name: "Asset Landing",
-      kind: .prototype,
-      designSystem: .custom(profile),
-      fidelity: .highFidelity
-    ))
-
-    let projectURL = URL(fileURLWithPath: project.workingDirectory)
-    let designMarkdownURL = projectURL.appendingPathComponent("resources/design-system/DESIGN.md")
-    let designMarkdown = try String(contentsOf: designMarkdownURL, encoding: .utf8)
-    #expect(designMarkdown.contains("# Plus UI Canonical"))
-
-    let copiedRoot = projectURL.appendingPathComponent("resources/design-system/resources", isDirectory: true)
-    #expect(FileManager.default.fileExists(atPath: copiedRoot.appendingPathComponent("figma-extracted/thumbnail.png").path))
-    #expect(FileManager.default.fileExists(atPath: copiedRoot.appendingPathComponent("figma-extracted/images/logo.png").path))
-    #expect(FileManager.default.fileExists(atPath: copiedRoot.appendingPathComponent("imported-assets/fonts/Brand.woff2").path))
-    #expect(FileManager.default.fileExists(atPath: copiedRoot.appendingPathComponent("imported-assets/icons/logo.svg").path))
-    #expect(FileManager.default.fileExists(atPath: copiedRoot.appendingPathComponent("imported-assets/node_modules/pkg/index.js").path) == false)
-    #expect(FileManager.default.fileExists(atPath: copiedRoot.appendingPathComponent("figma/System.fig").path) == false)
-    #expect(FileManager.default.fileExists(atPath: copiedRoot.appendingPathComponent("code/Button.swift").path) == false)
-
-    let resources = try await LocalProjectResourceManager().loadResources(forProjectAt: project.workingDirectory)
-    let resourcePaths = Set(resources.map(\.relativePath))
-    #expect(resourcePaths.contains("resources/design-system/DESIGN.md"))
-    #expect(resourcePaths.contains("resources/design-system/resources/figma-extracted/thumbnail.png"))
-    #expect(resourcePaths.contains("resources/design-system/resources/figma-extracted/images/logo.png"))
-    #expect(resourcePaths.contains("resources/design-system/resources/imported-assets/fonts/Brand.woff2"))
-    #expect(resourcePaths.contains("resources/design-system/resources/imported-assets/icons/logo.svg"))
   }
 
   private func temporaryRoot() -> URL {
     FileManager.default.temporaryDirectory
       .appendingPathComponent("EaselProjectManagerTests-\(UUID().uuidString)", isDirectory: true)
-  }
-
-  private func write(_ string: String, to url: URL) throws {
-    try FileManager.default.createDirectory(
-      at: url.deletingLastPathComponent(),
-      withIntermediateDirectories: true
-    )
-    try Data(string.utf8).write(to: url)
-  }
-
-  private func writeData(_ data: Data, to url: URL) throws {
-    try FileManager.default.createDirectory(
-      at: url.deletingLastPathComponent(),
-      withIntermediateDirectories: true
-    )
-    try data.write(to: url)
   }
 }
