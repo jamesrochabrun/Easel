@@ -17,85 +17,232 @@ struct DesignSystemReferenceView: View {
 
   @Environment(\.colorScheme) private var colorScheme
 
+  @State private var selectedSectionID = ""
+  @Namespace private var tabNamespace
+
   var body: some View {
-    VStack(alignment: .leading, spacing: 30) {
+    let sections = availableSections
+    VStack(alignment: .leading, spacing: 0) {
       if let disclaimer = catalog.disclaimer, !disclaimer.isEmpty {
         disclaimerBanner(disclaimer)
+          .padding(.horizontal, 28)
+          .padding(.top, 20)
       }
 
-      if let path = catalog.heroThumbnailPath, let url = fileURL(for: path) {
-        section(title: "Overview") {
-          previewImage(url: url, aspectRatio: 16 / 9, contentMode: .fit)
+      if sections.isEmpty {
+        Spacer(minLength: 0)
+      } else {
+        tabCarousel(sections)
+
+        Divider()
+          .overlay(EaselDesignSystem.Palette.border(for: colorScheme))
+
+        let active = resolvedSelection(in: sections)
+        ScrollView {
+          VStack(alignment: .leading, spacing: 18) {
+            sectionHeader(for: sections.first { $0.id == active })
+            sectionContent(for: active)
+          }
+          .padding(.horizontal, 28)
+          .padding(.top, 24)
+          .padding(.bottom, 40)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .id(active)
+          .transition(.opacity)
         }
       }
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .onAppear { ensureValidSelection(sections) }
+    .onChange(of: catalog.name) { ensureValidSelection(availableSections) }
+  }
 
-      if let tokens = catalog.tokens {
-        if !tokens.colors.isEmpty {
-          section(title: "Colors", count: tokens.colors.count, unit: "token") {
-            colorSwatches(tokens.colors)
-          }
-        }
-        if !tokens.typography.isEmpty {
-          section(title: "Typography", count: tokens.typography.count, unit: "style") {
-            typographySpecimens(tokens.typography)
-          }
-        }
-        if !tokens.spacing.isEmpty {
-          section(title: "Spacing", count: tokens.spacing.count, unit: "token") {
-            spacingScale(tokens.spacing)
-          }
-        }
-        if !tokens.radii.isEmpty {
-          section(title: "Radii", count: tokens.radii.count, unit: "token") {
-            radiusScale(tokens.radii)
-          }
-        }
-        if !tokens.effects.isEmpty {
-          section(title: "Effects", count: tokens.effects.count, unit: "token") {
-            effectChips(tokens.effects)
-          }
-        }
+  // MARK: - Tab model
+
+  private struct ReferenceSection: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let icon: String
+    let count: Int?
+    let unit: String?
+  }
+
+  private var availableSections: [ReferenceSection] {
+    var result: [ReferenceSection] = []
+
+    if let path = catalog.heroThumbnailPath, fileURL(for: path) != nil {
+      result.append(.init(id: "overview", title: "Overview", icon: "photo", count: nil, unit: nil))
+    }
+
+    if let tokens = catalog.tokens {
+      if !tokens.colors.isEmpty {
+        result.append(.init(id: "colors", title: "Colors", icon: "paintpalette", count: tokens.colors.count, unit: "token"))
       }
-
-      if let families = catalog.componentFamilies, !families.isEmpty {
-        section(title: "Component families", count: families.count, unit: "family") {
-          familyGrid(families)
-        }
+      if !tokens.typography.isEmpty {
+        result.append(.init(id: "typography", title: "Typography", icon: "textformat", count: tokens.typography.count, unit: "style"))
       }
-
-      if let examples = catalog.examples, !examples.isEmpty {
-        section(title: "Examples", count: examples.count, unit: "frame") {
-          exampleGrid(examples)
-        }
+      if !tokens.spacing.isEmpty {
+        result.append(.init(id: "spacing", title: "Spacing", icon: "arrow.left.and.right", count: tokens.spacing.count, unit: "token"))
       }
+      if !tokens.radii.isEmpty {
+        result.append(.init(id: "radii", title: "Radii", icon: "rectangle.roundedtop", count: tokens.radii.count, unit: "token"))
+      }
+      if !tokens.effects.isEmpty {
+        result.append(.init(id: "effects", title: "Effects", icon: "sparkles", count: tokens.effects.count, unit: "token"))
+      }
+    }
 
-      if let diagnostics = catalog.sourceDiagnostics {
-        diagnosticsSection(diagnostics)
+    if let families = catalog.componentFamilies, !families.isEmpty {
+      result.append(.init(id: "families", title: "Components", icon: "square.on.square", count: families.count, unit: "family"))
+    }
+
+    if let examples = catalog.examples, !examples.isEmpty {
+      result.append(.init(id: "examples", title: "Examples", icon: "rectangle.3.group", count: examples.count, unit: "frame"))
+    }
+
+    if catalog.sourceDiagnostics != nil {
+      result.append(.init(id: "diagnostics", title: "Diagnostics", icon: "stethoscope", count: nil, unit: nil))
+    }
+
+    return result
+  }
+
+  private func resolvedSelection(in sections: [ReferenceSection]) -> String {
+    if sections.contains(where: { $0.id == selectedSectionID }) { return selectedSectionID }
+    return sections.first?.id ?? ""
+  }
+
+  private func ensureValidSelection(_ sections: [ReferenceSection]) {
+    if !sections.contains(where: { $0.id == selectedSectionID }) {
+      selectedSectionID = sections.first?.id ?? ""
+    }
+  }
+
+  // MARK: - Tab carousel
+
+  private func tabCarousel(_ sections: [ReferenceSection]) -> some View {
+    let active = resolvedSelection(in: sections)
+    return ScrollViewReader { proxy in
+      ScrollView(.horizontal, showsIndicators: false) {
+        HStack(spacing: 8) {
+          ForEach(sections) { section in
+            tabChip(section, isActive: section.id == active)
+              .id(section.id)
+          }
+        }
+        .padding(.horizontal, 28)
+        .padding(.vertical, 14)
+      }
+      .onChange(of: selectedSectionID) { _, newValue in
+        withAnimation(.smooth(duration: 0.3)) {
+          proxy.scrollTo(newValue, anchor: .center)
+        }
       }
     }
   }
 
-  // MARK: - Section scaffolding
-
-  private func section<Content: View>(
-    title: String,
-    count: Int? = nil,
-    unit: String? = nil,
-    @ViewBuilder content: () -> Content
-  ) -> some View {
-    VStack(alignment: .leading, spacing: 12) {
-      HStack(alignment: .firstTextBaseline, spacing: 8) {
-        Text(title.uppercased())
-          .font(.caption.weight(.semibold))
-          .tracking(0.8)
-          .foregroundStyle(EaselDesignSystem.Palette.tertiaryText(for: colorScheme))
-        if let count, let unit {
-          Text(countLabel(count, unit: unit))
-            .font(.caption)
-            .foregroundStyle(EaselDesignSystem.Palette.tertiaryText(for: colorScheme))
+  private func tabChip(_ section: ReferenceSection, isActive: Bool) -> some View {
+    Button {
+      withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+        selectedSectionID = section.id
+      }
+    } label: {
+      HStack(spacing: 7) {
+        Image(systemName: section.icon)
+          .font(.system(size: 12, weight: .semibold))
+        Text(section.title)
+          .font(.system(size: 13, weight: .semibold))
+          .fixedSize()
+        if let count = section.count {
+          Text("\(count)")
+            .font(.system(size: 11, weight: .bold))
+            .monospacedDigit()
+            .foregroundStyle(
+              isActive
+                ? EaselDesignSystem.Palette.primaryActionForeground(for: colorScheme)
+                : EaselDesignSystem.Palette.tertiaryText(for: colorScheme)
+            )
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1)
+            .background(
+              Capsule().fill(
+                isActive
+                  ? EaselDesignSystem.Palette.accent
+                  : EaselDesignSystem.Palette.subtleSurface(for: colorScheme)
+              )
+            )
         }
       }
-      content()
+      .padding(.horizontal, 14)
+      .padding(.vertical, 9)
+      .foregroundStyle(isActive ? Color.primary : EaselDesignSystem.Palette.secondaryText(for: colorScheme))
+      .background {
+        if isActive {
+          Capsule()
+            .fill(EaselDesignSystem.Palette.surface(for: colorScheme))
+            .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.4 : 0.08), radius: 6, y: 2)
+            .overlay(Capsule().stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1))
+            .matchedGeometryEffect(id: "activeTab", in: tabNamespace)
+        }
+      }
+      .contentShape(Capsule())
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(section.title)
+    .accessibilityAddTraits(isActive ? [.isButton, .isSelected] : .isButton)
+  }
+
+  // MARK: - Section header & content router
+
+  @ViewBuilder
+  private func sectionHeader(for section: ReferenceSection?) -> some View {
+    if let section {
+      HStack(alignment: .firstTextBaseline, spacing: 10) {
+        Text(section.title)
+          .font(.system(size: 22, weight: .semibold))
+        if let count = section.count, let unit = section.unit {
+          Text(countLabel(count, unit: unit))
+            .font(.subheadline)
+            .foregroundStyle(EaselDesignSystem.Palette.tertiaryText(for: colorScheme))
+        }
+        Spacer(minLength: 0)
+      }
+    }
+  }
+
+  @ViewBuilder
+  private func sectionContent(for id: String) -> some View {
+    switch id {
+    case "overview":
+      if let path = catalog.heroThumbnailPath, let url = fileURL(for: path) {
+        previewImage(url: url, aspectRatio: 16 / 9, contentMode: .fit)
+          .frame(maxWidth: .infinity)
+          .clipShape(RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.preview))
+          .overlay {
+            RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.preview)
+              .stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1)
+          }
+      }
+    case "colors":
+      colorSwatches(catalog.tokens?.colors ?? [])
+    case "typography":
+      typographySpecimens(catalog.tokens?.typography ?? [])
+    case "spacing":
+      spacingScale(catalog.tokens?.spacing ?? [])
+    case "radii":
+      radiusScale(catalog.tokens?.radii ?? [])
+    case "effects":
+      effectChips(catalog.tokens?.effects ?? [])
+    case "families":
+      familyGrid(catalog.componentFamilies ?? [])
+    case "examples":
+      exampleGrid(catalog.examples ?? [])
+    case "diagnostics":
+      if let diagnostics = catalog.sourceDiagnostics {
+        diagnosticsBody(diagnostics)
+      }
+    default:
+      EmptyView()
     }
   }
 
@@ -368,28 +515,26 @@ struct DesignSystemReferenceView: View {
 
   // MARK: - Diagnostics
 
-  private func diagnosticsSection(_ diagnostics: EaselDesignSystemSourceDiagnostics) -> some View {
-    section(title: "Source diagnostics") {
-      VStack(alignment: .leading, spacing: 6) {
-        Text(diagnosticsSummary(diagnostics))
-          .font(.caption)
-          .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
-        ForEach(Array(actionableWarnings(diagnostics.warnings).enumerated()), id: \.offset) { _, warning in
-          HStack(alignment: .top, spacing: 6) {
-            Image(systemName: "exclamationmark.triangle")
-              .font(.caption2)
-              .foregroundStyle(EaselDesignSystem.Palette.warning)
-            Text(warning)
-              .font(.caption)
-              .foregroundStyle(EaselDesignSystem.Palette.tertiaryText(for: colorScheme))
-              .fixedSize(horizontal: false, vertical: true)
-          }
+  private func diagnosticsBody(_ diagnostics: EaselDesignSystemSourceDiagnostics) -> some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Text(diagnosticsSummary(diagnostics))
+        .font(.caption)
+        .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
+      ForEach(Array(actionableWarnings(diagnostics.warnings).enumerated()), id: \.offset) { _, warning in
+        HStack(alignment: .top, spacing: 6) {
+          Image(systemName: "exclamationmark.triangle")
+            .font(.caption2)
+            .foregroundStyle(EaselDesignSystem.Palette.warning)
+          Text(warning)
+            .font(.caption)
+            .foregroundStyle(EaselDesignSystem.Palette.tertiaryText(for: colorScheme))
+            .fixedSize(horizontal: false, vertical: true)
         }
       }
-      .padding(14)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .background(EaselDesignSystem.Palette.subtleSurface(for: colorScheme), in: RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.card))
     }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(EaselDesignSystem.Palette.subtleSurface(for: colorScheme), in: RoundedRectangle(cornerRadius: EaselDesignSystem.Radius.card))
   }
 
   private func actionableWarnings(_ warnings: [String]) -> [String] {
