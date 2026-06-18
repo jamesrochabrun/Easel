@@ -314,6 +314,10 @@ public struct GeneralPreferences: Codable {
   public var autoApproveLowRisk: Bool
   public var claudeCommand: String
   public var claudePath: String
+  public var claudeModel: String
+  public var claudeEffort: String
+  public var claudeAllowedTools: String
+  public var claudeDisallowedTools: String
   public var chatProvider: ChatProvider
   public var codexModel: String
   public var defaultWorkingDirectory: String
@@ -336,6 +340,10 @@ public struct GeneralPreferences: Codable {
     autoApproveLowRisk: Bool = false,
     claudeCommand: String = "claude",
     claudePath: String = "",
+    claudeModel: String = "",
+    claudeEffort: String = "",
+    claudeAllowedTools: String = "",
+    claudeDisallowedTools: String = "",
     chatProvider: ChatProvider = .codex,
     codexModel: String = CodexModelCacheCatalog().defaultModelIdentifier(),
     defaultWorkingDirectory: String = "",
@@ -354,6 +362,10 @@ public struct GeneralPreferences: Codable {
     self.autoApproveLowRisk = autoApproveLowRisk
     self.claudeCommand = claudeCommand
     self.claudePath = claudePath
+    self.claudeModel = claudeModel
+    self.claudeEffort = claudeEffort
+    self.claudeAllowedTools = claudeAllowedTools
+    self.claudeDisallowedTools = claudeDisallowedTools
     self.chatProvider = chatProvider.supportedProvider
     self.codexModel = codexModel
     self.defaultWorkingDirectory = defaultWorkingDirectory
@@ -376,6 +388,10 @@ public struct GeneralPreferences: Codable {
     autoApproveLowRisk = try container.decode(Bool.self, forKey: .autoApproveLowRisk)
     claudeCommand = try container.decode(String.self, forKey: .claudeCommand)
     claudePath = try container.decode(String.self, forKey: .claudePath)
+    claudeModel = try container.decodeIfPresent(String.self, forKey: .claudeModel) ?? ""
+    claudeEffort = try container.decodeIfPresent(String.self, forKey: .claudeEffort) ?? ""
+    claudeAllowedTools = try container.decodeIfPresent(String.self, forKey: .claudeAllowedTools) ?? ""
+    claudeDisallowedTools = try container.decodeIfPresent(String.self, forKey: .claudeDisallowedTools) ?? ""
     chatProvider = (try container.decodeIfPresent(ChatProvider.self, forKey: .chatProvider) ?? .codex).supportedProvider
     codexModel = try container.decodeIfPresent(String.self, forKey: .codexModel) ?? CodexModelCacheCatalog().defaultModelIdentifier()
     defaultWorkingDirectory = try container.decode(String.self, forKey: .defaultWorkingDirectory)

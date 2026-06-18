@@ -120,11 +120,10 @@ public struct MessageFactory {
   /// Creates a thinking message showing Claude's internal reasoning
   /// - Parameter content: The thinking content from Claude
   /// - Returns: A ChatMessage configured as a thinking message
-  /// - Note: Thinking messages are prefixed with "THINKING:" for clarity
   static func thinkingMessage(content: String) -> ChatMessage {
     ChatMessage(
       role: .thinking,
-      content: "THINKING: \(content)",
+      content: content,
       messageType: .thinking
     )
   }

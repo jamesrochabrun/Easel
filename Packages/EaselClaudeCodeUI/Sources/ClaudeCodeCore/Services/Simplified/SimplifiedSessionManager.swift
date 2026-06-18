@@ -51,7 +51,8 @@ public final class SimplifiedSessionManager: SimplifiedSessionManagerProtocol {
       chatViewModel.injectSession(
         sessionId: freshSession.id,
         messages: freshSession.messages,
-        workingDirectory: workingDirectory.isEmpty ? nil : workingDirectory
+        workingDirectory: workingDirectory.isEmpty ? nil : workingDirectory,
+        provider: freshSession.provider
       )
     }
   }

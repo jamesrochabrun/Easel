@@ -805,7 +805,8 @@ private actor RecordingSessionStorage: SessionStorageProtocol {
     firstMessage: String,
     workingDirectory: String?,
     branchName: String?,
-    isWorktree: Bool
+    isWorktree: Bool,
+    provider: ChatProvider
   ) async throws {}
 
   func getAllSessions() async throws -> [StoredSession] {

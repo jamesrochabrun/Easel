@@ -209,6 +209,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
       sessionId: sessionToLoad.id,
       messages: sessionToLoad.messages,
       workingDirectory: sessionToLoad.workingDirectory,
+      provider: sessionToLoad.provider,
       usageSummary: sessionToLoad.usageSummary
     )
 

@@ -13,17 +13,20 @@ struct GlobalSettingsView: View {
   let chatViewModel: ChatViewModel?
   let mcpToolsDiscovery: MCPToolsDiscoveryService
   let codexModelCatalog: any CodexModelCatalogProviding
+  let claudeModelCatalog: any ClaudeModelCatalogProviding
 
   init(
     uiConfiguration: UIConfiguration = .default,
     chatViewModel: ChatViewModel? = nil,
     mcpToolsDiscovery: MCPToolsDiscoveryService = MCPToolsDiscoveryService(),
-    codexModelCatalog: any CodexModelCatalogProviding = CodexModelCacheCatalog()
+    codexModelCatalog: any CodexModelCatalogProviding = CodexModelCacheCatalog(),
+    claudeModelCatalog: any ClaudeModelCatalogProviding = ClaudeModelCatalog()
   ) {
     self.uiConfiguration = uiConfiguration
     self.chatViewModel = chatViewModel
     self.mcpToolsDiscovery = mcpToolsDiscovery
     self.codexModelCatalog = codexModelCatalog
+    self.claudeModelCatalog = claudeModelCatalog
   }
   
   // MARK: - Constants
@@ -37,6 +40,7 @@ struct GlobalSettingsView: View {
   @Environment(\.dismiss) private var dismiss
   @Environment(GlobalPreferencesStorage.self) private var globalPreferences
   @State private var codexModels: [CodexModelDescriptor] = []
+  @State private var claudeModels: [ClaudeModelDescriptor] = []
 
   // MARK: - Body
   var body: some View {
@@ -51,8 +55,11 @@ struct GlobalSettingsView: View {
       }
     }
     .onAppear {
-      ensureCodexProvider()
-      refreshCodexModels()
+      if globalPreferences.chatProvider == .codex {
+        refreshCodexModels()
+      } else {
+        refreshClaudeModels()
+      }
     }
   }
   
@@ -82,10 +89,43 @@ struct GlobalSettingsView: View {
   // MARK: - Configuration Sections
   private var providerConfigurationSection: some View {
     return Section("Assistant Configuration") {
-      codexConfigurationRow
+      providerPickerRow
+
+      if globalPreferences.chatProvider == .codex {
+        codexConfigurationRow
+      } else {
+        claudeConfigurationRow
+      }
+
       if uiConfiguration.showSystemPromptFields {
         systemPromptRow
       }
+    }
+  }
+
+  @ViewBuilder
+  private var providerPickerRow: some View {
+    @Bindable var preferences = globalPreferences
+    VStack(alignment: .leading, spacing: 8) {
+      Picker("Provider", selection: $preferences.chatProvider) {
+        ForEach(ChatProvider.allCases) { provider in
+          Text(provider.displayName)
+            .tag(provider)
+        }
+      }
+      .pickerStyle(.segmented)
+      .onChange(of: preferences.chatProvider) { _, provider in
+        chatViewModel?.switchProvider(to: provider)
+        if provider == .codex {
+          refreshCodexModels()
+        } else {
+          refreshClaudeModels()
+        }
+      }
+
+      Text("New chats use this provider. Existing saved sessions resume with their original provider.")
+        .font(.caption)
+        .foregroundColor(.secondary)
     }
   }
 
@@ -138,6 +178,56 @@ struct GlobalSettingsView: View {
       }
     }
   }
+
+  @ViewBuilder
+  private var claudeConfigurationRow: some View {
+    @Bindable var preferences = globalPreferences
+    VStack(alignment: .leading, spacing: 16) {
+      ClaudeModelPickerRow(
+        preferences: globalPreferences,
+        models: claudeModels,
+        onRefresh: refreshClaudeModels
+      )
+
+      settingsMultilineEditor(
+        title: "Allowed Tools",
+        placeholder: "One pattern per line or comma-separated, e.g. Bash(npm *)\nRead\nEdit",
+        text: $preferences.claudeAllowedTools
+      )
+
+      settingsMultilineEditor(
+        title: "Denied Tools",
+        placeholder: "One pattern per line or comma-separated, e.g. Bash(rm -rf *)",
+        text: $preferences.claudeDisallowedTools
+      )
+
+      Divider()
+
+      settingsField("Command") {
+        TextField("claude", text: $preferences.claudeCommand)
+          .textFieldStyle(.roundedBorder)
+          .font(.system(.body, design: .monospaced))
+          .onChange(of: preferences.claudeCommand) { _, _ in
+            chatViewModel?.updateClaudeCommand(from: preferences)
+          }
+        Text("Claude runs in bypass-permissions mode for embedded chat.")
+          .font(.caption)
+          .foregroundColor(.secondary)
+      }
+
+      settingsField("Executable path") {
+        TextField("Optional absolute path", text: $preferences.claudePath)
+          .textFieldStyle(.roundedBorder)
+          .font(.system(.body, design: .monospaced))
+          .onChange(of: preferences.claudePath) { _, _ in
+            chatViewModel?.updateClaudeCommand(from: preferences)
+          }
+        Text("Leave empty to resolve the command from PATH.")
+          .font(.caption)
+          .foregroundColor(.secondary)
+      }
+    }
+  }
   
   // MARK: - Configuration Rows
   @ViewBuilder
@@ -150,16 +240,6 @@ struct GlobalSettingsView: View {
   }
   
   // MARK: - Helper Methods
-  private func ensureCodexProvider() {
-    if globalPreferences.chatProvider != .codex {
-      if let chatViewModel {
-        chatViewModel.switchProvider(to: .codex)
-      } else {
-        globalPreferences.chatProvider = .codex
-      }
-    }
-  }
-
   private func refreshCodexModels() {
     Task {
       let homeDirectory = NSHomeDirectory()
@@ -173,6 +253,38 @@ struct GlobalSettingsView: View {
     }
   }
 
+  private func refreshClaudeModels() {
+    Task {
+      claudeModels = await claudeModelCatalog.availableModels()
+    }
+  }
+
+  private func settingsField<Content: View>(
+    _ title: String,
+    @ViewBuilder content: () -> Content
+  ) -> some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Text(title)
+        .font(.caption)
+        .foregroundColor(.secondary)
+      content()
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  private func settingsMultilineEditor(
+    title: String,
+    placeholder: String,
+    text: Binding<String>
+  ) -> some View {
+    settingsField(title) {
+      MultilineSettingsEditor(text: text, placeholder: placeholder)
+      Text("Use one tool pattern per line, or separate multiple values with commas.")
+        .font(.caption)
+        .foregroundColor(.secondary)
+    }
+  }
+
   private func promptTextEditor(text: Binding<String>) -> some View {
     TextEditor(text: text)
       .font(.system(.body, design: .monospaced))
@@ -183,6 +295,40 @@ struct GlobalSettingsView: View {
       )
   }
 
+}
+
+private struct MultilineSettingsEditor: View {
+  @Binding var text: String
+  let placeholder: String
+  @FocusState private var isFocused: Bool
+
+  var body: some View {
+    ZStack(alignment: .topLeading) {
+      TextEditor(text: $text)
+        .scrollContentBackground(.hidden)
+        .focused($isFocused)
+        .font(.system(size: 13))
+        .frame(minHeight: 84)
+        .padding(6)
+
+      if text.isEmpty {
+        Text(placeholder)
+          .font(.system(size: 13))
+          .foregroundColor(.secondary)
+          .padding(.horizontal, 11)
+          .padding(.vertical, 14)
+          .allowsHitTesting(false)
+      }
+    }
+    .background(
+      RoundedRectangle(cornerRadius: 8)
+        .fill(Color(NSColor.textBackgroundColor))
+    )
+    .overlay(
+      RoundedRectangle(cornerRadius: 8)
+        .stroke(isFocused ? Color.accentColor.opacity(0.55) : Color(NSColor.separatorColor), lineWidth: 1)
+    )
+  }
 }
 
 

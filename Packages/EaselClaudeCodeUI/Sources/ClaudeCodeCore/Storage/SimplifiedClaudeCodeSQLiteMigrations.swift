@@ -73,10 +73,11 @@ public actor SimplifiedClaudeCodeSQLiteMigrationManager {
   /// Version 3: Persist provider tool use IDs on messages
   /// Version 4: Add aggregate session token usage columns
   /// Version 5: Add reasoning output token usage column
+  /// Version 6: Persist chat provider on sessions
   ///
   /// WHEN ADDING MIGRATIONS: Update this to the new version number
   /// See MIGRATION_GUIDE.md for instructions
-  public static let CURRENT_SCHEMA_VERSION = 5
+  public static let CURRENT_SCHEMA_VERSION = 6
 
   private let database: Connection
   private let databasePath: String
@@ -163,6 +164,9 @@ public actor SimplifiedClaudeCodeSQLiteMigrationManager {
     }
     if currentVersion < 5 {
       migrations.append(MigrationV5_AddReasoningOutputTokenUsage())
+    }
+    if currentVersion < 6 {
+      migrations.append(MigrationV6_AddSessionProvider())
     }
 
     return migrations
@@ -342,6 +346,18 @@ struct MigrationV5_AddReasoningOutputTokenUsage: DatabaseMigration {
     try database.execute("""
       ALTER TABLE sessions
       ADD COLUMN usage_reasoning_output_tokens INTEGER DEFAULT 0
+    """)
+  }
+}
+
+struct MigrationV6_AddSessionProvider: DatabaseMigration {
+  var version: Int { 6 }
+  var description: String { "Persist chat provider on sessions" }
+
+  func migrate(database: Connection) async throws {
+    try database.execute("""
+      ALTER TABLE sessions
+      ADD COLUMN provider TEXT NOT NULL DEFAULT 'codex'
     """)
   }
 }

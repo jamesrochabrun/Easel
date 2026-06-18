@@ -77,6 +77,30 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
     }
   }
 
+  public var claudeModel: String {
+    didSet {
+      saveToPersistentStorage()
+    }
+  }
+
+  public var claudeEffort: String {
+    didSet {
+      saveToPersistentStorage()
+    }
+  }
+
+  public var claudeAllowedTools: String {
+    didSet {
+      saveToPersistentStorage()
+    }
+  }
+
+  public var claudeDisallowedTools: String {
+    didSet {
+      saveToPersistentStorage()
+    }
+  }
+
   public var chatProvider: ChatProvider {
     didSet {
       saveToPersistentStorage()
@@ -188,6 +212,10 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
       self.appendSystemPrompt = general.appendSystemPrompt
       self.claudeCommand = general.claudeCommand
       self.claudePath = general.claudePath
+      self.claudeModel = general.claudeModel
+      self.claudeEffort = general.claudeEffort
+      self.claudeAllowedTools = general.claudeAllowedTools
+      self.claudeDisallowedTools = general.claudeDisallowedTools
       self.chatProvider = general.chatProvider.supportedProvider
       let loadedCodexModel = general.codexModel.trimmingCharacters(in: .whitespacesAndNewlines)
       self.codexModel = loadedCodexModel.isEmpty ? CodexModelCacheCatalog().defaultModelIdentifier() : loadedCodexModel
@@ -274,6 +302,10 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
       self.defaultWorkingDirectory = ""
       self.claudeCommand = "claude"
       self.claudePath = ""
+      self.claudeModel = ""
+      self.claudeEffort = ""
+      self.claudeAllowedTools = ""
+      self.claudeDisallowedTools = ""
       self.chatProvider = .codex
       self.codexModel = codexModelCatalog.defaultModelIdentifier()
       self.codexCommand = ""
@@ -353,6 +385,10 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
       self.appendSystemPrompt = general.appendSystemPrompt
       self.claudeCommand = general.claudeCommand
       self.claudePath = general.claudePath
+      self.claudeModel = general.claudeModel
+      self.claudeEffort = general.claudeEffort
+      self.claudeAllowedTools = general.claudeAllowedTools
+      self.claudeDisallowedTools = general.claudeDisallowedTools
       self.chatProvider = general.chatProvider.supportedProvider
       let loadedCodexModel = general.codexModel.trimmingCharacters(in: .whitespacesAndNewlines)
       self.codexModel = loadedCodexModel.isEmpty ? CodexModelCacheCatalog().defaultModelIdentifier() : loadedCodexModel
@@ -400,6 +436,10 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
     defaultWorkingDirectory = ""
     claudeCommand = "claude"
     claudePath = ""
+    claudeModel = ""
+    claudeEffort = ""
+    claudeAllowedTools = ""
+    claudeDisallowedTools = ""
     chatProvider = .codex
     codexModel = codexModelCatalog.defaultModelIdentifier()
     codexCommand = ""
@@ -482,6 +522,10 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
         autoApproveLowRisk: autoApproveLowRisk,
         claudeCommand: claudeCommand,
         claudePath: claudePath,
+        claudeModel: claudeModel,
+        claudeEffort: claudeEffort,
+        claudeAllowedTools: claudeAllowedTools,
+        claudeDisallowedTools: claudeDisallowedTools,
         chatProvider: chatProvider,
         codexModel: codexModel,
         defaultWorkingDirectory: defaultWorkingDirectory,
@@ -584,6 +628,10 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
         autoApproveLowRisk: autoApproveLowRisk,
         claudeCommand: claudeCommand,
         claudePath: claudePath,
+        claudeModel: claudeModel,
+        claudeEffort: claudeEffort,
+        claudeAllowedTools: claudeAllowedTools,
+        claudeDisallowedTools: claudeDisallowedTools,
         chatProvider: chatProvider,
         codexModel: codexModel,
         defaultWorkingDirectory: defaultWorkingDirectory,

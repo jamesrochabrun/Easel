@@ -11,17 +11,18 @@ final class SettingsVisibilitySourceTests: XCTestCase {
     XCTAssertFalse(source.contains("Switching providers starts a fresh conversation."))
   }
 
-  func testGlobalSettingsShowsCodexConfigurationWithoutProviderPicker() throws {
+  func testGlobalSettingsShowsProviderPickerAndProviderConfiguration() throws {
     let source = try sourceContents("Sources/ClaudeCodeCore/UI/GlobalSettingsView.swift")
 
-    XCTAssertTrue(source.contains("ensureCodexProvider()"))
+    XCTAssertTrue(source.contains("Picker(\"Provider\""))
     XCTAssertTrue(source.contains("codexConfigurationRow"))
-    XCTAssertFalse(source.contains("Picker(\"Provider\""))
-    XCTAssertFalse(source.contains("Text(\"Provider\")"))
+    XCTAssertTrue(source.contains("claudeConfigurationRow"))
+    XCTAssertTrue(source.contains("ClaudeModelPickerRow"))
+    XCTAssertTrue(source.contains("Allowed Tools"))
+    XCTAssertTrue(source.contains("Denied Tools"))
+    XCTAssertFalse(source.contains("$preferences.claudeEffort"))
     XCTAssertFalse(source.contains("Switching providers starts a fresh conversation."))
-    XCTAssertFalse(source.contains("Claude Command"))
     XCTAssertFalse(source.contains("Claude Code"))
-    XCTAssertFalse(source.contains("if preferences.chatProvider == .claude"))
   }
 
   func testGlobalSettingsDoesNotExposePromptDebugOrResetSections() throws {

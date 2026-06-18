@@ -28,7 +28,7 @@ struct SidebarSessionRow: View {
               .font(.system(.caption2, design: .monospaced))
               .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
 
-            Text("Codex")
+            Text(session.provider.displayName)
               .font(.system(.caption2, design: .monospaced))
               .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
 

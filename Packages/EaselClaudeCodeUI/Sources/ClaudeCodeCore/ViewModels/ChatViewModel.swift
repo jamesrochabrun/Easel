@@ -90,7 +90,8 @@ public final class ChatViewModel {
   }()
   private let messageStore = MessageStore()
   @ObservationIgnored private var codexRuntime: CodexChatRuntime?
-  @ObservationIgnored private var codexTask: Task<Void, Never>?
+  @ObservationIgnored private var claudeRuntime: ClaudeChatRuntime?
+  @ObservationIgnored private var runtimeTask: Task<Void, Never>?
   private var firstMessageInSession: String?
   private var loadingSessionIdentity: LoadingSessionIdentity?
   
@@ -139,10 +140,12 @@ public final class ChatViewModel {
   /// This returns the session ID that Claude is actively using, which may be
   /// different from currentSessionId during streaming operations
   var activeSessionId: String? {
-    if activeProvider == .codex {
-      return sessionManager.currentSessionId
+    switch activeProvider {
+    case .codex:
+      return codexRuntime?.activeSessionId ?? sessionManager.currentSessionId
+    case .claude:
+      return claudeRuntime?.activeSessionId ?? streamProcessor.activeSessionId
     }
-    return streamProcessor.activeSessionId
   }
 
   public private(set) var activeProvider: ChatProvider = .codex
@@ -526,8 +529,9 @@ EOF
     }
 
     let currentDirectory = projectPath
+    persistCurrentMessagesInBackground()
     cancelRequest()
-    clearConversation()
+    clearConversation(resetProviderToDefault: false)
     activeProvider = provider
     globalPreferences.chatProvider = provider
 
@@ -536,7 +540,9 @@ EOF
     }
   }
 
-  private func ensureProviderMatchesPreferences() {
+  private func ensureProviderMatchesPreferencesForNewSession() {
+    guard sessionManager.currentSessionId == nil else { return }
+
     let selectedProvider = globalPreferences.chatProvider.supportedProvider
     guard activeProvider != selectedProvider else {
       if globalPreferences.chatProvider != selectedProvider {
@@ -553,6 +559,10 @@ EOF
     if !currentDirectory.isEmpty {
       setWorkingDirectory(currentDirectory)
     }
+  }
+
+  private func setActiveProvider(_ provider: ChatProvider) {
+    activeProvider = provider.supportedProvider
   }
 
   private var currentSessionIdentity: LoadingSessionIdentity {
@@ -634,7 +644,7 @@ EOF
   ///   - attachments: Optional file attachments (images, PDFs, etc.)
   public func sendMessage(_ text: String, context: String? = nil, hiddenContext: String? = nil, codeSelections: [TextSelection]? = nil, attachments: [FileAttachment]? = nil) {
     guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-    ensureProviderMatchesPreferences()
+    ensureProviderMatchesPreferencesForNewSession()
 
     // Reset cancellation flag for new message
     isCancelled = false
@@ -685,13 +695,7 @@ EOF
     // Start conversation
     let task = Task {
       do {
-        if activeProvider == .codex {
-          try await sendCodexMessage(prompt: apiContent, messageId: assistantId)
-        } else if let sessionId = sessionManager.currentSessionId {
-          try await continueConversation(sessionId: sessionId, prompt: apiContent, messageId: assistantId)
-        } else {
-          try await startNewConversation(prompt: apiContent, messageId: assistantId)
-        }
+        try await sendRuntimeMessage(prompt: apiContent, messageId: assistantId)
       } catch {
         // A turn cancelled by a workspace/session switch must not post an error
         // into whatever conversation is now showing.
@@ -701,9 +705,7 @@ EOF
         }
       }
     }
-    if activeProvider == .codex {
-      codexTask = task
-    }
+    runtimeTask = task
   }
 
   func makeAPIContent(
@@ -797,6 +799,10 @@ EOF
   
   /// Clears the conversation history and starts a new session
   public func clearConversation() {
+    clearConversation(resetProviderToDefault: true)
+  }
+
+  private func clearConversation(resetProviderToDefault: Bool) {
     // Stop any in-flight turn first so it can't keep streaming into the chat
     // after we've cleared it (e.g. when switching to another workspace).
     stopActiveGeneration()
@@ -810,7 +816,30 @@ EOF
     currentSessionUsageSummary = .zero
     endLoadingState()
     codexRuntime?.resetSession()
-    codexTask = nil
+    claudeRuntime?.resetSession()
+    runtimeTask = nil
+    if resetProviderToDefault {
+      setActiveProvider(globalPreferences.chatProvider)
+    }
+  }
+
+  public func clearVisibleConversationPreservingActiveSession() {
+    guard let sessionId = activeSessionId else {
+      clearConversation()
+      return
+    }
+
+    let provider = activeProvider
+    let workingDirectory = projectPath
+    clearConversation(resetProviderToDefault: false)
+    setActiveProvider(provider)
+    sessionManager.selectSession(id: sessionId)
+    handleSessionChange(sessionId)
+    runtime(for: activeProvider).markSessionRestored()
+
+    if !workingDirectory.isEmpty {
+      setWorkingDirectory(workingDirectory)
+    }
   }
   
   /// Starts a new session without affecting the current session
@@ -833,12 +862,15 @@ EOF
         self.settingsStorage.clearProjectPath()
         self.claudeClient.configuration.workingDirectory = nil
         self.codexRuntime?.workingDirectory = nil
+        self.claudeRuntime?.workingDirectory = nil
         self.projectPath = ""
         
         // Clear the session manager's current session
         self.sessionManager.clearSession()
         self.codexRuntime?.resetSession()
-        self.codexTask = nil
+        self.claudeRuntime?.resetSession()
+        self.runtimeTask = nil
+        self.setActiveProvider(self.globalPreferences.chatProvider)
         
         // A new session will be created when the user sends their first message
         // Claude will provide the session ID
@@ -865,23 +897,27 @@ EOF
       logger.error("Failed to save messages for session \(sessionId): \(error)")
     }
   }
+
+  private func persistCurrentMessagesInBackground() {
+    guard shouldManageSessions, let sessionId = currentSessionId else {
+      return
+    }
+
+    let messages = messageStore.getAllMessages()
+    guard !messages.isEmpty else { return }
+
+    Task { [sessionStorage] in
+      try? await sessionStorage.updateSessionMessages(id: sessionId, messages: messages)
+    }
+  }
   
-  /// Invalidates any in-flight Codex turn before the conversation is cleared or
+  /// Invalidates any in-flight turn before the conversation is cleared or
   /// a different session is loaded.
-  ///
-  /// The Codex runtime streams into the shared message store regardless of which
-  /// session is visible, so a turn left running across a switch would bleed into
-  /// — and persist over — the new session/workspace. Cancelling it bumps the
-  /// runtime's generation token, after which its remaining events and its
-  /// session-finalize are dropped.
-  ///
-  /// The Claude path is deliberately left alone: it routes results to their
-  /// originating session, so a background turn stays correctly scoped to that
-  /// session (see `isCurrentSessionLoading`) and is allowed to finish.
   private func stopActiveGeneration() {
     codexRuntime?.cancel()
-    codexTask?.cancel()
-    codexTask = nil
+    claudeRuntime?.cancel()
+    runtimeTask?.cancel()
+    runtimeTask = nil
   }
 
   /// Cancels any ongoing requests
@@ -889,17 +925,9 @@ EOF
     // Set cancellation flag
     isCancelled = true
 
-    if activeProvider == .codex {
-      codexRuntime?.cancel()
-      codexTask?.cancel()
-      codexTask = nil
-    } else {
-      // IMPORTANT: Terminate the Claude Code subprocess first
-      claudeClient.cancel()
-
-      // Cancel the stream subscription
-      streamProcessor.cancelStream()
-    }
+    runtime(for: activeProvider).cancel()
+    runtimeTask?.cancel()
+    runtimeTask = nil
 
     // Cancel any pending tool approval requests
     customPermissionService.cancelAllRequests()
@@ -958,15 +986,13 @@ EOF
 
     // Resume the conversation
     do {
-      let options = createOptions()
-      let result = try await claudeClient.resumeConversation(
-        sessionId: sessionId,
+      try await runtime(for: .claude).send(
         prompt: prompt,
-        outputFormat: .streamJson,
-        options: options
+        messageId: assistantId,
+        firstMessageInSession: firstMessageInSession
       )
-
-      await processResult(result, messageId: assistantId)
+      endLoadingState()
+      await saveCurrentSessionMessages()
     } catch {
       await handleSessionResumptionError(error, sessionId: sessionId)
     }
@@ -1039,11 +1065,10 @@ EOF
     currentSessionUsageSummary = session.usageSummary
 
     // Set the session ID
+    setActiveProvider(session.provider)
     sessionManager.selectSession(id: sessionId)
     handleSessionChange(sessionId)
-    if activeProvider == .codex {
-      getCodexRuntime().markSessionRestored()
-    }
+    runtime(for: activeProvider).markSessionRestored()
 
     // Load and set the session's stored path
     if let sessionPath = settingsStorage.getProjectPath(forSessionId: sessionId) {
@@ -1056,6 +1081,7 @@ EOF
           // Update ClaudeClient configuration
           claudeClient.configuration.workingDirectory = sessionPath
           codexRuntime?.workingDirectory = sessionPath
+          claudeRuntime?.workingDirectory = sessionPath
           // Update the observable project path
           projectPath = sessionPath
           if isDebugEnabled {
@@ -1074,6 +1100,7 @@ EOF
       // No stored path for this session
       claudeClient.configuration.workingDirectory = nil
       codexRuntime?.workingDirectory = nil
+      claudeRuntime?.workingDirectory = nil
       projectPath = ""
       if isDebugEnabled {
         let log = "No stored path for selected session '\(sessionId)'"
@@ -1099,11 +1126,13 @@ EOF
     }
     
     // Prepare session for resumption
-    prepareSessionForResumption(id: id)
-    
+    prepareSessionForResumption(id: id, provider: sessions.first { $0.id == id }?.provider)
+
     // Load messages for this session
     do {
       if let session = try await sessionStorage.getSession(id: id) {
+        setActiveProvider(session.provider)
+        runtime(for: activeProvider).markSessionRestored()
         messageStore.loadMessages(session.messages)
         currentSessionUsageSummary = session.usageSummary
         if isDebugEnabled {
@@ -1136,6 +1165,7 @@ EOF
     let normalizedDirectory = directory.isEmpty ? nil : directory
     claudeClient.configuration.workingDirectory = normalizedDirectory
     codexRuntime?.workingDirectory = normalizedDirectory
+    claudeRuntime?.workingDirectory = normalizedDirectory
     projectPath = normalizedDirectory ?? ""
     settingsStorage.setProjectPath(projectPath)
   }
@@ -1144,6 +1174,7 @@ EOF
     sessionId: String,
     messages: [ChatMessage],
     workingDirectory: String? = nil,
+    provider: ChatProvider? = nil,
     usageSummary: SessionUsageSummary = .zero
   ) {
     // Stop any in-flight turn from the previous session/workspace so it can't
@@ -1151,6 +1182,7 @@ EOF
     stopActiveGeneration()
 
     // Set up the session
+    setActiveProvider(provider ?? globalPreferences.chatProvider)
     sessionManager.selectSession(id: sessionId)
     handleSessionChange(sessionId)
     currentSessionUsageSummary = usageSummary
@@ -1159,6 +1191,7 @@ EOF
     if let dir = workingDirectory {
       claudeClient.configuration.workingDirectory = dir
       codexRuntime?.workingDirectory = dir
+      claudeRuntime?.workingDirectory = dir
       projectPath = dir
       settingsStorage.setProjectPath(dir)
     }
@@ -1168,9 +1201,7 @@ EOF
 
     // Mark as active session
     hasSessionStarted = true
-    if activeProvider == .codex {
-      getCodexRuntime().markSessionRestored()
-    }
+    runtime(for: activeProvider).markSessionRestored()
     errorInfo = nil
     
     if isDebugEnabled {
@@ -1190,6 +1221,7 @@ EOF
       if !defaultDirectory.isEmpty {
         claudeClient.configuration.workingDirectory = defaultDirectory
         codexRuntime?.workingDirectory = defaultDirectory
+        claudeRuntime?.workingDirectory = defaultDirectory
         projectPath = defaultDirectory
         settingsStorage.setProjectPath(defaultDirectory)
       } else {
@@ -1197,6 +1229,7 @@ EOF
         settingsStorage.clearProjectPath()
         claudeClient.configuration.workingDirectory = nil
         codexRuntime?.workingDirectory = nil
+        claudeRuntime?.workingDirectory = nil
         projectPath = ""
       }
     }
@@ -1275,15 +1308,14 @@ EOF
     return true
   }
   
-  private func prepareSessionForResumption(id: String) {
+  private func prepareSessionForResumption(id: String, provider: ChatProvider?) {
     // Clear current messages
     messageStore.clear()
     
     // Set the session ID BEFORE any async operations
+    setActiveProvider(provider ?? .codex)
     sessionManager.selectSession(id: id)
-    if activeProvider == .codex {
-      getCodexRuntime().markSessionRestored()
-    }
+    runtime(for: activeProvider).markSessionRestored()
     
     // Notify settings storage of session change
     handleSessionChange(id)
@@ -1293,6 +1325,7 @@ EOF
       // Update ClaudeClient configuration
       claudeClient.configuration.workingDirectory = sessionPath
       codexRuntime?.workingDirectory = sessionPath
+      claudeRuntime?.workingDirectory = sessionPath
       // Update the observable project path
       projectPath = sessionPath
       if isDebugEnabled {
@@ -1303,6 +1336,7 @@ EOF
       // No stored path for this session
       claudeClient.configuration.workingDirectory = nil
       codexRuntime?.workingDirectory = nil
+      claudeRuntime?.workingDirectory = nil
       projectPath = ""
       if isDebugEnabled {
         let log = "No stored path for resumed session '\(id)'"
@@ -1367,21 +1401,7 @@ EOF
     }
     
     do {
-      if activeProvider == .codex {
-        try await sendCodexMessage(prompt: prompt, messageId: assistantId)
-        return
-      }
-
-      // Resume the conversation with the provided prompt
-      let options = createOptions()
-      let result = try await claudeClient.resumeConversation(
-        sessionId: id,
-        prompt: prompt,
-        outputFormat: .streamJson,
-        options: options
-      )
-      
-      await processResult(result, messageId: assistantId)
+      try await sendRuntimeMessage(prompt: prompt, messageId: assistantId)
     } catch {
       await handleSessionResumptionError(error, sessionId: id)
     }
@@ -1415,38 +1435,11 @@ EOF
   
   // MARK: - Private Methods
   
-  private func startNewConversation(prompt: String, messageId: UUID) async throws {
-    // Log if we're starting fresh when there's already a session
-    if let existingId = sessionManager.currentSessionId {
-      let log = "Starting new conversation while session '\(existingId)' exists"
-      logger.warning("\(log)")
-    }
-
-    if isDebugEnabled {
-      logger.info("Starting new conversation")
-    }
-
-    // Validate working directory before launching subprocess
+  private func sendRuntimeMessage(prompt: String, messageId: UUID) async throws {
     try validateWorkingDirectory()
 
-    let options = createOptions()
-
-    let result = try await claudeClient.runSinglePrompt(
-      prompt: prompt,
-      outputFormat: .streamJson,
-      options: options
-    )
-
-    await processResult(result, messageId: messageId)
-  }
-
-  private func sendCodexMessage(prompt: String, messageId: UUID) async throws {
-    try validateWorkingDirectory()
-
-    let runtime = getCodexRuntime()
-    runtime.workingDirectory = claudeClient.configuration.workingDirectory
-    runtime.developerInstructions = combinedCodexDeveloperInstructions()
-    runtime.modelIdentifier = globalPreferences.codexModel
+    let runtime = runtime(for: activeProvider)
+    configure(runtime)
     try await runtime.send(
       prompt: prompt,
       messageId: messageId,
@@ -1459,6 +1452,27 @@ EOF
     }
 
     await saveCurrentSessionMessages()
+  }
+
+  private func runtime(for provider: ChatProvider) -> any ChatRuntime {
+    switch provider.supportedProvider {
+    case .codex:
+      return getCodexRuntime()
+    case .claude:
+      return getClaudeRuntime()
+    }
+  }
+
+  private func configure(_ runtime: any ChatRuntime) {
+    runtime.workingDirectory = claudeClient.configuration.workingDirectory
+
+    if let codexRuntime = runtime as? CodexChatRuntime {
+      codexRuntime.developerInstructions = combinedCodexDeveloperInstructions()
+      codexRuntime.modelIdentifier = globalPreferences.codexModel
+      codexRuntime.commandOverride = globalPreferences.codexCommand
+      codexRuntime.extraArguments = CodexChatRuntime.parseArgumentString(globalPreferences.codexExtraArgs)
+      codexRuntime.environmentOverrides = globalPreferences.codexEnvironmentVariables
+    }
   }
 
   private func getCodexRuntime() -> CodexChatRuntime {
@@ -1483,6 +1497,37 @@ EOF
       }
     )
     codexRuntime = runtime
+    return runtime
+  }
+
+  private func getClaudeRuntime() -> ClaudeChatRuntime {
+    if let claudeRuntime {
+      return claudeRuntime
+    }
+
+    let runtime = ClaudeChatRuntime(
+      claudeClient: claudeClient,
+      sessionManager: sessionManager,
+      streamProcessor: streamProcessor,
+      globalPreferences: globalPreferences,
+      systemPromptPrefix: systemPromptPrefix,
+      onError: { [weak self] error, operation in
+        self?.handleError(error, operation: operation)
+      },
+      onTokenUsageUpdate: { [weak self] inputTokens, outputTokens in
+        self?.updateTokenUsage(inputTokens: inputTokens, outputTokens: outputTokens)
+      },
+      onCostUpdate: { [weak self] costUSD in
+        self?.updateCost(costUSD)
+      },
+      onUsageRecord: { [weak self] record in
+        self?.recordCompletedTurnUsage(record)
+      },
+      onResultReceived: { [weak self] in
+        self?.endLoadingState()
+      }
+    )
+    claudeRuntime = runtime
     return runtime
   }
 
@@ -1511,216 +1556,6 @@ EOF
     """)
   }
   #endif
-  
-  private func continueConversation(sessionId: String, prompt: String, messageId: UUID) async throws {
-    if isDebugEnabled {
-      let log = "Continuing session '\(sessionId)'"
-      logger.debug("\(log)")
-    }
-
-    // Validate working directory before launching subprocess
-    try validateWorkingDirectory()
-
-    let options = createOptions()
-
-    do {
-      let result = try await claudeClient.resumeConversation(
-        sessionId: sessionId,
-        prompt: prompt,
-        outputFormat: .streamJson,
-        options: options
-      )
-
-      await processResult(result, messageId: messageId)
-    } catch {
-      // Check if it's a session not found error
-      let errorMessage = error.localizedDescription.lowercased()
-      if errorMessage.contains("no conversation") || errorMessage.contains("not found") {
-        if isDebugEnabled {
-          logger.info("Session not found, starting new conversation")
-        }
-        try await startNewConversation(prompt: prompt, messageId: messageId)
-      } else {
-        throw error
-      }
-    }
-  }
-  
-  private func createOptions() -> ClaudeCodeOptions {
-    var options = ClaudeCodeOptions()
-    
-    // Start with the allowed tools from preferences
-    var allowedTools = globalPreferences.allowedTools
-
-    // Only add approval tool if the approval server exists in MCP config
-    let approvalToolName = "mcp__approval_server__approval_prompt"
-
-    // Always check if approval server is configured (it might be auto-added on app launch)
-    let configManager = MCPConfigurationManager()
-    if configManager.configuration.mcpServers["approval_server"] != nil {
-      // Approval server is configured, add the tool if not already present
-      if !allowedTools.contains(approvalToolName) {
-        if isDebugEnabled {
-          let log = "Adding approval tool to allowed tools: \(approvalToolName)"
-          logger.debug("\(log)")
-        }
-        allowedTools.append(approvalToolName)
-      }
-    } else {
-      if isDebugEnabled {
-        logger.debug("Approval server not configured in MCP - skipping approval tool")
-      }
-
-      // Show error to user with recovery option
-      let configError = NSError(
-        domain: "MCPConfiguration",
-        code: 1001,
-        userInfo: [NSLocalizedDescriptionKey: "Approval server not configured in MCP"]
-      )
-
-      let errorInfo = ErrorInfo(
-        error: configError,
-        severity: .warning,
-        context: "MCP Approval Tool",
-        recoverySuggestion: "The approval server is not configured. Tool approvals won't work until this is fixed. Click 'Fix' to repair the configuration.",
-        operation: .configuration,
-        recoveryAction: { [weak self] in
-          // Re-run the config update
-          let mcpConfigManager = MCPConfigurationManager()
-          mcpConfigManager.updateApprovalServerPath()
-
-          // Check if it worked
-          if mcpConfigManager.configuration.mcpServers["approval_server"] != nil {
-            // The config was updated successfully
-            self?.logger.info("MCP approval server configuration repaired successfully")
-
-            // Clear any existing errors and show success
-            self?.errorQueue.removeAll { $0.displayMessage.contains("Approval server") }
-          } else {
-            // Still couldn't configure - binary might be missing
-            let binaryError = NSError(
-              domain: "MCPConfiguration",
-              code: 1002,
-              userInfo: [NSLocalizedDescriptionKey: "ApprovalMCPServer binary not found in app bundle. Please rebuild the app."]
-            )
-            self?.errorQueue.append(ErrorInfo(
-              error: binaryError,
-              severity: .error,
-              context: "MCP Approval Tool",
-              recoverySuggestion: "The approval server binary is missing. Rebuild the app to bundle it.",
-              operation: .configuration
-            ))
-          }
-        }
-      )
-      errorQueue.append(errorInfo)
-    }
-
-    // Configure chat options with global preferences
-    options.allowedTools = allowedTools
-    options.disallowedTools = globalPreferences.disallowedTools
-
-    // Apply user-defined system prompt if provided
-    if !globalPreferences.systemPrompt.isEmpty {
-      options.systemPrompt = globalPreferences.systemPrompt
-    }
-
-    // Combine system prompt prefix with user's additional system prompt
-    var combinedAppendPrompt = systemPromptPrefix ?? ""
-    if !combinedAppendPrompt.isEmpty && !globalPreferences.appendSystemPrompt.isEmpty {
-      combinedAppendPrompt += "\n"  // Add line break between prefix and user prompt
-    }
-    combinedAppendPrompt += globalPreferences.appendSystemPrompt
-
-    if !combinedAppendPrompt.isEmpty {
-      options.appendSystemPrompt = combinedAppendPrompt
-    }
-    
-    // Configure MCP with custom permission service integration
-    let mcpHelper = ApprovalMCPHelper(permissionService: customPermissionService)
-    
-    if !globalPreferences.mcpConfigPath.isEmpty {
-      if isDebugEnabled {
-        let log = "Setting mcpConfigPath in options: \(globalPreferences.mcpConfigPath)"
-        logger.debug("\(log)")
-      }
-      options.mcpConfigPath = globalPreferences.mcpConfigPath
-      
-      // Also configure approval tool integration
-      mcpHelper.configureOptions(&options)
-    } else {
-      if isDebugEnabled {
-        logger.debug("No mcpConfigPath found in settings, configuring approval tool only")
-      }
-      // Configure just the approval tool
-      mcpHelper.configureOptions(&options)
-    }
-    
-    // Set the permission mode for this chat session
-    options.permissionMode = permissionMode
-
-    if isDebugEnabled {
-      logger.debug("Custom permission service integration configured")
-      let log = "Permission mode: \(self.permissionMode.rawValue)"
-      logger.debug("\(log)")
-      let finalToolsLog = "Final allowed tools: \(options.allowedTools ?? [])"
-      logger.debug("\(finalToolsLog)")
-    }
-    return options
-  }
-  
-  private func processResult(_ result: ClaudeCodeResult, messageId: UUID) async {
-    switch result {
-    case .stream(let publisher):
-      await streamProcessor.processStream(
-        publisher,
-        messageId: messageId,
-        firstMessageInSession: firstMessageInSession,
-        onError: { [weak self] error in
-          Task { @MainActor in
-            self?.handleError(error, operation: .streaming)
-          }
-        },
-        onTokenUsageUpdate: { [weak self] inputTokens, outputTokens in
-          Task { @MainActor in
-            self?.updateTokenUsage(inputTokens: inputTokens, outputTokens: outputTokens)
-          }
-        },
-        onCostUpdate: { [weak self] costUSD in
-          Task { @MainActor in
-            self?.updateCost(costUSD)
-          }
-        },
-        onUsageRecord: { [weak self] record in
-          Task { @MainActor in
-            self?.recordCompletedTurnUsage(record)
-          }
-        },
-        onResultReceived: { [weak self] in
-          Task { @MainActor in
-            self?.endLoadingState()
-          }
-        }
-      )
-      await MainActor.run {
-        // Clear first message after it's been saved
-        self.firstMessageInSession = nil
-      }
-
-      // Save messages after streaming completes
-      await saveCurrentSessionMessages()
-      
-    default:
-      await MainActor.run {
-        let error = NSError(
-          domain: "ChatViewModel",
-          code: 1001,
-          userInfo: [NSLocalizedDescriptionKey: "Unexpected response format"]
-        )
-        self.handleError(error, operation: .streaming)
-      }
-    }
-  }
   
   
   @MainActor
@@ -1836,6 +1671,7 @@ EOF
       // Clear the invalid directory immediately
       claudeClient.configuration.workingDirectory = nil
       codexRuntime?.workingDirectory = nil
+      claudeRuntime?.workingDirectory = nil
       projectPath = ""
       settingsStorage.clearProjectPath()
 
@@ -1890,6 +1726,7 @@ EOF
   private func handleInvalidPath(_ path: String, sessionId: String) {
     claudeClient.configuration.workingDirectory = nil
     codexRuntime?.workingDirectory = nil
+    claudeRuntime?.workingDirectory = nil
     projectPath = ""
 
     let errorMessage = "The directory '\(path)' no longer exists or is invalid. Please select a new working directory."

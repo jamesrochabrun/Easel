@@ -21,6 +21,8 @@ public struct StoredSession: Codable, Identifiable, Sendable {
   public let branchName: String?
   /// Whether this session is in a git worktree
   public let isWorktree: Bool
+  /// Provider used by this conversation.
+  public let provider: ChatProvider
   /// Aggregate token usage recorded for this session.
   public let usageSummary: SessionUsageSummary
 
@@ -43,6 +45,7 @@ public struct StoredSession: Codable, Identifiable, Sendable {
     workingDirectory: String? = nil,
     branchName: String? = nil,
     isWorktree: Bool = false,
+    provider: ChatProvider = .codex,
     usageSummary: SessionUsageSummary = .zero
   ) {
     self.id = id
@@ -53,6 +56,7 @@ public struct StoredSession: Codable, Identifiable, Sendable {
     self.workingDirectory = workingDirectory
     self.branchName = branchName
     self.isWorktree = isWorktree
+    self.provider = provider
     self.usageSummary = usageSummary
   }
 
@@ -65,6 +69,7 @@ public struct StoredSession: Codable, Identifiable, Sendable {
     case workingDirectory
     case branchName
     case isWorktree
+    case provider
     case usageSummary
   }
 
@@ -78,6 +83,7 @@ public struct StoredSession: Codable, Identifiable, Sendable {
     workingDirectory = try container.decodeIfPresent(String.self, forKey: .workingDirectory)
     branchName = try container.decodeIfPresent(String.self, forKey: .branchName)
     isWorktree = try container.decodeIfPresent(Bool.self, forKey: .isWorktree) ?? false
+    provider = try container.decodeIfPresent(ChatProvider.self, forKey: .provider) ?? .codex
     usageSummary = try container.decodeIfPresent(SessionUsageSummary.self, forKey: .usageSummary) ?? .zero
   }
   
@@ -99,7 +105,7 @@ public struct StoredSession: Codable, Identifiable, Sendable {
 /// Protocol for session storage management
 public protocol SessionStorageProtocol {
   /// Saves a new session
-  func saveSession(id: String, firstMessage: String, workingDirectory: String?, branchName: String?, isWorktree: Bool) async throws
+  func saveSession(id: String, firstMessage: String, workingDirectory: String?, branchName: String?, isWorktree: Bool, provider: ChatProvider) async throws
   
   /// Retrieves all stored sessions
   func getAllSessions() async throws -> [StoredSession]
@@ -152,7 +158,7 @@ public actor NoOpSessionStorage: SessionStorageProtocol {
   
   public init() {}
   
-  public func saveSession(id: String, firstMessage: String, workingDirectory: String?, branchName: String?, isWorktree: Bool) async throws {
+  public func saveSession(id: String, firstMessage: String, workingDirectory: String?, branchName: String?, isWorktree: Bool, provider: ChatProvider) async throws {
     // No-op: Don't save anything
   }
   

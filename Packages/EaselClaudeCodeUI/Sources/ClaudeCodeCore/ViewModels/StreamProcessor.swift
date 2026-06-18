@@ -309,7 +309,12 @@ final class StreamProcessor {
         let log = "Starting new session with ID: \(initMessage.sessionId)"
         logger.info("\(log)")
         let workingDirectory = getCurrentWorkingDirectory?()
-        sessionManager.startNewSession(id: initMessage.sessionId, firstMessage: firstMessage, workingDirectory: workingDirectory)
+        sessionManager.startNewSession(
+          id: initMessage.sessionId,
+          firstMessage: firstMessage,
+          workingDirectory: workingDirectory,
+          provider: .claude
+        )
         // Notify settings storage of session change
         onSessionChange?(initMessage.sessionId)
       } else {
@@ -536,8 +541,11 @@ final class StreamProcessor {
         messageStore.addMessage(resultMessage)
         
       case .thinking(let thinking):
-        let thinkingMessage = MessageFactory.thinkingMessage(content: thinking.thinking)
-        messageStore.addMessage(thinkingMessage)
+        let thinkingText = thinking.thinking.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !thinkingText.isEmpty {
+          let thinkingMessage = MessageFactory.thinkingMessage(content: thinkingText)
+          messageStore.addMessage(thinkingMessage)
+        }
         
       case .serverToolUse:
         break
@@ -602,7 +610,12 @@ final class StreamProcessor {
       debugLogger.stream("handleResult - No current session, starting new with ID: \(resultMessage.sessionId)")
       let firstMessage = firstMessageInSession ?? "New conversation"
       let workingDirectory = getCurrentWorkingDirectory?()
-      sessionManager.startNewSession(id: resultMessage.sessionId, firstMessage: firstMessage, workingDirectory: workingDirectory)
+      sessionManager.startNewSession(
+        id: resultMessage.sessionId,
+        firstMessage: firstMessage,
+        workingDirectory: workingDirectory,
+        provider: .claude
+      )
     } else {
       debugLogger.stream("handleResult - Result received for session: \(resultMessage.sessionId), current: \(sessionManager.currentSessionId ?? "nil")")
     }

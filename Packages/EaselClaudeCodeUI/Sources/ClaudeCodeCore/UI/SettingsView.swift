@@ -146,7 +146,7 @@ struct SettingsView: View {
   private func showDirectoryPicker() {
     let panel = NSOpenPanel()
     panel.title = "Select Project Directory"
-    panel.message = "Choose a project directory to use with Codex"
+    panel.message = "Choose a project directory to use with the selected agent"
     panel.prompt = "Select"
     panel.allowsMultipleSelection = false
     panel.canChooseFiles = false

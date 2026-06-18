@@ -284,10 +284,8 @@ extension ChatInputView {
 
       if viewModel.activeProvider == .codex {
         CodexModelBadge(modelIdentifier: globalPreferences.codexModel)
-      }
-
-      if viewModel.activeProvider != .codex {
-        PermissionModeButton(mode: $viewModel.permissionMode)
+      } else if viewModel.activeProvider == .claude {
+        ClaudeModelBadge(modelIdentifier: globalPreferences.claudeModel)
       }
     }
     .font(.system(size: 10))
