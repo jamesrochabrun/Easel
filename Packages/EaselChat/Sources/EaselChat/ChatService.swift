@@ -236,11 +236,10 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
       }
     }
 
-    chatViewModel?.clearConversation()
+    chatViewModel?.startNewSession(workingDirectory: workingDirectory)
 
     // Set the working directory for the new chat
     if let dir = workingDirectory, !dir.isEmpty {
-      chatViewModel?.setWorkingDirectory(dir)
       setCurrentWorkingDirectory(dir)
     } else {
       setCurrentWorkingDirectory(chatViewModel?.projectPath)

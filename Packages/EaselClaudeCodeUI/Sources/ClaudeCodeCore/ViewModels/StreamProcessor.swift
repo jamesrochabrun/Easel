@@ -15,7 +15,7 @@ import os.log
 @MainActor
 final class StreamProcessor {
   private let logger = Logger(subsystem: "com.ClaudeCodeUI.ClaudeChat", category: "StreamProcessor")
-  private let messageStore: MessageStore
+  private var messageStore: MessageStore
   private let sessionManager: SessionManager
   private let globalPreferences: GlobalPreferencesStorage?
   private let mcpToolsDiscovery: MCPToolsDiscoveryService
@@ -70,6 +70,10 @@ final class StreamProcessor {
     self.onSessionChange = onSessionChange
     self.getCurrentWorkingDirectory = getCurrentWorkingDirectory
   }
+
+  func setMessageStore(_ messageStore: MessageStore) {
+    self.messageStore = messageStore
+  }
   
   /// Cancels the current stream processing
   func cancelStream() {
@@ -117,7 +121,7 @@ final class StreamProcessor {
       var subscription: AnyCancellable?
       
       timeoutTask = Task { [weak self] in
-        try? await Task.sleep(nanoseconds: 120_000_000_000) // 120 seconds
+        try? await Task.sleep(for: .seconds(120))
         if !hasReceivedData && !Task.isCancelled {
           guard let self = self else { return }
           self.logger.error("Stream timeout - no data received within 120 seconds")

@@ -129,6 +129,8 @@ final class ClaudeCodeCoreTests: XCTestCase {
 
     let didStartLoading = await waitUntilLoadingStarts(viewModel)
     XCTAssertTrue(didStartLoading)
+    let didStartClaude = await waitUntilClaudeResumeStarts(client)
+    XCTAssertTrue(didStartClaude)
     XCTAssertTrue(viewModel.isCurrentSessionLoading)
 
     viewModel.injectSession(
@@ -155,6 +157,205 @@ final class ClaudeCodeCoreTests: XCTestCase {
   }
 
   @MainActor
+  func testSwitchingAwayFromLoadingClaudeSessionKeepsTurnRunning() async throws {
+    let storage = InMemorySessionStorage(sessions: [
+      StoredSession(
+        id: "session-a",
+        createdAt: Date(),
+        firstUserMessage: "A",
+        lastAccessedAt: Date(),
+        messages: [ChatMessage(role: .user, content: "A old")],
+        workingDirectory: NSTemporaryDirectory(),
+        provider: .claude
+      ),
+      StoredSession(
+        id: "session-b",
+        createdAt: Date(),
+        firstUserMessage: "B",
+        lastAccessedAt: Date(),
+        messages: [ChatMessage(role: .user, content: "B old")],
+        workingDirectory: NSTemporaryDirectory(),
+        provider: .claude
+      )
+    ])
+    let client = HangingClaudeCodeClient()
+    let preferences = GlobalPreferencesStorage(
+      persistentManager: PersistentPreferencesManager(
+        applicationSupportURL: FileManager.default.temporaryDirectory
+          .appendingPathComponent("ClaudeSwitchLoadingTests-\(UUID().uuidString)", isDirectory: true)
+      )
+    )
+    preferences.chatProvider = .claude
+    let viewModel = ChatViewModel(
+      claudeClient: client,
+      sessionStorage: storage,
+      settingsStorage: SettingsStorageManager(),
+      globalPreferences: preferences,
+      customPermissionService: MockCustomPermissionService()
+    )
+
+    await viewModel.resumeSession(id: "session-a")
+    viewModel.setWorkingDirectory(NSTemporaryDirectory())
+    viewModel.sendMessage("continue A")
+
+    let didStartLoading = await waitUntilLoadingStarts(viewModel)
+    XCTAssertTrue(didStartLoading)
+    let didStartClaude = await waitUntilClaudeResumeStarts(client)
+    XCTAssertTrue(didStartClaude)
+    XCTAssertTrue(viewModel.isCurrentSessionLoading)
+
+    await viewModel.switchToSession("session-b")
+
+    XCTAssertEqual(client.cancelCallCount, 0)
+    XCTAssertTrue(viewModel.isLoading)
+    XCTAssertFalse(viewModel.isCurrentSessionLoading)
+    XCTAssertEqual(viewModel.currentSessionId, "session-b")
+    XCTAssertEqual(viewModel.messages.map(\.content), ["B old"])
+
+    await viewModel.switchToSession("session-a")
+
+    XCTAssertEqual(client.cancelCallCount, 0)
+    XCTAssertTrue(viewModel.isLoading)
+    XCTAssertTrue(viewModel.isCurrentSessionLoading)
+    XCTAssertEqual(viewModel.currentSessionId, "session-a")
+    XCTAssertTrue(viewModel.messages.contains { $0.content == "continue A" })
+
+    viewModel.cancelRequest()
+    client.finish()
+  }
+
+  @MainActor
+  func testInjectingAnotherSessionKeepsLoadingClaudeTurnRunning() async throws {
+    let workingDirectory = NSTemporaryDirectory()
+    let storage = InMemorySessionStorage(sessions: [
+      StoredSession(
+        id: "session-a",
+        createdAt: Date(),
+        firstUserMessage: "A",
+        lastAccessedAt: Date(),
+        messages: [ChatMessage(role: .user, content: "A old")],
+        workingDirectory: workingDirectory,
+        provider: .claude
+      ),
+      StoredSession(
+        id: "session-b",
+        createdAt: Date(),
+        firstUserMessage: "B",
+        lastAccessedAt: Date(),
+        messages: [ChatMessage(role: .user, content: "B old")],
+        workingDirectory: workingDirectory,
+        provider: .claude
+      )
+    ])
+    let client = HangingClaudeCodeClient()
+    let preferences = isolatedClaudePreferences()
+    let viewModel = ChatViewModel(
+      claudeClient: client,
+      sessionStorage: storage,
+      settingsStorage: SettingsStorageManager(),
+      globalPreferences: preferences,
+      customPermissionService: MockCustomPermissionService()
+    )
+
+    await viewModel.resumeSession(id: "session-a")
+    viewModel.setWorkingDirectory(workingDirectory)
+    viewModel.sendMessage("continue A")
+
+    let didStartLoading = await waitUntilLoadingStarts(viewModel)
+    XCTAssertTrue(didStartLoading)
+    let didStartClaude = await waitUntilClaudeResumeStarts(client)
+    XCTAssertTrue(didStartClaude)
+
+    viewModel.injectSession(
+      sessionId: "session-b",
+      messages: [ChatMessage(role: .user, content: "B old")],
+      workingDirectory: workingDirectory,
+      provider: .claude
+    )
+
+    XCTAssertEqual(client.cancelCallCount, 0)
+    XCTAssertTrue(viewModel.isLoading)
+    XCTAssertFalse(viewModel.isCurrentSessionLoading)
+    XCTAssertEqual(viewModel.currentSessionId, "session-b")
+    XCTAssertEqual(viewModel.messages.map(\.content), ["B old"])
+
+    viewModel.injectSession(
+      sessionId: "session-a",
+      messages: [ChatMessage(role: .user, content: "A old")],
+      workingDirectory: workingDirectory,
+      provider: .claude
+    )
+
+    XCTAssertEqual(client.cancelCallCount, 0)
+    XCTAssertTrue(viewModel.isLoading)
+    XCTAssertTrue(viewModel.isCurrentSessionLoading)
+    XCTAssertEqual(viewModel.currentSessionId, "session-a")
+    XCTAssertTrue(viewModel.messages.contains { $0.content == "continue A" })
+
+    viewModel.cancelRequest()
+    client.finish()
+  }
+
+  @MainActor
+  func testStartingNewSessionKeepsLoadingClaudeTurnRunning() async throws {
+    let workingDirectory = NSTemporaryDirectory()
+    let storage = InMemorySessionStorage(sessions: [
+      StoredSession(
+        id: "session-a",
+        createdAt: Date(),
+        firstUserMessage: "A",
+        lastAccessedAt: Date(),
+        messages: [ChatMessage(role: .user, content: "A old")],
+        workingDirectory: workingDirectory,
+        provider: .claude
+      )
+    ])
+    let client = HangingClaudeCodeClient()
+    let preferences = isolatedClaudePreferences()
+    let viewModel = ChatViewModel(
+      claudeClient: client,
+      sessionStorage: storage,
+      settingsStorage: SettingsStorageManager(),
+      globalPreferences: preferences,
+      customPermissionService: MockCustomPermissionService()
+    )
+
+    await viewModel.resumeSession(id: "session-a")
+    viewModel.setWorkingDirectory(workingDirectory)
+    viewModel.sendMessage("continue A")
+
+    let didStartLoading = await waitUntilLoadingStarts(viewModel)
+    XCTAssertTrue(didStartLoading)
+    let didStartClaude = await waitUntilClaudeResumeStarts(client)
+    XCTAssertTrue(didStartClaude)
+
+    viewModel.startNewSession(workingDirectory: workingDirectory)
+
+    XCTAssertEqual(client.cancelCallCount, 0)
+    XCTAssertTrue(viewModel.isLoading)
+    XCTAssertFalse(viewModel.isCurrentSessionLoading)
+    XCTAssertNil(viewModel.currentSessionId)
+    XCTAssertTrue(viewModel.messages.isEmpty)
+    XCTAssertEqual(viewModel.projectPath, workingDirectory)
+
+    viewModel.injectSession(
+      sessionId: "session-a",
+      messages: [ChatMessage(role: .user, content: "A old")],
+      workingDirectory: workingDirectory,
+      provider: .claude
+    )
+
+    XCTAssertEqual(client.cancelCallCount, 0)
+    XCTAssertTrue(viewModel.isLoading)
+    XCTAssertTrue(viewModel.isCurrentSessionLoading)
+    XCTAssertEqual(viewModel.currentSessionId, "session-a")
+    XCTAssertTrue(viewModel.messages.contains { $0.content == "continue A" })
+
+    viewModel.cancelRequest()
+    client.finish()
+  }
+
+  @MainActor
   private func waitUntilLoadingStarts(_ viewModel: ChatViewModel) async -> Bool {
     for _ in 0..<20 {
       if viewModel.isLoading {
@@ -166,11 +367,38 @@ final class ClaudeCodeCoreTests: XCTestCase {
 
     return false
   }
+
+  @MainActor
+  private func waitUntilClaudeResumeStarts(_ client: HangingClaudeCodeClient) async -> Bool {
+    for _ in 0..<20 {
+      if client.resumeConversationCallCount > 0 {
+        return true
+      }
+
+      try? await Task.sleep(for: .milliseconds(10))
+    }
+
+    return false
+  }
+
+  @MainActor
+  private func isolatedClaudePreferences() -> GlobalPreferencesStorage {
+    let preferences = GlobalPreferencesStorage(
+      persistentManager: PersistentPreferencesManager(
+        applicationSupportURL: FileManager.default.temporaryDirectory
+          .appendingPathComponent("ClaudeSwitchLoadingTests-\(UUID().uuidString)", isDirectory: true)
+      )
+    )
+    preferences.chatProvider = .claude
+    return preferences
+  }
 }
 
 private final class HangingClaudeCodeClient: ClaudeCode {
   var configuration = ClaudeCodeConfiguration.default
   var lastExecutedCommandInfo: ExecutedCommandInfo?
+  private(set) var cancelCallCount = 0
+  private(set) var resumeConversationCallCount = 0
   private let subject = PassthroughSubject<ResponseChunk, Error>()
 
   func runWithStdin(
@@ -203,14 +431,17 @@ private final class HangingClaudeCodeClient: ClaudeCode {
     outputFormat: ClaudeCodeOutputFormat,
     options: ClaudeCodeOptions?
   ) async throws -> ClaudeCodeResult {
-    .stream(subject.eraseToAnyPublisher())
+    resumeConversationCallCount += 1
+    return .stream(subject.eraseToAnyPublisher())
   }
 
   func listSessions() async throws -> [SessionInfo] {
     []
   }
 
-  func cancel() {}
+  func cancel() {
+    cancelCallCount += 1
+  }
 
   func validateCommand(_ command: String) async throws -> Bool {
     true
@@ -218,5 +449,78 @@ private final class HangingClaudeCodeClient: ClaudeCode {
 
   func finish() {
     subject.send(completion: .finished)
+  }
+}
+
+private actor InMemorySessionStorage: SessionStorageProtocol {
+  private var sessions: [String: StoredSession]
+
+  init(sessions: [StoredSession]) {
+    self.sessions = Dictionary(uniqueKeysWithValues: sessions.map { ($0.id, $0) })
+  }
+
+  func saveSession(
+    id: String,
+    firstMessage: String,
+    workingDirectory: String?,
+    branchName: String?,
+    isWorktree: Bool,
+    provider: ChatProvider
+  ) async throws {
+    sessions[id] = StoredSession(
+      id: id,
+      createdAt: Date(),
+      firstUserMessage: firstMessage,
+      lastAccessedAt: Date(),
+      workingDirectory: workingDirectory,
+      branchName: branchName,
+      isWorktree: isWorktree,
+      provider: provider
+    )
+  }
+
+  func getAllSessions() async throws -> [StoredSession] {
+    sessions.values.sorted { $0.id < $1.id }
+  }
+
+  func getSession(id: String) async throws -> StoredSession? {
+    sessions[id]
+  }
+
+  func updateLastAccessed(id: String) async throws {
+    guard var session = sessions[id] else { return }
+    session.lastAccessedAt = Date()
+    sessions[id] = session
+  }
+
+  func deleteSession(id: String) async throws {
+    sessions.removeValue(forKey: id)
+  }
+
+  func deleteAllSessions() async throws {
+    sessions.removeAll()
+  }
+
+  func updateSessionMessages(id: String, messages: [ChatMessage]) async throws {
+    guard var session = sessions[id] else { return }
+    session.messages = messages
+    sessions[id] = session
+  }
+
+  func updateSessionId(oldId: String, newId: String) async throws {
+    guard var session = sessions.removeValue(forKey: oldId) else { return }
+    session = StoredSession(
+      id: newId,
+      createdAt: session.createdAt,
+      firstUserMessage: session.firstUserMessage,
+      lastAccessedAt: session.lastAccessedAt,
+      messages: session.messages,
+      workingDirectory: session.workingDirectory,
+      branchName: session.branchName,
+      isWorktree: session.isWorktree,
+      provider: session.provider,
+      usageSummary: session.usageSummary
+    )
+    sessions[newId] = session
   }
 }
