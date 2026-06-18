@@ -295,6 +295,75 @@ enum EaselDesignSystemCatalogHTMLRenderer {
           background: var(--panel);
         }
 
+        .tabbar {
+          position: sticky;
+          top: 0;
+          z-index: 5;
+          display: flex;
+          gap: 8px;
+          overflow-x: auto;
+          padding: 12px 0;
+          margin-top: 8px;
+          background: var(--surface);
+          border-bottom: 1px solid var(--line);
+          scrollbar-width: none;
+        }
+        .tabbar::-webkit-scrollbar { display: none; }
+
+        .tab {
+          appearance: none;
+          flex: 0 0 auto;
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+          border: 1px solid transparent;
+          border-radius: 999px;
+          padding: 9px 14px;
+          background: transparent;
+          color: var(--muted);
+          font: inherit;
+          font-size: 13px;
+          font-weight: 600;
+          line-height: 1;
+          white-space: nowrap;
+          cursor: pointer;
+          transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+        }
+        .tab:hover { color: var(--ink); }
+        .tab[aria-selected="true"] {
+          background: var(--panel);
+          color: var(--ink);
+          border-color: var(--line);
+          box-shadow: 0 1px 3px var(--shadow);
+        }
+        .tab .badge {
+          font-size: 11px;
+          font-weight: 700;
+          font-variant-numeric: tabular-nums;
+          padding: 1px 7px;
+          border-radius: 999px;
+          background: var(--panel-soft);
+          color: var(--soft);
+        }
+        .tab[aria-selected="true"] .badge {
+          background: var(--accent);
+          color: var(--panel);
+        }
+
+        .tab-panels { margin-top: 4px; }
+        .tab-panel { animation: easel-fade 0.25s ease; }
+        .tab-panel[hidden] { display: none; }
+        .tab-panel > section.block { margin-top: 24px; }
+        .tab-panel > .hero { margin-top: 24px; }
+        @keyframes easel-fade {
+          from { opacity: 0; transform: translateY(4px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .tab-panel { animation: none; }
+          .tab { transition: none; }
+        }
+
         @media (max-width: 680px) {
           main {
             width: min(100% - 28px, 1040px);
@@ -667,6 +736,70 @@ enum EaselDesignSystemCatalogHTMLRenderer {
           diagnosticsEl.hidden = diagnosticsEl.childNodes.length === 0;
         }
 
+        function buildTabs(panels) {
+          const tablist = el("div", { className: "tabbar" });
+          tablist.setAttribute("role", "tablist");
+          tablist.setAttribute("aria-label", "Design system sections");
+          const panelWrap = el("div", { className: "tab-panels" });
+
+          const tabs = [];
+
+          function selectTab(index, moveFocus) {
+            tabs.forEach((entry, i) => {
+              const selected = i === index;
+              entry.tab.setAttribute("aria-selected", selected ? "true" : "false");
+              entry.tab.setAttribute("tabindex", selected ? "0" : "-1");
+              entry.panel.hidden = !selected;
+            });
+            const active = tabs[index];
+            if (moveFocus) active.tab.focus();
+            active.tab.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
+          }
+
+          function onTabKey(event, index) {
+            let next = null;
+            if (event.key === "ArrowRight" || event.key === "ArrowDown") next = (index + 1) % tabs.length;
+            else if (event.key === "ArrowLeft" || event.key === "ArrowUp") next = (index - 1 + tabs.length) % tabs.length;
+            else if (event.key === "Home") next = 0;
+            else if (event.key === "End") next = tabs.length - 1;
+            if (next != null) {
+              event.preventDefault();
+              selectTab(next, true);
+            }
+          }
+
+          panels.forEach((p, index) => {
+            const tabId = "ds-tab-" + index;
+            const panelId = "ds-panel-" + index;
+
+            const tab = el("button", { className: "tab" });
+            tab.type = "button";
+            tab.id = tabId;
+            tab.setAttribute("role", "tab");
+            tab.setAttribute("aria-controls", panelId);
+            tab.setAttribute("aria-selected", index === 0 ? "true" : "false");
+            tab.setAttribute("tabindex", index === 0 ? "0" : "-1");
+            tab.append(document.createTextNode(p.label));
+            if (p.count) tab.append(el("span", { className: "badge", text: String(p.count) }));
+
+            const panel = el("div", { className: "tab-panel" });
+            panel.id = panelId;
+            panel.setAttribute("role", "tabpanel");
+            panel.setAttribute("aria-labelledby", tabId);
+            panel.hidden = index !== 0;
+            panel.append(p.node);
+
+            tab.addEventListener("click", () => selectTab(index, false));
+            tab.addEventListener("keydown", (event) => onTabKey(event, index));
+
+            tabs.push({ tab, panel });
+            tablist.append(tab);
+            panelWrap.append(panel);
+          });
+
+          contentEl.append(tablist, panelWrap);
+        }
+
         function renderCatalog(catalog) {
           summaryEl.textContent = catalog.summary || "Local design system.";
           if (catalog.disclaimer) {
@@ -678,34 +811,38 @@ enum EaselDesignSystemCatalogHTMLRenderer {
           contentEl.replaceChildren();
           const tokens = catalog.tokens;
 
+          const panels = [];
+          function addPanel(label, count, node) {
+            if (node) panels.push({ label, count, node });
+          }
+
           if (catalog.heroThumbnailPath) {
             const hero = el("div", { className: "hero" });
             const img = el("img");
             img.src = catalog.heroThumbnailPath;
             img.alt = catalog.title || catalog.name || "";
             hero.append(img);
-            contentEl.append(hero);
+            addPanel("Overview", null, hero);
           }
 
-          const sections = [
-            renderColors(tokens),
-            renderTypography(tokens),
-            renderScale("Spacing", tokens && tokens.spacing, "spacing"),
-            renderScale("Radii", tokens && tokens.radii, "radius"),
-            renderEffects(tokens),
-            renderFamilies(catalog),
-            renderExamples(catalog.examples),
-            renderAssets(catalog.assets),
-          ].filter(Boolean);
+          addPanel("Colors", tokens && tokens.colors && tokens.colors.length, renderColors(tokens));
+          addPanel("Typography", tokens && tokens.typography && tokens.typography.length, renderTypography(tokens));
+          addPanel("Spacing", tokens && tokens.spacing && tokens.spacing.length, renderScale("Spacing", tokens && tokens.spacing, "spacing"));
+          addPanel("Radii", tokens && tokens.radii && tokens.radii.length, renderScale("Radii", tokens && tokens.radii, "radius"));
+          addPanel("Effects", tokens && tokens.effects && tokens.effects.length, renderEffects(tokens));
+          addPanel("Components", catalog.componentFamilies && catalog.componentFamilies.length, renderFamilies(catalog));
+          addPanel("Examples", catalog.examples && catalog.examples.length, renderExamples(catalog.examples));
+          addPanel("Assets", null, renderAssets(catalog.assets));
 
-          if (!sections.length) {
+          if (!panels.length) {
             contentEl.append(el("div", {
               className: "empty",
               text: catalog.summary || "No tokens or component families were extracted from this .fig.",
             }));
             return;
           }
-          for (const s of sections) contentEl.append(s);
+
+          buildTabs(panels);
         }
 
         async function loadCatalog() {

@@ -143,144 +143,172 @@ public struct DesignSystemBrowserView: View {
   }
 
   private var designSystemDetail: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 22) {
-        if let selectedChoice = viewModel.selectedChoice {
-          HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 8) {
-              Text("Browse \(selectedChoice.displayName)")
-                .font(.system(size: 28, weight: .semibold, design: .serif))
+    Group {
+      if let selectedChoice = viewModel.selectedChoice {
+        if let catalog = viewModel.selectedCatalog,
+           catalog.hasReferenceContent,
+           !viewModel.isLoadingCatalog,
+           viewModel.errorMessage == nil {
+          // Reference catalogs get a fixed header with a sticky tab carousel below.
+          VStack(alignment: .leading, spacing: 0) {
+            detailHeader(for: selectedChoice)
+              .padding(.horizontal, 28)
+              .padding(.top, 28)
+              .padding(.bottom, 22)
 
-              Text(viewModel.selectedCatalog?.summary ?? selectedChoice.detail)
-                .font(.title3)
-                .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
-            }
+            Divider()
+              .overlay(EaselDesignSystem.Palette.border(for: colorScheme))
 
-            Spacer()
-
-            HStack(spacing: 10) {
-              if viewModel.canRegenerate {
-                Button {
-                  Task { await viewModel.regenerate() }
-                } label: {
-                  if viewModel.isRegenerating {
-                    HStack(spacing: 6) {
-                      ProgressView()
-                        .controlSize(.small)
-                      Text("Regenerating…")
-                    }
-                  } else {
-                    Label("Regenerate", systemImage: "arrow.clockwise")
-                  }
-                }
-                .buttonStyle(.bordered)
-                .disabled(viewModel.isRegenerating)
-                .help("Re-import the stored Figma file using the latest catalog logic")
-              }
-
-              if let workingDirectory = selectedChoice.workingDirectory {
-                Button("Open Folder", systemImage: "folder") {
-                  openFolder(at: workingDirectory)
-                }
-                .buttonStyle(.bordered)
-              }
-            }
-          }
-
-          if viewModel.isLoadingCatalog {
-            ProgressView("Loading catalog...")
-              .frame(maxWidth: .infinity, minHeight: 180)
-          } else if let errorMessage = viewModel.errorMessage {
-            ProjectResourceErrorBanner(message: errorMessage)
-          } else if let catalog = viewModel.selectedCatalog, catalog.hasReferenceContent {
             DesignSystemReferenceView(
               catalog: catalog,
               workingDirectory: selectedChoice.workingDirectory
             )
-          } else if let catalog = viewModel.selectedCatalog, !catalog.componentGroups.isEmpty {
-            VStack(spacing: 0) {
-              ForEach(catalog.componentGroups) { group in
-                DisclosureGroup {
-                  VStack(alignment: .leading, spacing: 12) {
-                    if group.items.isEmpty {
-                      Text(group.summary)
-                        .font(.callout)
-                        .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
-                    } else {
-                      ForEach(group.items) { item in
-                        VStack(alignment: .leading, spacing: 4) {
-                          Text(item.title)
-                            .font(.callout.weight(.semibold))
-                          Text(item.summary)
-                            .font(.callout)
-                            .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
-                        }
-                        .padding(14)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(EaselDesignSystem.Palette.subtleSurface(for: colorScheme), in: RoundedRectangle(cornerRadius: 8))
-                      }
-                    }
-                  }
-                  .padding(.leading, 42)
-                  .padding(.trailing, 18)
-                  .padding(.bottom, 18)
-                } label: {
-                  VStack(alignment: .leading, spacing: 5) {
-                    Text(group.title)
-                      .font(.title3.weight(.semibold))
-                    Text(group.summary)
-                      .font(.callout)
-                      .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
-                  }
-                  .padding(.vertical, 18)
-                }
-                .padding(.horizontal, 22)
-
-                Divider()
-              }
+          }
+        } else {
+          ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+              detailHeader(for: selectedChoice)
+              fallbackDetail(for: selectedChoice)
             }
-            .background(EaselDesignSystem.Palette.surface(for: colorScheme), in: RoundedRectangle(cornerRadius: 8))
-            .overlay {
-              RoundedRectangle(cornerRadius: 8)
-                .stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1)
-            }
-          } else if let catalog = viewModel.selectedCatalog, catalog.generatedAt != nil {
-            emptyGeneratedCatalogState(for: catalog)
-          } else if selectedChoice.preset == EaselDesignSystemPreset.none {
-            VStack(alignment: .leading, spacing: 10) {
-              Label("No design system selected", systemImage: "square.dashed")
-                .font(.title3.weight(.semibold))
-              Text("The prototype prompt will not reference a reusable design system. Codex will create an original product UI for the request.")
-                .font(.callout)
-                .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
-            }
-            .padding(22)
+            .padding(28)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(EaselDesignSystem.Palette.surface(for: colorScheme), in: RoundedRectangle(cornerRadius: 8))
-            .overlay {
-              RoundedRectangle(cornerRadius: 8)
-                .stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1)
-            }
-          } else {
-            VStack(alignment: .leading, spacing: 10) {
-              Label("Catalog pending", systemImage: "hourglass")
-                .font(.title3.weight(.semibold))
-              Text("The component list will appear here after Codex creates `.easel/catalog.json` for this design system.")
-                .font(.callout)
-                .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
-            }
-            .padding(22)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(EaselDesignSystem.Palette.surface(for: colorScheme), in: RoundedRectangle(cornerRadius: 8))
-            .overlay {
-              RoundedRectangle(cornerRadius: 8)
-                .stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1)
-            }
           }
         }
       }
-      .padding(28)
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+  }
+
+  @ViewBuilder
+  private func detailHeader(for selectedChoice: EaselDesignSystemChoice) -> some View {
+    HStack(alignment: .top) {
+      VStack(alignment: .leading, spacing: 8) {
+        Text("Browse \(selectedChoice.displayName)")
+          .font(.system(size: 28, weight: .semibold, design: .serif))
+
+        Text(viewModel.selectedCatalog?.summary ?? selectedChoice.detail)
+          .font(.title3)
+          .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
+      }
+
+      Spacer()
+
+      HStack(spacing: 10) {
+        if viewModel.canRegenerate {
+          Button {
+            Task { await viewModel.regenerate() }
+          } label: {
+            if viewModel.isRegenerating {
+              HStack(spacing: 6) {
+                ProgressView()
+                  .controlSize(.small)
+                Text("Regenerating…")
+              }
+            } else {
+              Label("Regenerate", systemImage: "arrow.clockwise")
+            }
+          }
+          .buttonStyle(.bordered)
+          .disabled(viewModel.isRegenerating)
+          .help("Re-import the stored Figma file using the latest catalog logic")
+        }
+
+        if let workingDirectory = selectedChoice.workingDirectory {
+          Button("Open Folder", systemImage: "folder") {
+            openFolder(at: workingDirectory)
+          }
+          .buttonStyle(.bordered)
+        }
+      }
+    }
+  }
+
+  @ViewBuilder
+  private func fallbackDetail(for selectedChoice: EaselDesignSystemChoice) -> some View {
+    if viewModel.isLoadingCatalog {
+      ProgressView("Loading catalog...")
+        .frame(maxWidth: .infinity, minHeight: 180)
+    } else if let errorMessage = viewModel.errorMessage {
+      ProjectResourceErrorBanner(message: errorMessage)
+    } else if let catalog = viewModel.selectedCatalog, !catalog.componentGroups.isEmpty {
+      VStack(spacing: 0) {
+        ForEach(catalog.componentGroups) { group in
+          DisclosureGroup {
+            VStack(alignment: .leading, spacing: 12) {
+              if group.items.isEmpty {
+                Text(group.summary)
+                  .font(.callout)
+                  .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
+              } else {
+                ForEach(group.items) { item in
+                  VStack(alignment: .leading, spacing: 4) {
+                    Text(item.title)
+                      .font(.callout.weight(.semibold))
+                    Text(item.summary)
+                      .font(.callout)
+                      .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
+                  }
+                  .padding(14)
+                  .frame(maxWidth: .infinity, alignment: .leading)
+                  .background(EaselDesignSystem.Palette.subtleSurface(for: colorScheme), in: RoundedRectangle(cornerRadius: 8))
+                }
+              }
+            }
+            .padding(.leading, 42)
+            .padding(.trailing, 18)
+            .padding(.bottom, 18)
+          } label: {
+            VStack(alignment: .leading, spacing: 5) {
+              Text(group.title)
+                .font(.title3.weight(.semibold))
+              Text(group.summary)
+                .font(.callout)
+                .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
+            }
+            .padding(.vertical, 18)
+          }
+          .padding(.horizontal, 22)
+
+          Divider()
+        }
+      }
+      .background(EaselDesignSystem.Palette.surface(for: colorScheme), in: RoundedRectangle(cornerRadius: 8))
+      .overlay {
+        RoundedRectangle(cornerRadius: 8)
+          .stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1)
+      }
+    } else if let catalog = viewModel.selectedCatalog, catalog.generatedAt != nil {
+      emptyGeneratedCatalogState(for: catalog)
+    } else if selectedChoice.preset == EaselDesignSystemPreset.none {
+      VStack(alignment: .leading, spacing: 10) {
+        Label("No design system selected", systemImage: "square.dashed")
+          .font(.title3.weight(.semibold))
+        Text("The prototype prompt will not reference a reusable design system. Codex will create an original product UI for the request.")
+          .font(.callout)
+          .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
+      }
+      .padding(22)
       .frame(maxWidth: .infinity, alignment: .leading)
+      .background(EaselDesignSystem.Palette.surface(for: colorScheme), in: RoundedRectangle(cornerRadius: 8))
+      .overlay {
+        RoundedRectangle(cornerRadius: 8)
+          .stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1)
+      }
+    } else {
+      VStack(alignment: .leading, spacing: 10) {
+        Label("Catalog pending", systemImage: "hourglass")
+          .font(.title3.weight(.semibold))
+        Text("The component list will appear here after Codex creates `.easel/catalog.json` for this design system.")
+          .font(.callout)
+          .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
+      }
+      .padding(22)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(EaselDesignSystem.Palette.surface(for: colorScheme), in: RoundedRectangle(cornerRadius: 8))
+      .overlay {
+        RoundedRectangle(cornerRadius: 8)
+          .stroke(EaselDesignSystem.Palette.border(for: colorScheme), lineWidth: 1)
+      }
     }
   }
 
