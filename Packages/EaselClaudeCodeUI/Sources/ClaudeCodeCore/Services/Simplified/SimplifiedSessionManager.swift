@@ -14,11 +14,17 @@ public final class SimplifiedSessionManager: SimplifiedSessionManagerProtocol {
     
   @MainActor
   public func startNewSession(chatViewModel: ChatViewModel, workingDirectory: String? = nil) {
+    // Clear any existing conversation
+    chatViewModel.clearConversation()
+
     // Use provided directory, or fall back to global preference
     let directoryToUse = workingDirectory ?? globalPreferences.defaultWorkingDirectory
-    chatViewModel.startNewSession(
-      workingDirectory: directoryToUse.isEmpty ? nil : directoryToUse
-    )
+
+    if !directoryToUse.isEmpty {
+      chatViewModel.claudeClient.configuration.workingDirectory = directoryToUse
+      chatViewModel.projectPath = directoryToUse
+      chatViewModel.settingsStorage.setProjectPath(directoryToUse)
+    }
 
     // Note: Actual session saving happens when the first message is sent
     // and Claude provides a session ID through the StreamProcessor

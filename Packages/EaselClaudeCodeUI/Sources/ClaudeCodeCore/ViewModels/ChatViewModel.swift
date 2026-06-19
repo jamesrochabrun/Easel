@@ -94,8 +94,6 @@ public final class ChatViewModel {
   @ObservationIgnored private var runtimeTask: Task<Void, Never>?
   private var firstMessageInSession: String?
   private var loadingSessionIdentity: LoadingSessionIdentity?
-  private var loadingProvider: ChatProvider?
-  @ObservationIgnored private var detachedClaudeTurn: DetachedClaudeTurn?
   
   // Session isolation: track if we're in the middle of switching sessions
   private var isSwitchingSession = false
@@ -161,7 +159,6 @@ public final class ChatViewModel {
   public private(set) var isLoading: Bool = false
   var isCurrentSessionLoading: Bool {
     guard isLoading,
-          loadingProvider == activeProvider,
           let loadingSessionIdentity else {
       return false
     }
@@ -577,7 +574,6 @@ EOF
 
   private func beginLoadingState() {
     isLoading = true
-    loadingProvider = activeProvider
     loadingSessionIdentity = currentSessionIdentity
     streamingStartTime = .now
     currentInputTokens = 0
@@ -589,7 +585,6 @@ EOF
     isLoading = false
     streamingStartTime = nil
     loadingSessionIdentity = nil
-    loadingProvider = nil
   }
 
   private func handleSessionChange(_ sessionId: String) {
@@ -847,48 +842,40 @@ EOF
     }
   }
   
-  /// Starts a new visible session. A running Claude turn is kept alive in the
-  /// background so switching away does not terminate the agent.
-  public func startNewSession(workingDirectory: String? = nil) {
-    if let sessionId = currentSessionId {
-      let messages = messageStore.getAllMessages()
-      Task {
-        await saveMessages(messages, forSessionId: sessionId)
+  /// Starts a new session without affecting the current session
+  public func startNewSession() {
+    // Save current session messages before starting new
+    Task {
+      await saveCurrentSessionMessages()
+
+      // After saving, clear the UI to prepare for new session
+      await MainActor.run {
+        // Clear only the local state to prepare for a new session
+        self.messageStore.clear()
+        self.currentMessageId = nil
+        self.errorInfo = nil
+        self.firstMessageInSession = nil
+        self.hasSessionStarted = false
+        self.currentSessionUsageSummary = .zero
+        
+        // Clear the current path to force user to select a new one
+        self.settingsStorage.clearProjectPath()
+        self.claudeClient.configuration.workingDirectory = nil
+        self.codexRuntime?.workingDirectory = nil
+        self.claudeRuntime?.workingDirectory = nil
+        self.projectPath = ""
+        
+        // Clear the session manager's current session
+        self.sessionManager.clearSession()
+        self.codexRuntime?.resetSession()
+        self.claudeRuntime?.resetSession()
+        self.runtimeTask = nil
+        self.setActiveProvider(self.globalPreferences.chatProvider)
+        
+        // A new session will be created when the user sends their first message
+        // Claude will provide the session ID
       }
     }
-
-    let preservedClaudeTurn = preserveClaudeTurnForVisibleSessionChange()
-
-    messageStore.clear()
-    currentMessageId = nil
-    errorInfo = nil
-    errorQueue.removeAll()
-    firstMessageInSession = nil
-    hasSessionStarted = false
-    currentSessionUsageSummary = .zero
-    sessionManager.clearSession()
-
-    if !preservedClaudeTurn {
-      codexRuntime?.resetSession()
-      claudeRuntime?.resetSession()
-      runtimeTask = nil
-      endLoadingState()
-    }
-
-    setActiveProvider(globalPreferences.chatProvider)
-
-    if let workingDirectory = normalizedWorkingDirectory(workingDirectory) {
-      setWorkingDirectory(workingDirectory)
-    } else {
-      settingsStorage.clearProjectPath()
-      claudeClient.configuration.workingDirectory = nil
-      codexRuntime?.workingDirectory = nil
-      claudeRuntime?.workingDirectory = nil
-      projectPath = ""
-    }
-
-    // A new session will be created when the user sends their first message.
-    // The runtime will provide the session ID.
   }
   
   /// Saves the current session's messages to storage
@@ -898,12 +885,7 @@ EOF
       return
     }
 
-    await saveMessages(messageStore.getAllMessages(), forSessionId: sessionId)
-  }
-
-  private func saveMessages(_ messages: [ChatMessage], forSessionId sessionId: String) async {
-    guard shouldManageSessions else { return }
-
+    let messages = messageStore.getAllMessages()
     do {
       try await sessionStorage.updateSessionMessages(id: sessionId, messages: messages)
       if isDebugEnabled {
@@ -928,86 +910,6 @@ EOF
       try? await sessionStorage.updateSessionMessages(id: sessionId, messages: messages)
     }
   }
-
-  private var isDetachedClaudeTurnLoading: Bool {
-    isLoading && loadingProvider == .claude && detachedClaudeTurn != nil
-  }
-
-  @discardableResult
-  private func preserveClaudeTurnForVisibleSessionChange() -> Bool {
-    if detachClaudeTurnIfNeeded() {
-      return true
-    }
-
-    if detachedClaudeTurn != nil {
-      return true
-    }
-
-    guard isLoading || runtimeTask != nil else {
-      return false
-    }
-
-    stopActiveGeneration()
-    endLoadingState()
-    return false
-  }
-
-  @discardableResult
-  private func detachClaudeTurnIfNeeded() -> Bool {
-    guard isLoading,
-          loadingProvider == .claude,
-          activeProvider == .claude,
-          detachedClaudeTurn == nil,
-          let loadingSessionIdentity,
-          loadingSessionIdentity.matches(currentSessionIdentity) else {
-      return false
-    }
-
-    let detachedStore = MessageStore()
-    detachedStore.loadMessages(messageStore.getAllMessages())
-    detachedClaudeTurn = DetachedClaudeTurn(
-      identity: loadingSessionIdentity,
-      messageStore: detachedStore,
-      workingDirectory: claudeClient.configuration.workingDirectory ?? projectPath,
-      usageSummary: currentSessionUsageSummary
-    )
-    streamProcessor.setMessageStore(detachedStore)
-    return true
-  }
-
-  @discardableResult
-  private func restoreDetachedClaudeTurnIfNeeded(for sessionId: String) -> Bool {
-    guard let detachedClaudeTurn,
-          detachedClaudeTurn.identity.sessionId == sessionId else {
-      return false
-    }
-
-    setActiveProvider(.claude)
-    messageStore.loadMessages(detachedClaudeTurn.messageStore.getAllMessages())
-    streamProcessor.setMessageStore(messageStore)
-    currentSessionUsageSummary = detachedClaudeTurn.usageSummary
-
-    if let workingDirectory = detachedClaudeTurn.workingDirectory {
-      claudeClient.configuration.workingDirectory = workingDirectory
-      codexRuntime?.workingDirectory = workingDirectory
-      claudeRuntime?.workingDirectory = workingDirectory
-      projectPath = workingDirectory
-      settingsStorage.setProjectPath(workingDirectory)
-    }
-
-    self.detachedClaudeTurn = nil
-    return true
-  }
-
-  private func messagesForLoadingTurn(provider: ChatProvider) -> [ChatMessage] {
-    if provider == .claude,
-       let detachedClaudeTurn,
-       detachedClaudeTurn.identity == loadingSessionIdentity {
-      return detachedClaudeTurn.messageStore.getAllMessages()
-    }
-
-    return messageStore.getAllMessages()
-  }
   
   /// Invalidates any in-flight turn before the conversation is cleared or
   /// a different session is loaded.
@@ -1016,8 +918,6 @@ EOF
     claudeRuntime?.cancel()
     runtimeTask?.cancel()
     runtimeTask = nil
-    detachedClaudeTurn = nil
-    streamProcessor.setMessageStore(messageStore)
   }
 
   /// Cancels any ongoing requests
@@ -1025,11 +925,9 @@ EOF
     // Set cancellation flag
     isCancelled = true
 
-    runtime(for: loadingProvider ?? activeProvider).cancel()
+    runtime(for: activeProvider).cancel()
     runtimeTask?.cancel()
     runtimeTask = nil
-    detachedClaudeTurn = nil
-    streamProcessor.setMessageStore(messageStore)
 
     // Cancel any pending tool approval requests
     customPermissionService.cancelAllRequests()
@@ -1078,7 +976,6 @@ EOF
 
     // Set up loading state
     await MainActor.run {
-      self.setActiveProvider(.claude)
       self.beginLoadingState()
     }
 
@@ -1094,12 +991,8 @@ EOF
         messageId: assistantId,
         firstMessageInSession: firstMessageInSession
       )
-      let completedSessionId = loadingSessionIdentity?.sessionId ?? sessionManager.currentSessionId
-      let completedMessages = messagesForLoadingTurn(provider: .claude)
       endLoadingState()
-      if let completedSessionId {
-        await saveMessages(completedMessages, forSessionId: completedSessionId)
-      }
+      await saveCurrentSessionMessages()
     } catch {
       await handleSessionResumptionError(error, sessionId: sessionId)
     }
@@ -1127,18 +1020,11 @@ EOF
   private func recordCompletedTurnUsage(_ record: SessionUsageRecord) {
     updateTokenUsage(inputTokens: record.inputTokens, outputTokens: record.outputTokens)
 
-    let targetSessionId = loadingSessionIdentity?.sessionId ?? currentSessionId
-    guard let sessionId = targetSessionId else {
+    guard let sessionId = currentSessionId else {
       return
     }
 
-    if var detachedClaudeTurn,
-       detachedClaudeTurn.identity == loadingSessionIdentity {
-      detachedClaudeTurn.usageSummary = detachedClaudeTurn.usageSummary.adding(record)
-      self.detachedClaudeTurn = detachedClaudeTurn
-    } else {
-      currentSessionUsageSummary = currentSessionUsageSummary.adding(record)
-    }
+    currentSessionUsageSummary = currentSessionUsageSummary.adding(record)
 
     guard shouldManageSessions else {
       onSessionUsageChange?(sessionId)
@@ -1242,13 +1128,6 @@ EOF
     // Prepare session for resumption
     prepareSessionForResumption(id: id, provider: sessions.first { $0.id == id }?.provider)
 
-    if restoreDetachedClaudeTurnIfNeeded(for: id) {
-      let assistantId = UUID()
-      setupConversationResumption(assistantId: assistantId, initialPrompt: initialPrompt)
-      await performSessionResumption(id: id, initialPrompt: initialPrompt, assistantId: assistantId)
-      return
-    }
-
     // Load messages for this session
     do {
       if let session = try await sessionStorage.getSession(id: id) {
@@ -1298,23 +1177,15 @@ EOF
     provider: ChatProvider? = nil,
     usageSummary: SessionUsageSummary = .zero
   ) {
-    // Keep an in-flight Claude turn alive while the visible conversation changes.
-    // Other providers still stop because this view model owns only one visible
-    // runtime stream at a time.
-    let preservedClaudeTurn = preserveClaudeTurnForVisibleSessionChange()
+    // Stop any in-flight turn from the previous session/workspace so it can't
+    // stream into or persist over the session we're about to load.
+    stopActiveGeneration()
 
     // Set up the session
     setActiveProvider(provider ?? globalPreferences.chatProvider)
     sessionManager.selectSession(id: sessionId)
     handleSessionChange(sessionId)
     currentSessionUsageSummary = usageSummary
-
-    if restoreDetachedClaudeTurnIfNeeded(for: sessionId) {
-      hasSessionStarted = true
-      runtime(for: activeProvider).markSessionRestored()
-      errorInfo = nil
-      return
-    }
 
     // Set working directory if provided
     if let dir = workingDirectory {
@@ -1327,10 +1198,6 @@ EOF
 
     // Load the messages into the UI
     messageStore.loadMessages(messages)
-
-    if !preservedClaudeTurn {
-      streamProcessor.setMessageStore(messageStore)
-    }
 
     // Mark as active session
     hasSessionStarted = true
@@ -1393,14 +1260,11 @@ EOF
       logger.debug("\(log)")
     }
     
-    let didDetachClaudeTurn = detachClaudeTurnIfNeeded()
-
-    // Cancel any ongoing requests first unless a Claude turn was safely detached
-    // into its own message store.
-    if isLoading && !didDetachClaudeTurn && !isDetachedClaudeTurnLoading {
+    // Cancel any ongoing requests first
+    if isLoading {
       cancelRequest()
       // Small delay to ensure cancellation completes
-      try? await Task.sleep(for: .milliseconds(100))
+      try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 second
     }
     
     // Save current session messages before switching
@@ -1417,17 +1281,8 @@ EOF
       }
     }
     
-    // Clear visible state for the next session without disturbing a detached
-    // Claude turn that is still streaming in the background.
-    messageStore.clear()
-    currentMessageId = nil
-    errorInfo = nil
-    errorQueue.removeAll()
-    if !isLoading {
-      firstMessageInSession = nil
-      hasSessionStarted = false
-      currentSessionUsageSummary = .zero
-    }
+    // Clear current conversation
+    clearConversation()
     
     // Resume the selected session
     await resumeSession(id: sessionId)
@@ -1533,10 +1388,9 @@ EOF
         logger.debug("\(log)")
       }
       
-      if !isLoading && detachedClaudeTurn == nil {
-        await MainActor.run {
-          self.endLoadingState()
-        }
+      // Mark as not loading since we're not making an API call
+      await MainActor.run {
+        self.endLoadingState()
       }
       return
     }
@@ -1584,25 +1438,20 @@ EOF
   private func sendRuntimeMessage(prompt: String, messageId: UUID) async throws {
     try validateWorkingDirectory()
 
-    let turnProvider = activeProvider
-    let runtime = runtime(for: turnProvider)
+    let runtime = runtime(for: activeProvider)
     configure(runtime)
     try await runtime.send(
       prompt: prompt,
       messageId: messageId,
       firstMessageInSession: firstMessageInSession
     )
-    let completedSessionId = loadingSessionIdentity?.sessionId ?? sessionManager.currentSessionId
-    let completedMessages = messagesForLoadingTurn(provider: turnProvider)
 
     await MainActor.run {
       self.endLoadingState()
       self.firstMessageInSession = nil
     }
 
-    if let completedSessionId {
-      await saveMessages(completedMessages, forSessionId: completedSessionId)
-    }
+    await saveCurrentSessionMessages()
   }
 
   private func runtime(for provider: ChatProvider) -> any ChatRuntime {
@@ -1674,7 +1523,9 @@ EOF
       onUsageRecord: { [weak self] record in
         self?.recordCompletedTurnUsage(record)
       },
-      onResultReceived: {}
+      onResultReceived: { [weak self] in
+        self?.endLoadingState()
+      }
     )
     claudeRuntime = runtime
     return runtime
@@ -1800,13 +1651,6 @@ EOF
         workingDirectory: workingDirectory
       )
     }
-  }
-
-  private struct DetachedClaudeTurn {
-    let identity: LoadingSessionIdentity
-    let messageStore: MessageStore
-    let workingDirectory: String?
-    var usageSummary: SessionUsageSummary
   }
 
   // MARK: - Working Directory Validation
