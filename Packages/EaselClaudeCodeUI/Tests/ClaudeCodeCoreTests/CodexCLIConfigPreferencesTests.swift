@@ -2,6 +2,22 @@ import XCTest
 @testable import ClaudeCodeCore
 
 final class CodexCLIConfigPreferencesTests: XCTestCase {
+  func testClaudeAIConfigFieldsRoundTripThroughCoding() throws {
+    let original = GeneralPreferences(
+      claudeModel: "opus",
+      claudeEffort: "high",
+      claudeAllowedTools: "Read\nBash(npm *)",
+      claudeDisallowedTools: "Bash(rm -rf *)"
+    )
+
+    let data = try JSONEncoder().encode(original)
+    let decoded = try JSONDecoder().decode(GeneralPreferences.self, from: data)
+
+    XCTAssertEqual(decoded.claudeModel, "opus")
+    XCTAssertEqual(decoded.claudeEffort, "high")
+    XCTAssertEqual(decoded.claudeAllowedTools, "Read\nBash(npm *)")
+    XCTAssertEqual(decoded.claudeDisallowedTools, "Bash(rm -rf *)")
+  }
 
   func testNewFieldsRoundTripThroughCoding() throws {
     let original = GeneralPreferences(
@@ -20,6 +36,10 @@ final class CodexCLIConfigPreferencesTests: XCTestCase {
 
   func testDefaultsAreEmptyWhenUnset() {
     let prefs = GeneralPreferences()
+    XCTAssertEqual(prefs.claudeModel, "")
+    XCTAssertEqual(prefs.claudeEffort, "")
+    XCTAssertEqual(prefs.claudeAllowedTools, "")
+    XCTAssertEqual(prefs.claudeDisallowedTools, "")
     XCTAssertEqual(prefs.codexCommand, "")
     XCTAssertEqual(prefs.codexExtraArgs, "")
     XCTAssertEqual(prefs.codexEnvironmentVariables, [:])
@@ -50,5 +70,9 @@ final class CodexCLIConfigPreferencesTests: XCTestCase {
     XCTAssertEqual(decoded.codexCommand, "")
     XCTAssertEqual(decoded.codexExtraArgs, "")
     XCTAssertEqual(decoded.codexEnvironmentVariables, [:])
+    XCTAssertEqual(decoded.claudeModel, "")
+    XCTAssertEqual(decoded.claudeEffort, "")
+    XCTAssertEqual(decoded.claudeAllowedTools, "")
+    XCTAssertEqual(decoded.claudeDisallowedTools, "")
   }
 }

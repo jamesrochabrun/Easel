@@ -49,6 +49,10 @@ final class PersistentPreferencesTests: XCTestCase {
     let generalPrefs = GeneralPreferences(
       autoApproveLowRisk: true,
       claudeCommand: "claude-test",
+      claudeModel: "opus",
+      claudeEffort: "high",
+      claudeAllowedTools: "Read",
+      claudeDisallowedTools: "Bash(rm -rf *)",
       chatProvider: .codex,
       codexModel: "gpt-5.4",
       defaultWorkingDirectory: "/test/path",
@@ -72,6 +76,10 @@ final class PersistentPreferencesTests: XCTestCase {
     XCTAssertEqual(loaded?.generalPreferences.defaultWorkingDirectory, "/test/path")
     XCTAssertEqual(loaded?.generalPreferences.appendSystemPrompt, "Test prompt")
     XCTAssertEqual(loaded?.generalPreferences.autoApproveLowRisk, true)
+    XCTAssertEqual(loaded?.generalPreferences.claudeModel, "opus")
+    XCTAssertEqual(loaded?.generalPreferences.claudeEffort, "high")
+    XCTAssertEqual(loaded?.generalPreferences.claudeAllowedTools, "Read")
+    XCTAssertEqual(loaded?.generalPreferences.claudeDisallowedTools, "Bash(rm -rf *)")
     XCTAssertEqual(loaded?.generalPreferences.chatProvider, .codex)
     XCTAssertEqual(loaded?.generalPreferences.codexModel, "gpt-5.4")
 
@@ -125,16 +133,20 @@ final class PersistentPreferencesTests: XCTestCase {
     let preferences = try JSONDecoder().decode(GeneralPreferences.self, from: data)
 
     XCTAssertEqual(preferences.chatProvider, .codex)
+    XCTAssertEqual(preferences.claudeModel, "")
+    XCTAssertEqual(preferences.claudeEffort, "")
+    XCTAssertEqual(preferences.claudeAllowedTools, "")
+    XCTAssertEqual(preferences.claudeDisallowedTools, "")
     XCTAssertFalse(preferences.codexModel.isEmpty)
   }
 
-  func testGeneralPreferencesInitializerNormalizesClaudeProviderToCodex() {
+  func testGeneralPreferencesInitializerPreservesClaudeProvider() {
     let preferences = GeneralPreferences(chatProvider: .claude)
 
-    XCTAssertEqual(preferences.chatProvider, .codex)
+    XCTAssertEqual(preferences.chatProvider, .claude)
   }
 
-  func testGeneralPreferencesDecodeClaudeProviderAsCodex() throws {
+  func testGeneralPreferencesDecodePreservesClaudeProvider() throws {
     let json = """
     {
       "autoApproveLowRisk": false,
@@ -155,7 +167,7 @@ final class PersistentPreferencesTests: XCTestCase {
     let data = try XCTUnwrap(json.data(using: .utf8))
     let preferences = try JSONDecoder().decode(GeneralPreferences.self, from: data)
 
-    XCTAssertEqual(preferences.chatProvider, .codex)
+    XCTAssertEqual(preferences.chatProvider, .claude)
   }
 
   func testToolReconciliation() async throws {

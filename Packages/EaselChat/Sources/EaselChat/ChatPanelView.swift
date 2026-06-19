@@ -42,6 +42,7 @@ public struct ChatPanelView: View {
             showWelcomeRow: false
           )
         )
+        .id(ObjectIdentifier(vm))
         .environment(globalPreferences)
       } else {
         ProgressView("Initializing...")

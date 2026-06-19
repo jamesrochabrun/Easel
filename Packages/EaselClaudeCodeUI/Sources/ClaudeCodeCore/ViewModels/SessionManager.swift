@@ -33,7 +33,12 @@ final class SessionManager {
     self.errorHandler = handler
   }
   
-  func startNewSession(id: String, firstMessage: String, workingDirectory: String? = nil) {
+  func startNewSession(
+    id: String,
+    firstMessage: String,
+    workingDirectory: String? = nil,
+    provider: ChatProvider
+  ) {
     currentSessionId = id
 
     // Save to storage with worktree detection
@@ -55,7 +60,8 @@ final class SessionManager {
           firstMessage: firstMessage,
           workingDirectory: workingDirectory,
           branchName: branchName,
-          isWorktree: isWorktree
+          isWorktree: isWorktree,
+          provider: provider
         )
         // Refresh sessions list
         await fetchSessions()

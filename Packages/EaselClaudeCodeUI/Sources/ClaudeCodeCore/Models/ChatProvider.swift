@@ -10,16 +10,11 @@ public enum ChatProvider: String, CaseIterable, Codable, Identifiable, Sendable 
   case codex
 
   public static var allCases: [ChatProvider] {
-    [.codex]
+    [.codex, .claude]
   }
 
   public var supportedProvider: ChatProvider {
-    switch self {
-    case .claude:
-      return .codex
-    case .codex:
-      return .codex
-    }
+    self
   }
 
   public var id: String { rawValue }

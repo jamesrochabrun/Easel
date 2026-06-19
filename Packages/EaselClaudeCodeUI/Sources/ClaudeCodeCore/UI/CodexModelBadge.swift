@@ -8,6 +8,32 @@ import SwiftUI
 struct CodexModelBadge: View {
   let modelIdentifier: String
 
+  var body: some View {
+    ProviderModelBadge(
+      providerName: "Codex",
+      defaultDisplayText: "Codex default",
+      modelIdentifier: modelIdentifier
+    )
+  }
+}
+
+struct ClaudeModelBadge: View {
+  let modelIdentifier: String
+
+  var body: some View {
+    ProviderModelBadge(
+      providerName: "Claude",
+      defaultDisplayText: "Claude default",
+      modelIdentifier: modelIdentifier
+    )
+  }
+}
+
+private struct ProviderModelBadge: View {
+  let providerName: String
+  let defaultDisplayText: String
+  let modelIdentifier: String
+
   @Environment(\.colorScheme) private var colorScheme
 
   var body: some View {
@@ -29,11 +55,11 @@ struct CodexModelBadge: View {
       Capsule()
         .stroke(EaselChatRuntimeStyle.border(for: colorScheme), lineWidth: 1)
     }
-    .help("Codex model: \(displayText)")
+    .help("\(providerName) model: \(displayText)")
   }
 
   private var displayText: String {
     let trimmed = modelIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
-    return trimmed.isEmpty ? "Codex default" : trimmed
+    return trimmed.isEmpty ? defaultDisplayText : trimmed
   }
 }

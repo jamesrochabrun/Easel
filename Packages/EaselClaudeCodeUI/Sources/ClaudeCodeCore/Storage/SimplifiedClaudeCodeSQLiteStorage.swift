@@ -14,7 +14,14 @@ public actor SimplifiedClaudeCodeSQLiteStorage: SessionStorageProtocol {
     self.applicationSupportDirectory = applicationSupportDirectory
   }
 
-  public func saveSession(id: String, firstMessage: String, workingDirectory: String?, branchName: String?, isWorktree: Bool) async throws {
+  public func saveSession(
+    id: String,
+    firstMessage: String,
+    workingDirectory: String?,
+    branchName: String?,
+    isWorktree: Bool,
+    provider: ChatProvider
+  ) async throws {
     try await initializeDatabaseIfNeeded()
 
     let insert = sessionsTable.insert(
@@ -24,7 +31,8 @@ public actor SimplifiedClaudeCodeSQLiteStorage: SessionStorageProtocol {
       lastAccessedAtColumn <- Date(),
       workingDirectoryColumn <- workingDirectory,
       branchNameColumn <- branchName,
-      isWorktreeColumn <- isWorktree
+      isWorktreeColumn <- isWorktree,
+      providerColumn <- provider.rawValue
     )
 
     try database.run(insert)
@@ -50,6 +58,7 @@ public actor SimplifiedClaudeCodeSQLiteStorage: SessionStorageProtocol {
         workingDirectory: sessionRow[workingDirectoryColumn],
         branchName: sessionRow[branchNameColumn],
         isWorktree: sessionRow[isWorktreeColumn],
+        provider: ChatProvider(rawValue: sessionRow[providerColumn]) ?? .codex,
         usageSummary: usageSummary(from: sessionRow)
       )
       
@@ -77,6 +86,7 @@ public actor SimplifiedClaudeCodeSQLiteStorage: SessionStorageProtocol {
       workingDirectory: sessionRow[workingDirectoryColumn],
       branchName: sessionRow[branchNameColumn],
       isWorktree: sessionRow[isWorktreeColumn],
+      provider: ChatProvider(rawValue: sessionRow[providerColumn]) ?? .codex,
       usageSummary: usageSummary(from: sessionRow)
     )
     return storedSession
@@ -172,6 +182,7 @@ public actor SimplifiedClaudeCodeSQLiteStorage: SessionStorageProtocol {
           workingDirectoryColumn <- oldSessionRow[workingDirectoryColumn],
           branchNameColumn <- oldSessionRow[branchNameColumn],
           isWorktreeColumn <- oldSessionRow[isWorktreeColumn],
+          providerColumn <- oldSessionRow[providerColumn],
           usageInputTokensColumn <- oldSessionRow[usageInputTokensColumn],
           usageOutputTokensColumn <- oldSessionRow[usageOutputTokensColumn],
           usageCachedInputTokensColumn <- oldSessionRow[usageCachedInputTokensColumn],
@@ -245,6 +256,7 @@ public actor SimplifiedClaudeCodeSQLiteStorage: SessionStorageProtocol {
   private let workingDirectoryColumn = Expression<String?>("working_directory")
   private let branchNameColumn = Expression<String?>("branch_name")
   private let isWorktreeColumn = Expression<Bool>("is_worktree")
+  private let providerColumn = Expression<String>("provider")
   private let usageInputTokensColumn = Expression<Int>("usage_input_tokens")
   private let usageOutputTokensColumn = Expression<Int>("usage_output_tokens")
   private let usageCachedInputTokensColumn = Expression<Int>("usage_cached_input_tokens")
@@ -337,6 +349,7 @@ public actor SimplifiedClaudeCodeSQLiteStorage: SessionStorageProtocol {
       table.column(workingDirectoryColumn)
       table.column(branchNameColumn)
       table.column(isWorktreeColumn, defaultValue: false)
+      table.column(providerColumn, defaultValue: ChatProvider.codex.rawValue)
       table.column(usageInputTokensColumn, defaultValue: 0)
       table.column(usageOutputTokensColumn, defaultValue: 0)
       table.column(usageCachedInputTokensColumn, defaultValue: 0)

@@ -9,19 +9,19 @@ final class ChatInputViewSourceTests: XCTestCase {
     XCTAssertTrue(source.contains(".tint(EaselChatRuntimeStyle.inputTint(for: colorScheme))"))
   }
 
-  func testPermissionModePickerIsHiddenForCodexProvider() throws {
+  func testPermissionModePickerIsHiddenForEmbeddedChat() throws {
     let source = try sourceContents("Sources/ClaudeCodeCore/UI/ChatInputView.swift")
 
     XCTAssertTrue(source.contains("if viewModel.activeProvider == .codex"))
-    XCTAssertTrue(source.contains("if viewModel.activeProvider != .codex"))
-    XCTAssertTrue(source.contains("PermissionModeButton(mode: $viewModel.permissionMode)"))
+    XCTAssertTrue(source.contains("ClaudeModelBadge(modelIdentifier: globalPreferences.claudeModel)"))
+    XCTAssertFalse(source.contains("if viewModel.activeProvider != .codex"))
+    XCTAssertFalse(source.contains("PermissionModeButton(mode: $viewModel.permissionMode)"))
   }
 
-  func testPermissionModeShortcutIsDisabledForCodexProvider() throws {
+  func testPermissionModeShortcutIsDisabledForEmbeddedChat() throws {
     let source = try sourceContents("Sources/ClaudeCodeCore/UI/ChatScreen.swift")
 
-    XCTAssertTrue(source.contains("if viewModel.activeProvider != .codex,"))
-    XCTAssertTrue(source.contains("viewModel.permissionMode = newMode"))
+    XCTAssertFalse(source.contains("viewModel.permissionMode = newMode"))
   }
 
   private func sourceContents(_ relativePath: String) throws -> String {

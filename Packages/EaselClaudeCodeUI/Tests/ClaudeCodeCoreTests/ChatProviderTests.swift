@@ -3,12 +3,12 @@ import XCTest
 
 final class ChatProviderTests: XCTestCase {
 
-  func testOnlyCodexIsAdvertisedAsAvailableProvider() {
-    XCTAssertEqual(ChatProvider.allCases, [.codex])
+  func testCodexAndClaudeAreAdvertisedAsAvailableProviders() {
+    XCTAssertEqual(ChatProvider.allCases, [.codex, .claude])
   }
 
-  func testClaudeProviderNormalizesToCodex() {
-    XCTAssertEqual(ChatProvider.claude.supportedProvider, .codex)
+  func testSupportedProviderPreservesSelection() {
+    XCTAssertEqual(ChatProvider.claude.supportedProvider, .claude)
     XCTAssertEqual(ChatProvider.codex.supportedProvider, .codex)
   }
 }

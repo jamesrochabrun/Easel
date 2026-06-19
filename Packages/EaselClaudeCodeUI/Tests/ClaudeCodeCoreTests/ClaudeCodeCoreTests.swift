@@ -64,11 +64,13 @@ final class ClaudeCodeCoreTests: XCTestCase {
 
   @MainActor
   func testOutgoingHiddenContextReplacesRuntimeContextForCodexFollowUps() {
+    let preferences = GlobalPreferencesStorage()
+    preferences.chatProvider = .codex
     let viewModel = ChatViewModel(
       claudeClient: HangingClaudeCodeClient(),
       sessionStorage: NoOpSessionStorage(),
       settingsStorage: SettingsStorageManager(),
-      globalPreferences: GlobalPreferencesStorage(),
+      globalPreferences: preferences,
       customPermissionService: MockCustomPermissionService(),
       shouldManageSessions: false
     )

@@ -137,16 +137,8 @@ public struct ChatScreen: View {
     }
     .background(EaselChatRuntimeStyle.appBackground(for: colorScheme, themeColors: appearanceSettings.themeColors))
     .environment(appearanceSettings)
-    .onKeyPress { key in
-      // Check for Shift+Tab to cycle permission modes
-      if viewModel.activeProvider != .codex,
-         key.modifiers == [.shift],
-         key.key.character == "\u{19}" {
-        let newMode = viewModel.permissionMode.nextMode
-        viewModel.permissionMode = newMode
-        return .handled
-      }
-      return .ignored
+    .onKeyPress { _ in
+      .ignored
     }
     .overlay(approvalToastOverlay)
     .overlay(
@@ -318,16 +310,13 @@ public struct ChatScreen: View {
   }
   
   private func resumeInNewSession() {
-    guard let sessionId = viewModel.activeSessionId else { return }
+    guard viewModel.activeSessionId != nil else { return }
 
     // Get the current working directory
     let workingDirectory = viewModel.projectPath
 
     // Clear the current conversation UI (removes all visible messages)
-    viewModel.clearConversation()
-
-    // Keep the session ID active so next message continues this conversation
-    viewModel.sessionManager.selectSession(id: sessionId)
+    viewModel.clearVisibleConversationPreservingActiveSession()
 
     // Set the working directory
     if !workingDirectory.isEmpty {

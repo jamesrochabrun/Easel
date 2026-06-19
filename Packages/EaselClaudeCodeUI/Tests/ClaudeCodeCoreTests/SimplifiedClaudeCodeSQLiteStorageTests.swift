@@ -28,7 +28,8 @@ final class SimplifiedClaudeCodeSQLiteStorageTests: XCTestCase {
       firstMessage: "first",
       workingDirectory: "/tmp/easel",
       branchName: nil,
-      isWorktree: false
+      isWorktree: false,
+      provider: .claude
     )
 
     try await storage.updateSessionMessages(id: sessionID, messages: [
@@ -70,7 +71,8 @@ final class SimplifiedClaudeCodeSQLiteStorageTests: XCTestCase {
       firstMessage: "first",
       workingDirectory: "/tmp/easel",
       branchName: nil,
-      isWorktree: false
+      isWorktree: false,
+      provider: .claude
     )
     try await storage.updateSessionMessages(id: oldSessionID, messages: messages)
 
@@ -82,6 +84,7 @@ final class SimplifiedClaudeCodeSQLiteStorageTests: XCTestCase {
     XCTAssertNil(oldSession)
     XCTAssertEqual(newSession.messages.map(\.id), messages.map(\.id))
     XCTAssertEqual(newSession.messages.map(\.content), ["first", "reply"])
+    XCTAssertEqual(newSession.provider, .claude)
   }
 
   func testRecordUsagePersistsSessionAndWorkingDirectorySummaries() async throws {
@@ -93,14 +96,16 @@ final class SimplifiedClaudeCodeSQLiteStorageTests: XCTestCase {
       firstMessage: "first",
       workingDirectory: workingDirectory,
       branchName: nil,
-      isWorktree: false
+      isWorktree: false,
+      provider: .codex
     )
     try await storage.saveSession(
       id: "session-2",
       firstMessage: "second",
       workingDirectory: workingDirectory,
       branchName: nil,
-      isWorktree: false
+      isWorktree: false,
+      provider: .codex
     )
 
     try await storage.recordUsage(
@@ -136,5 +141,22 @@ final class SimplifiedClaudeCodeSQLiteStorageTests: XCTestCase {
     XCTAssertEqual(workspaceSummary.outputTokens, 250)
     XCTAssertEqual(workspaceSummary.cachedInputTokens, 100)
     XCTAssertEqual(workspaceSummary.reasoningOutputTokens, 25)
+  }
+
+  func testSessionProviderPersists() async throws {
+    let storage = SimplifiedClaudeCodeSQLiteStorage(applicationSupportDirectory: temporaryRoot)
+
+    try await storage.saveSession(
+      id: "claude-session",
+      firstMessage: "first",
+      workingDirectory: "/tmp/easel",
+      branchName: nil,
+      isWorktree: false,
+      provider: .claude
+    )
+
+    let storedSession = try await storage.getSession(id: "claude-session")
+    let session = try XCTUnwrap(storedSession)
+    XCTAssertEqual(session.provider, .claude)
   }
 }

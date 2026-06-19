@@ -7,7 +7,8 @@ import CodexSDK
 import Foundation
 
 @MainActor
-final class CodexChatRuntime {
+final class CodexChatRuntime: ChatRuntime {
+  let provider: ChatProvider = .codex
   var workingDirectory: String?
   var developerInstructions: String?
   var modelIdentifier: String?
@@ -30,6 +31,10 @@ final class CodexChatRuntime {
   /// — this prevents a still-streaming turn from bleeding into a new session or
   /// workspace after the user switches away mid-generation.
   private(set) var activeGeneration = 0
+
+  var activeSessionId: String? {
+    sessionManager.currentSessionId
+  }
 
   init(
     messageDisplay: ChatMessageDisplay,
@@ -616,7 +621,8 @@ final class CodexChatRuntime {
       sessionManager.startNewSession(
         id: sessionId,
         firstMessage: firstMessageInSession ?? "New conversation",
-        workingDirectory: workingDirectory
+        workingDirectory: workingDirectory,
+        provider: .codex
       )
       onSessionChange?(sessionId)
     } else if sessionManager.currentSessionId != sessionId {
@@ -632,7 +638,8 @@ final class CodexChatRuntime {
     sessionManager.startNewSession(
       id: sessionId,
       firstMessage: firstMessageInSession ?? "New conversation",
-      workingDirectory: workingDirectory
+      workingDirectory: workingDirectory,
+      provider: .codex
     )
     onSessionChange?(sessionId)
   }
