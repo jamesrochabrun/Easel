@@ -17,6 +17,27 @@ private struct ResourceManifestCacheKey: Hashable {
   let workingDirectory: String
 }
 
+private struct ChatSessionContext {
+  let viewModel: ChatViewModel
+  let deps: DependencyContainer
+  let reference: ChatViewModelReference
+}
+
+private enum ChatServiceError: LocalizedError {
+  case missingGlobalPreferences
+
+  var errorDescription: String? {
+    switch self {
+    case .missingGlobalPreferences:
+      return "Chat service preferences are not initialized."
+    }
+  }
+}
+
+private final class ChatViewModelReference {
+  weak var viewModel: ChatViewModel?
+}
+
 @Observable @MainActor
 public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, PreviewURLProviding {
 
@@ -49,6 +70,10 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
   private var currentWorkspaceUsageTask: Task<Void, Never>?
   private var lastSentResourceManifestBySession: [ResourceManifestCacheKey: [String: ProjectResourceFileSignature]] = [:]
   private var pendingResourceManifestByWorkingDirectory: [String: [String: ProjectResourceFileSignature]] = [:]
+  private var sessionContextsById: [String: ChatSessionContext] = [:]
+  private var pendingSessionContextsByViewModelId: [ObjectIdentifier: ChatSessionContext] = [:]
+  private var sessionIdByViewModelId: [ObjectIdentifier: String] = [:]
+  private var activeSessionContext: ChatSessionContext?
 
   // MARK: - Init
 
@@ -85,63 +110,13 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
         persistentManager: persistentPreferencesManager,
         logger: logger
       )
-      let container = DependencyContainer(
-        globalPreferences: globalPrefs,
-        customSessionStorage: sessionStorage,
-        mcpToolsDiscovery: mcpToolsDiscovery,
-        logger: logger
-      )
+      let context = try makeSessionContext(globalPreferences: globalPrefs)
 
-      var config = ChatConfiguration.makeDefault()
-      config.command = globalPrefs.claudeCommand
+      setCurrentWorkingDirectory(context.viewModel.projectPath)
 
-      let client = try ClaudeCodeClient(configuration: config)
-
-      // Set working directory
-      if let dir = config.workingDirectory {
-        container.settingsStorage.setProjectPath(dir)
-      }
-
-      let vm = ChatViewModel(
-        claudeClient: client,
-        sessionStorage: sessionStorage,
-        settingsStorage: container.settingsStorage,
-        globalPreferences: globalPrefs,
-        customPermissionService: container.customPermissionService,
-        mcpToolsDiscovery: mcpToolsDiscovery,
-        logger: logger,
-        systemPromptPrefix: EaselAgentInstructions.systemPromptPrefix,
-        codexDeveloperInstructionsPrefix: EaselAgentInstructions.codexDeveloperInstructionsPrefix,
-        shouldManageSessions: true,
-        onSessionChange: { [weak self] newSessionId in
-          Task { @MainActor in
-            self?.setCurrentSessionId(newSessionId)
-            self?.refreshCurrentWorkspaceUsage()
-            self?.onSessionChanged?()
-          }
-        },
-        onSessionUsageChange: { [weak self] _ in
-          Task { @MainActor in
-            self?.refreshCurrentWorkspaceUsage()
-            self?.onSessionChanged?()
-          }
-        }
-      )
-      vm.runtimeHiddenContextProvider = { [weak self] in
-        self?.makeHiddenContextForCurrentState(nil)
-      }
-      vm.outgoingHiddenContextProvider = { [weak self] in
-        self?.resourceManifestDeltaContextForOutgoingMessage()
-      }
-
-      if let dir = config.workingDirectory {
-        vm.projectPath = dir
-        setCurrentWorkingDirectory(dir)
-      }
-      setCurrentWorkingDirectory(vm.projectPath)
-
-      self.chatViewModel = vm
-      self.deps = container
+      self.chatViewModel = context.viewModel
+      self.deps = context.deps
+      self.activeSessionContext = context
       self.globalPreferences = globalPrefs
       self.isInitialized = true
 
@@ -155,6 +130,10 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
     previewURLObserver.stopObserving()
     initError = nil
     isInitialized = false
+    sessionContextsById.removeAll()
+    pendingSessionContextsByViewModelId.removeAll()
+    sessionIdByViewModelId.removeAll()
+    activeSessionContext = nil
     clearPreviewURL()
     Task { await initialize() }
   }
@@ -182,6 +161,9 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
   // MARK: - Session Management
 
   public func switchToSession(_ session: StoredSession) async {
+    let initialized = await ensureInitialized()
+    guard initialized else { return }
+
     previewURLObserver.stopObserving()
 
     // Save current session before switching
@@ -191,6 +173,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
         try? await sessionStorage.updateSessionMessages(id: currentId, messages: messages)
       }
     }
+    retainCurrentSessionContext()
 
     // Load fresh session data from storage, fall back to the passed object
     let sessionToLoad: StoredSession
@@ -200,25 +183,37 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
       sessionToLoad = session
     }
 
-    if let workingDirectory = sessionToLoad.workingDirectory {
-      setCurrentWorkingDirectory(workingDirectory)
+    let context: ChatSessionContext
+    if let existingContext = sessionContextsById[sessionToLoad.id] {
+      context = existingContext
+    } else {
+      do {
+        context = try makeSessionContext(workingDirectory: sessionToLoad.workingDirectory)
+      } catch {
+        initError = error
+        return
+      }
+
+      context.viewModel.injectSession(
+        sessionId: sessionToLoad.id,
+        messages: sessionToLoad.messages,
+        workingDirectory: sessionToLoad.workingDirectory,
+        provider: sessionToLoad.provider,
+        usageSummary: sessionToLoad.usageSummary
+      )
+      sessionContextsById[sessionToLoad.id] = context
+      sessionIdByViewModelId[ObjectIdentifier(context.viewModel)] = sessionToLoad.id
     }
 
-    // injectSession handles updating working directory on the existing client
-    chatViewModel?.injectSession(
-      sessionId: sessionToLoad.id,
-      messages: sessionToLoad.messages,
-      workingDirectory: sessionToLoad.workingDirectory,
-      provider: sessionToLoad.provider,
-      usageSummary: sessionToLoad.usageSummary
-    )
+    activateContext(context)
 
-    setCurrentWorkingDirectory(sessionToLoad.workingDirectory ?? chatViewModel?.projectPath)
-    setCurrentSessionId(session.id)
+    setCurrentWorkingDirectory(normalized(context.viewModel.projectPath) ?? sessionToLoad.workingDirectory)
+    setCurrentSessionId(sessionToLoad.id)
     clearPreviewURL()
 
-    // Immediately scan loaded messages for a dev server URL
-    if let detectedURL = previewURLObserver.scanExistingMessages(sessionToLoad.messages) {
+    // Immediately scan the active context for a dev server URL. A retained live
+    // context can have newer messages than the session snapshot loaded above.
+    if let detectedURL = previewURLObserver.scanExistingMessages(context.viewModel.getCurrentMessages()) {
       applyDetectedPreviewURL(detectedURL)
     }
 
@@ -226,6 +221,9 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
   }
 
   public func startNewSession(workingDirectory: String?) async {
+    let initialized = await ensureInitialized()
+    guard initialized else { return }
+
     previewURLObserver.stopObserving()
 
     // Save current session before starting new one
@@ -235,16 +233,21 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
         try? await sessionStorage.updateSessionMessages(id: currentId, messages: messages)
       }
     }
+    retainCurrentSessionContext()
 
-    chatViewModel?.clearConversation()
+    let context: ChatSessionContext
+    do {
+      context = try makeSessionContext(workingDirectory: workingDirectory)
+    } catch {
+      initError = error
+      return
+    }
+
+    activateContext(context)
+    pendingSessionContextsByViewModelId[ObjectIdentifier(context.viewModel)] = context
 
     // Set the working directory for the new chat
-    if let dir = workingDirectory, !dir.isEmpty {
-      chatViewModel?.setWorkingDirectory(dir)
-      setCurrentWorkingDirectory(dir)
-    } else {
-      setCurrentWorkingDirectory(chatViewModel?.projectPath)
-    }
+    setCurrentWorkingDirectory(normalized(workingDirectory) ?? context.viewModel.projectPath)
 
     setCurrentSessionId(nil)
     clearPreviewURL()
@@ -254,7 +257,18 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
 
   public func deleteSession(_ session: StoredSession) async {
     try? await sessionStorage.deleteSession(id: session.id)
+    if let context = sessionContextsById.removeValue(forKey: session.id) {
+      sessionIdByViewModelId.removeValue(forKey: ObjectIdentifier(context.viewModel))
+      if activeSessionContext?.viewModel === context.viewModel {
+        activeSessionContext = nil
+      }
+      if !isVisibleViewModel(context.viewModel) {
+        context.viewModel.clearConversation()
+      }
+    }
+
     if currentSessionId == session.id {
+      activeSessionContext = nil
       setCurrentSessionId(nil)
       chatViewModel?.clearConversation()
     }
@@ -263,6 +277,15 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
 
   public func clearActiveWorkspace() {
     previewURLObserver.stopObserving()
+    let retainedContexts = Array(sessionContextsById.values) + Array(pendingSessionContextsByViewModelId.values)
+    for context in retainedContexts {
+      if isVisibleViewModel(context.viewModel) { continue }
+      context.viewModel.clearConversation()
+    }
+    sessionContextsById.removeAll()
+    pendingSessionContextsByViewModelId.removeAll()
+    sessionIdByViewModelId.removeAll()
+    activeSessionContext = nil
     setCurrentSessionId(nil)
     chatViewModel?.clearConversation()
     chatViewModel?.setWorkingDirectory("")
@@ -316,6 +339,144 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
 
   // MARK: - Private
 
+  private func ensureInitialized() async -> Bool {
+    if !isInitialized {
+      await initialize()
+    }
+
+    return isInitialized
+  }
+
+  private func makeSessionContext(
+    globalPreferences preferences: GlobalPreferencesStorage? = nil,
+    workingDirectory: String? = nil
+  ) throws -> ChatSessionContext {
+    guard let preferences = preferences ?? globalPreferences else {
+      throw ChatServiceError.missingGlobalPreferences
+    }
+
+    let container = DependencyContainer(
+      globalPreferences: preferences,
+      customSessionStorage: sessionStorage,
+      mcpToolsDiscovery: mcpToolsDiscovery,
+      logger: logger
+    )
+
+    var config = ChatConfiguration.makeDefault()
+    config.command = preferences.claudeCommand
+
+    if let workingDirectory = normalized(workingDirectory) {
+      config.workingDirectory = workingDirectory
+      container.settingsStorage.setProjectPath(workingDirectory)
+    } else if let workingDirectory = normalized(config.workingDirectory) {
+      container.settingsStorage.setProjectPath(workingDirectory)
+    }
+
+    let client = try ClaudeCodeClient(configuration: config)
+    let reference = ChatViewModelReference()
+    let viewModel = ChatViewModel(
+      claudeClient: client,
+      sessionStorage: sessionStorage,
+      settingsStorage: container.settingsStorage,
+      globalPreferences: preferences,
+      customPermissionService: container.customPermissionService,
+      mcpToolsDiscovery: mcpToolsDiscovery,
+      logger: logger,
+      systemPromptPrefix: EaselAgentInstructions.systemPromptPrefix,
+      codexDeveloperInstructionsPrefix: EaselAgentInstructions.codexDeveloperInstructionsPrefix,
+      shouldManageSessions: true,
+      onSessionChange: { [weak self, weak reference] newSessionId in
+        Task { @MainActor in
+          guard let viewModel = reference?.viewModel else { return }
+          self?.handleSessionChange(newSessionId, from: viewModel)
+        }
+      },
+      onSessionUsageChange: { [weak self, weak reference] _ in
+        Task { @MainActor in
+          guard let self else { return }
+          if self.isVisibleViewModel(reference?.viewModel) {
+            self.refreshCurrentWorkspaceUsage()
+          }
+          self.onSessionChanged?()
+        }
+      }
+    )
+    reference.viewModel = viewModel
+
+    viewModel.runtimeHiddenContextProvider = { [weak self, weak viewModel] in
+      self?.makeHiddenContext(for: viewModel, hiddenContext: nil)
+    }
+    viewModel.outgoingHiddenContextProvider = { [weak self, weak viewModel] in
+      self?.resourceManifestDeltaContextForOutgoingMessage(from: viewModel)
+    }
+
+    return ChatSessionContext(viewModel: viewModel, deps: container, reference: reference)
+  }
+
+  private func retainCurrentSessionContext() {
+    guard let chatViewModel,
+          let context = activeSessionContext,
+          context.viewModel === chatViewModel else { return }
+
+    let viewModelId = ObjectIdentifier(chatViewModel)
+    if let sessionId = currentSessionId ?? sessionIdByViewModelId[viewModelId] {
+      sessionContextsById[sessionId] = context
+      sessionIdByViewModelId[viewModelId] = sessionId
+    } else if chatViewModel.isLoading || !chatViewModel.messages.isEmpty {
+      pendingSessionContextsByViewModelId[viewModelId] = context
+    }
+  }
+
+  private func context(for viewModel: ChatViewModel) -> ChatSessionContext? {
+    let viewModelId = ObjectIdentifier(viewModel)
+    if let sessionId = sessionIdByViewModelId[viewModelId],
+       let context = sessionContextsById[sessionId] {
+      return context
+    }
+
+    if let context = pendingSessionContextsByViewModelId[viewModelId] {
+      return context
+    }
+
+    if chatViewModel === viewModel,
+       let activeSessionContext,
+       activeSessionContext.viewModel === viewModel {
+      return activeSessionContext
+    }
+
+    return nil
+  }
+
+  private func activateContext(_ context: ChatSessionContext) {
+    chatViewModel = context.viewModel
+    deps = context.deps
+    activeSessionContext = context
+  }
+
+  private func handleSessionChange(_ sessionId: String, from viewModel: ChatViewModel) {
+    guard let context = context(for: viewModel) else { return }
+
+    let viewModelId = ObjectIdentifier(viewModel)
+    pendingSessionContextsByViewModelId.removeValue(forKey: viewModelId)
+    sessionContextsById[sessionId] = context
+    sessionIdByViewModelId[viewModelId] = sessionId
+
+    guard isVisibleViewModel(viewModel) else {
+      onSessionChanged?()
+      return
+    }
+
+    setCurrentSessionId(sessionId)
+    setCurrentWorkingDirectory(viewModel.projectPath)
+    refreshCurrentWorkspaceUsage()
+    onSessionChanged?()
+  }
+
+  private func isVisibleViewModel(_ viewModel: ChatViewModel?) -> Bool {
+    guard let viewModel, let chatViewModel else { return false }
+    return chatViewModel === viewModel
+  }
+
   private func startPreviewObservation() {
     previewURLObserver.startObserving(
       messages: { [weak self] in
@@ -353,16 +514,47 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
     _ hiddenContext: String?,
     shouldRecordResourceManifest: Bool = true
   ) -> String {
-    let project = resolvedCurrentProject()
-    let resourceManifest = projectResourceManifest(at: currentWorkingDirectory)
+    makeHiddenContext(
+      hiddenContext,
+      workingDirectory: currentWorkingDirectory,
+      sessionId: currentSessionId,
+      shouldRecordResourceManifest: shouldRecordResourceManifest
+    )
+  }
+
+  private func makeHiddenContext(
+    for viewModel: ChatViewModel?,
+    hiddenContext: String?,
+    shouldRecordResourceManifest: Bool = true
+  ) -> String {
+    let viewModelId = viewModel.map { ObjectIdentifier($0) }
+    let workingDirectory = normalized(viewModel?.projectPath) ?? currentWorkingDirectory
+    let sessionId = viewModelId.flatMap { sessionIdByViewModelId[$0] } ?? (isVisibleViewModel(viewModel) ? currentSessionId : nil)
+
+    return makeHiddenContext(
+      hiddenContext,
+      workingDirectory: workingDirectory,
+      sessionId: sessionId,
+      shouldRecordResourceManifest: shouldRecordResourceManifest
+    )
+  }
+
+  private func makeHiddenContext(
+    _ hiddenContext: String?,
+    workingDirectory: String?,
+    sessionId: String?,
+    shouldRecordResourceManifest: Bool
+  ) -> String {
+    let project = projectMetadata(at: workingDirectory) ?? (workingDirectory == currentWorkingDirectory ? resolvedCurrentProject() : nil)
+    let resourceManifest = projectResourceManifest(at: workingDirectory)
 
     if shouldRecordResourceManifest {
-      recordResourceManifest(resourceManifest, for: currentWorkingDirectory, sessionId: currentSessionId)
+      recordResourceManifest(resourceManifest, for: workingDirectory, sessionId: sessionId)
     }
 
     return EaselAgentInstructions.appendingHiddenContext(
       hiddenContext,
-      projectPath: currentWorkingDirectory,
+      projectPath: workingDirectory,
       projectKind: project?.kind,
       projectFidelity: prototypeFidelity(for: project),
       designSystem: project?.designSystem,
@@ -372,13 +564,39 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
   }
 
   func makeResourceManifestDeltaContextForCurrentState() -> String? {
-    guard let workingDirectoryKey = resourceManifestKey(for: currentWorkingDirectory) else {
+    makeResourceManifestDeltaContext(
+      workingDirectory: currentWorkingDirectory,
+      sessionId: currentSessionId
+    )
+  }
+
+  private func resourceManifestDeltaContextForOutgoingMessage(from viewModel: ChatViewModel?) -> String? {
+    let viewModelId = viewModel.map { ObjectIdentifier($0) }
+    let workingDirectory = normalized(viewModel?.projectPath) ?? currentWorkingDirectory
+    let sessionId = viewModelId.flatMap { sessionIdByViewModelId[$0] } ?? (isVisibleViewModel(viewModel) ? currentSessionId : nil)
+
+    guard sessionId != nil else {
+      recordResourceManifest(projectResourceManifest(at: workingDirectory), for: workingDirectory, sessionId: nil)
       return nil
     }
 
-    let currentManifest = projectResourceManifest(at: currentWorkingDirectory)
+    return makeResourceManifestDeltaContext(
+      workingDirectory: workingDirectory,
+      sessionId: sessionId
+    )
+  }
+
+  private func makeResourceManifestDeltaContext(
+    workingDirectory: String?,
+    sessionId: String?
+  ) -> String? {
+    guard let workingDirectoryKey = resourceManifestKey(for: workingDirectory) else {
+      return nil
+    }
+
+    let currentManifest = projectResourceManifest(at: workingDirectory)
     let currentFiles = resourceManifestMap(currentManifest)
-    guard let sessionId = currentSessionId else {
+    guard let sessionId else {
       pendingResourceManifestByWorkingDirectory[workingDirectoryKey] = currentFiles
       return nil
     }
@@ -475,15 +693,6 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
     let decoder = JSONDecoder()
     decoder.dateDecodingStrategy = .iso8601
     return try? decoder.decode(EaselDesignProject.self, from: data)
-  }
-
-  private func resourceManifestDeltaContextForOutgoingMessage() -> String? {
-    guard currentSessionId != nil else {
-      recordResourceManifest(projectResourceManifest(at: currentWorkingDirectory), for: currentWorkingDirectory, sessionId: nil)
-      return nil
-    }
-
-    return makeResourceManifestDeltaContextForCurrentState()
   }
 
   private func recordResourceManifest(
