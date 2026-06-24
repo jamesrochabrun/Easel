@@ -2,6 +2,10 @@
 
 Guidelines for any AI agent working on this codebase.
 
+## AI Providers
+
+Easel supports two interchangeable local CLI providers — **Codex** and **Claude** (Claude Code). The active provider is chosen in Settings, and both drive the same in-app chat/build flow as well as the **Send Handoff** flow. When touching provider, chat, or runtime code, keep both providers working and avoid Codex- or Claude-specific assumptions leaking into shared layers.
+
 ## Framework
 
 - Use **SwiftUI** exclusively for all UI code — no UIKit or AppKit unless absolutely necessary

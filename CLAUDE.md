@@ -1,5 +1,9 @@
 # Easel — Project Instructions
 
+## AI Providers
+
+Easel supports two interchangeable local CLI providers — **Codex** and **Claude** (Claude Code) — selectable in Settings. Both power the same in-app chat/build flow and the **Send Handoff** flow, delegating auth to the underlying CLI (no API keys). When working on provider, chat, or runtime code, keep both providers working and avoid Codex- or Claude-specific assumptions in shared layers.
+
 ## Framework
 
 - Use **SwiftUI** exclusively for all UI code — no UIKit or AppKit unless absolutely necessary
