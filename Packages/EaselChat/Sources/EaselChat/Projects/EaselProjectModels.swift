@@ -9,6 +9,7 @@ import EaselDesignSystems
 public enum EaselProjectKind: String, CaseIterable, Codable, Identifiable, Sendable {
   case prototype
   case slideDeck
+  case animation
 
   public var id: String { rawValue }
 
@@ -18,6 +19,8 @@ public enum EaselProjectKind: String, CaseIterable, Codable, Identifiable, Senda
       return "Prototype"
     case .slideDeck:
       return "Slide deck"
+    case .animation:
+      return "Animation"
     }
   }
 
@@ -27,6 +30,8 @@ public enum EaselProjectKind: String, CaseIterable, Codable, Identifiable, Senda
       return "New prototype"
     case .slideDeck:
       return "New slide deck"
+    case .animation:
+      return "New animation"
     }
   }
 
@@ -36,6 +41,8 @@ public enum EaselProjectKind: String, CaseIterable, Codable, Identifiable, Senda
       return "Project name"
     case .slideDeck:
       return "Deck name"
+    case .animation:
+      return "Animation name"
     }
   }
 
@@ -45,6 +52,8 @@ public enum EaselProjectKind: String, CaseIterable, Codable, Identifiable, Senda
       return "rectangle.inset.filled"
     case .slideDeck:
       return "rectangle.on.rectangle"
+    case .animation:
+      return "play.rectangle"
     }
   }
 }

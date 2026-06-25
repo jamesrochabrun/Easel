@@ -15,11 +15,14 @@ public protocol EaselProjectManaging: Sendable {
 
 enum EaselProjectManagerError: LocalizedError {
   case projectNotFound
+  case bundledTemplateResourceMissing(String)
 
   var errorDescription: String? {
     switch self {
     case .projectNotFound:
       return "The project could not be found."
+    case .bundledTemplateResourceMissing(let fileName):
+      return "The bundled project template resource \(fileName) could not be found."
     }
   }
 }
@@ -185,7 +188,38 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
       )
     }
 
+    if project.kind == .animation {
+      try write(
+        AnimationScaffold.starterComponentJavaScript,
+        to: directoryURL.appendingPathComponent(AnimationScaffold.starterResourcePath)
+      )
+      try copyAnimationVendorAssets(to: directoryURL)
+    }
+
     writeDesignSystemBrief(for: project, at: directoryURL)
+  }
+
+  private func copyAnimationVendorAssets(to directoryURL: URL) throws {
+    let vendorDirectoryURL = directoryURL
+      .appendingPathComponent(ProjectResource.resourcesDirectoryName, isDirectory: true)
+      .appendingPathComponent("vendor", isDirectory: true)
+    try fileManager.createDirectory(at: vendorDirectoryURL, withIntermediateDirectories: true)
+
+    for fileName in AnimationScaffold.vendorFileNames {
+      let resourceURL = URL(fileURLWithPath: fileName)
+      let resourceName = resourceURL.deletingPathExtension().lastPathComponent
+      let resourceExtension = resourceURL.pathExtension
+      guard let sourceURL = Bundle.module.url(
+        forResource: resourceName,
+        withExtension: resourceExtension,
+        subdirectory: "ProjectTemplateAssets/Animation/vendor"
+      ) else {
+        throw EaselProjectManagerError.bundledTemplateResourceMissing(fileName)
+      }
+
+      let destinationURL = vendorDirectoryURL.appendingPathComponent(fileName)
+      try fileManager.copyItem(at: sourceURL, to: destinationURL)
+    }
   }
 
   /// Provides the custom design system's spec to the project so the agent can
@@ -260,6 +294,8 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
         return "Untitled Prototype"
       case .slideDeck:
         return "Untitled Slide Deck"
+      case .animation:
+        return "Untitled Animation"
       }
     }
     return trimmed
@@ -332,6 +368,10 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
       ? "\nSlide deck layout: \(SlideDeckContract.authoringSummary)\n\nReusable slide template: `\(SlideDeckContract.templateResourcePath)`\n"
       : ""
 
+    let animationGuidance = project.kind == .animation
+      ? "\nAnimation starter: `\(AnimationScaffold.starterResourcePath)`\n\n\(AnimationScaffold.readmeGuidance)\n"
+      : ""
+
     return """
     # \(project.name)
 
@@ -340,6 +380,7 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
     \(metadataLines.joined(separator: "\n"))
     \(designSystemGuidance)
     \(slideDeckGuidance)
+    \(animationGuidance)
     Add project assets to `resources/` so Codex can inspect and use them while designing.
 
     Reference codebases, if present, are listed under `resources/codebase-references/`. Treat those external repositories as read-only context: inspect them only, never modify files or run commands that write inside them, and make all implementation changes inside this Easel project folder.
@@ -354,6 +395,11 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
       return prototypeIndexHTML(for: project)
     case .slideDeck:
       return SlideDeckScaffold.indexHTML(
+        title: project.name,
+        designSystemDisplayName: project.designSystem.displayName
+      )
+    case .animation:
+      return AnimationScaffold.indexHTML(
         title: project.name,
         designSystemDisplayName: project.designSystem.displayName
       )

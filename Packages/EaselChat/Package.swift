@@ -48,6 +48,9 @@ let package = Package(
         .product(name: "CodeEditSourceEditor", package: "CodeEditSourceEditor"),
         .product(name: "CodeEditLanguages", package: "CodeEditLanguages"),
       ],
+      resources: [
+        .copy("ProjectTemplateAssets")
+      ],
       swiftSettings: [
         .swiftLanguageMode(.v5)
       ]

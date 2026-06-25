@@ -64,6 +64,21 @@ final class LocalAgentHandoffPromptBuilderTests: XCTestCase {
     XCTAssertTrue(prompt.contains("Slide deck contract:"))
   }
 
+  func testAnimationPromptIncludesTimelineContract() {
+    let prompt = LocalAgentHandoffPromptBuilder.prompt(
+      details: "export the story",
+      context: context(project: animationProject())
+    )
+
+    XCTAssertTrue(prompt.contains("Current project type: Animation"))
+    XCTAssertTrue(prompt.contains("Animation contract:"))
+    XCTAssertTrue(prompt.contains("Create an animated video or motion design piece"))
+    XCTAssertTrue(prompt.contains("resources/animations.jsx"))
+    XCTAssertTrue(prompt.contains("uses the selected design system"))
+    XCTAssertTrue(prompt.contains("simple, plain visual language with great taste"))
+    XCTAssertFalse(prompt.contains("Anthropic brand palette"))
+  }
+
   private func context(project: EaselDesignProject?) -> LocalAgentHandoffContext {
     LocalAgentHandoffContext(
       easelProjectPath: "/tmp/easel-project",
@@ -97,6 +112,19 @@ final class LocalAgentHandoffPromptBuilderTests: XCTestCase {
       id: UUID(),
       name: "Deck",
       kind: .slideDeck,
+      designSystem: .preset(.none),
+      fidelity: .highFidelity,
+      workingDirectory: "/tmp/easel-project",
+      createdAt: Date(timeIntervalSince1970: 0),
+      updatedAt: Date(timeIntervalSince1970: 0)
+    )
+  }
+
+  private func animationProject() -> EaselDesignProject {
+    EaselDesignProject(
+      id: UUID(),
+      name: "Animation",
+      kind: .animation,
       designSystem: .preset(.none),
       fidelity: .highFidelity,
       workingDirectory: "/tmp/easel-project",

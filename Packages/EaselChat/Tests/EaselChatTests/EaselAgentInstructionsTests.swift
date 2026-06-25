@@ -31,6 +31,13 @@ struct EaselAgentInstructionsTests {
     #expect(prefix.contains("you are a presentation designer"))
     #expect(prefix.contains("You are not building a website"))
     #expect(prefix.contains("Show the user an outline first"))
+    // Animation projects get motion-design timeline guidance and starter usage.
+    #expect(prefix.contains("For animation projects"))
+    #expect(prefix.contains("copy_starter_component"))
+    #expect(prefix.contains("resources/animations.jsx"))
+    #expect(prefix.contains("uses the selected design system"))
+    #expect(prefix.contains("simple, plain visual language with great taste"))
+    #expect(prefix.contains("Anthropic brand palette") == false)
     // Referenced codebases must remain untouched by the Easel session.
     #expect(prefix.contains("resources/codebase-references"))
     #expect(prefix.contains("read-only reference context"))
@@ -198,6 +205,27 @@ struct EaselAgentInstructionsTests {
     #expect(context.contains("you are a presentation designer") == false)
     #expect(context.contains("Current prototype fidelity") == false)
     #expect(context.contains("Prototype fidelity contract") == false)
+  }
+
+  @Test
+  func hiddenContextIncludesAnimationContractWhenProjectIsAnimation() {
+    let context = EaselAgentInstructions.hiddenContext(
+      projectPath: "/tmp/animation",
+      projectKind: .animation,
+      previewURL: nil
+    )
+
+    #expect(context.contains("Current project type: Animation"))
+    #expect(context.contains("Animation contract"))
+    #expect(context.contains("Create an animated video or motion design piece"))
+    #expect(context.contains("copy_starter_component"))
+    #expect(context.contains("resources/animations.jsx"))
+    #expect(context.contains("Stage, Sprite, PlaybackBar"))
+    #expect(context.contains("uses the selected design system"))
+    #expect(context.contains("simple, plain visual language with great taste"))
+    #expect(context.contains("Anthropic brand palette") == false)
+    #expect(context.contains("Current prototype fidelity") == false)
+    #expect(context.contains("Slide deck contract") == false)
   }
 
   @Test

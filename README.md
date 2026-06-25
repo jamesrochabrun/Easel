@@ -19,6 +19,7 @@ Easel is a macOS workspace for AI-assisted product design and frontend iteration
 - **Tweak designs from Claude** — Bring in a design started in Claude as source files, assets, or a `DESIGN.md`-backed design system, then use Codex and the preview inspector to keep refining it locally.
 - **Hand off to Claude or Codex** — When a prototype is ready to become real code, send the whole project to a local Claude Code or Codex CLI session in one click. Easel opens a Terminal session in the target folder, seeded with a prompt that points the agent at your project's README, resources, and design system.
 - **Slide decks** — Build presentation decks the same way you build prototypes: chat to generate slides, browse them in a slide rail, and present in-tab, fullscreen, or in a new tab.
+- **Animations** — Create motion-design projects with a timeline-based HTML/JSX starter, playback controls, and a reusable animation engine under `resources/`.
 - **Real files you can edit** — Every project is a real folder of HTML/CSS/JS, assets, and metadata. Browse the design files, manage resources, and drop into the built-in code editor to tweak source by hand whenever you'd rather not round-trip through chat.
 - **A visual design library** — All your projects and design systems appear as a searchable, filterable grid of thumbnails. Click any one to open it in the workspace.
 - **Lives in your menu bar** — Easel stays in the menu bar, with quick access to the window, a floating chat bar, and "Check for Updates."
@@ -75,7 +76,7 @@ Download the latest signed, notarized DMG from the [**Releases**](https://github
 
 1. **Launch Easel.** It opens to the Design Library and adds an icon to your menu bar.
 2. **Create a design system** (recommended first step) — see the quick start below, or describe a brand and let Easel generate one.
-3. **Create a project** — From the sidebar, name it, pick **Prototype** or **Slide Deck**, choose a fidelity (Wireframe or High Fidelity), and select your design system. Click **Create**.
+3. **Create a project** — From the sidebar, name it, pick **Prototype**, **Slide Deck**, or **Animation**, choose a fidelity for prototypes, and select your design system. Click **Create**.
 4. **Chat to build** — Describe the screen or component you want. Your selected agent (Codex or Claude) writes the files; Easel runs the server and shows a live preview.
 5. **Refine visually** — Press `Cmd+Shift+I`, click an element in the preview, and tell Easel what to change.
 

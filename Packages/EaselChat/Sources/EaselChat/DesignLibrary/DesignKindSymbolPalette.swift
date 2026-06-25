@@ -8,6 +8,7 @@ import SwiftUI
 enum DesignKindSymbolPalette {
   case prototype
   case slideDeck
+  case animation
   case designSystem
 
   func accent(for colorScheme: ColorScheme) -> Color {
@@ -20,6 +21,10 @@ enum DesignKindSymbolPalette {
       return Color(red: 0.34, green: 0.45, blue: 0.74)
     case (.slideDeck, .dark):
       return Color(red: 0.66, green: 0.75, blue: 0.98)
+    case (.animation, .light):
+      return Color(red: 0.76, green: 0.36, blue: 0.22)
+    case (.animation, .dark):
+      return Color(red: 0.98, green: 0.64, blue: 0.46)
     case (.designSystem, .light):
       return Color(red: 0.55, green: 0.42, blue: 0.68)
     case (.designSystem, .dark):
@@ -39,6 +44,10 @@ enum DesignKindSymbolPalette {
       return Color(red: 0.64, green: 0.72, blue: 0.94)
     case (.slideDeck, .dark):
       return Color(red: 0.27, green: 0.34, blue: 0.54)
+    case (.animation, .light):
+      return Color(red: 0.94, green: 0.64, blue: 0.52)
+    case (.animation, .dark):
+      return Color(red: 0.52, green: 0.26, blue: 0.18)
     case (.designSystem, .light):
       return Color(red: 0.76, green: 0.64, blue: 0.82)
     case (.designSystem, .dark):
@@ -56,6 +65,8 @@ extension DesignLibraryItemKind {
       return .prototype
     case .slideDeck:
       return .slideDeck
+    case .animation:
+      return .animation
     case .designSystem:
       return .designSystem
     }

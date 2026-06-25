@@ -116,7 +116,7 @@ public struct DesignLibraryView: View {
       ContentUnavailableView {
         Label("No designs", systemImage: "square.grid.2x2")
       } description: {
-        Text("Create a prototype, slide deck, or design system to see it here.")
+        Text("Create a prototype, slide deck, animation, or design system to see it here.")
       } actions: {
         Button("Show Create Controls", systemImage: "sidebar.left", action: onCreateDesign)
           .buttonStyle(.borderedProminent)
@@ -128,7 +128,7 @@ public struct DesignLibraryView: View {
       ContentUnavailableView(
         "No designs",
         systemImage: "square.grid.2x2",
-        description: Text("Create a prototype, slide deck, or design system to see it here.")
+        description: Text("Create a prototype, slide deck, animation, or design system to see it here.")
       )
       .frame(maxWidth: .infinity, minHeight: 360)
       .padding(24)
