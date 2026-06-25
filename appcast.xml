@@ -7,6 +7,28 @@
     <language>en</language>
 
     <item>
+      <title>Version 1.1.1</title>
+      <link>https://github.com/jamesrochabrun/Easel/releases/tag/v1.1.1</link>
+      <sparkle:version>6</sparkle:version>
+      <sparkle:shortVersionString>1.1.1</sparkle:shortVersionString>
+      <description><![CDATA[
+        <h2>Version 1.1.1</h2>
+        <ul>
+          <li>See release notes on GitHub</li>
+        </ul>
+      ]]></description>
+      <pubDate>Thu, 25 Jun 2026 06:54:48 +0000</pubDate>
+      <enclosure
+        url="https://github.com/jamesrochabrun/Easel/releases/download/v1.1.1/Easel.app.zip"
+        sparkle:version="6"
+        sparkle:shortVersionString="1.1.1"
+        sparkle:edSignature="gpR5UyMdjYt9rs8dGRpumROGyOjzncXOU0sK95JZESPShw+ABvH4YS40sIZzYBnNUzjv4Z3rIecEUvYQwmbXBg=="
+        length="39318803"
+        type="application/octet-stream" />
+      <sparkle:minimumSystemVersion>26.2</sparkle:minimumSystemVersion>
+    </item>
+
+    <item>
       <title>Version 1.1.0</title>
       <link>https://github.com/jamesrochabrun/Easel/releases/tag/v1.1.0</link>
       <sparkle:version>5</sparkle:version>
