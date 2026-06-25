@@ -21,7 +21,7 @@ enum LocalAgentHandoffPromptBuilder {
     Before changing files:
     - Read `\(context.easelProjectPath)/README.md`.
     - Inspect `\(context.easelProjectPath)/resources/` for project assets and design inputs.
-    - If `\(context.easelProjectPath)/resources/design-system/DESIGN.md` exists, read it and build directly from its colors, type, spacing, radii, effects, and component families.
+    - If `\(context.easelProjectPath)/resources/design-system/DESIGN.md` exists, read it first. Search `\(context.easelProjectPath)/resources/design-system/components.md`, `examples.md`, `assets.md`, and `catalog.json` only when you need reusable components, example screens, or assets.
     - Treat the Easel resources path as read-only source material unless the user explicitly asks you to update it.
 
     \(handoffContext)
@@ -51,7 +51,7 @@ enum LocalAgentHandoffPromptBuilder {
       }
 
       if project.designSystem.kind == .custom {
-        lines.append("Active design system: \(project.designSystem.displayName). Its spec is at \(context.easelProjectPath)/resources/design-system/DESIGN.md.")
+        lines.append("Active design system: \(project.designSystem.displayName). Its project-local pack is at \(context.easelProjectPath)/resources/design-system/.")
       }
     }
 

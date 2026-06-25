@@ -70,8 +70,11 @@ enum DesignSystemBriefBuilder {
     }
 
     if let families = catalog?.componentFamilies, !families.isEmpty {
-      lines.append("## Component families")
-      for family in families.prefix(40) {
+      let indexedFamilies = families.filter(\.isHighSignalIndexEntry)
+      if !indexedFamilies.isEmpty {
+        lines.append("## Component families")
+      }
+      for family in indexedFamilies.prefix(40) {
         var line = "- **\(family.title)** (\(family.category))"
         if family.variantCount > 1 {
           line += " — \(family.variantCount) variants"
@@ -81,7 +84,19 @@ enum DesignSystemBriefBuilder {
           lines.append("  - \(property.name): \(property.values.prefix(8).joined(separator: ", "))")
         }
       }
-      lines.append("")
+      let omittedCount = families.count - indexedFamilies.count
+      if omittedCount > 0 {
+        if !indexedFamilies.isEmpty {
+          lines.append("")
+        }
+        let pluralSuffix = omittedCount == 1 ? "" : "s"
+        lines.append(
+          "_Omitted \(omittedCount) low-signal one-off component candidate\(pluralSuffix) from this brief._"
+        )
+      }
+      if !indexedFamilies.isEmpty || omittedCount > 0 {
+        lines.append("")
+      }
     }
 
     if let notes = trimmed(notes) {

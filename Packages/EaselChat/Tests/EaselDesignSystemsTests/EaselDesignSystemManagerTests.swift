@@ -616,7 +616,7 @@ struct EaselDesignSystemManagerTests {
 
     let document = EaselParsedFigDocument(
       parser: EaselParsedFigParser(name: "fixture-parser", version: "1.0"),
-      document: EaselParsedFigDocumentInfo(nodeCount: 4, pageCount: 1),
+      document: EaselParsedFigDocumentInfo(nodeCount: 3, pageCount: 1),
       nodes: [
         EaselParsedFigNode(
           id: "1:1",
@@ -698,6 +698,95 @@ struct EaselDesignSystemManagerTests {
     #expect(propertyNames.contains("Size"))
     let kind = try #require(family.variantProperties.first { $0.name == "Kind" })
     #expect(kind.values.sorted() == ["filled", "outlined"])
+  }
+
+  @Test
+  func extractImportOmitsIconOnlySingletonsFromComponentFamilies() async throws {
+    let rootDirectory = temporaryRoot(named: "DesignSystemIconSingletonTests")
+    defer { try? FileManager.default.removeItem(at: rootDirectory) }
+
+    let figURL = rootDirectory.appendingPathComponent("System.fig")
+    try FileManager.default.createDirectory(at: rootDirectory, withIntermediateDirectories: true)
+    try Data([40, 41, 42]).write(to: figURL)
+
+    let document = EaselParsedFigDocument(
+      parser: EaselParsedFigParser(name: "fixture-parser", version: "1.0"),
+      document: EaselParsedFigDocumentInfo(nodeCount: 3, pageCount: 1),
+      nodes: [
+        EaselParsedFigNode(
+          id: "1:1",
+          type: "COMPONENT",
+          name: "Button / Primary",
+          parentID: nil,
+          pageName: "Components",
+          depth: 1,
+          width: 120,
+          height: 44,
+          childCount: 2,
+          fillColors: ["#0055FF"],
+          strokeColors: [],
+          fontFamily: nil,
+          fontStyle: nil,
+          fontSize: nil,
+          text: nil,
+          cornerRadius: 8,
+          effectTypes: []
+        ),
+        EaselParsedFigNode(
+          id: "1:2",
+          type: "COMPONENT",
+          name: "arrow right",
+          parentID: nil,
+          pageName: "Components",
+          depth: 1,
+          width: 24,
+          height: 24,
+          childCount: 1,
+          fillColors: [],
+          strokeColors: ["#111111"],
+          fontFamily: nil,
+          fontStyle: nil,
+          fontSize: nil,
+          text: nil,
+          cornerRadius: nil,
+          effectTypes: []
+        ),
+        EaselParsedFigNode(
+          id: "1:3",
+          type: "COMPONENT",
+          name: "State=Default",
+          parentID: nil,
+          pageName: "Components",
+          depth: 1,
+          width: 24,
+          height: 24,
+          childCount: 1,
+          fillColors: [],
+          strokeColors: ["#111111"],
+          fontFamily: nil,
+          fontStyle: nil,
+          fontSize: nil,
+          text: nil,
+          cornerRadius: nil,
+          effectTypes: []
+        ),
+      ]
+    )
+    let importer = LocalEaselDesignSystemImporter(parser: FixtureFigFileParser(document: document))
+    let result = await importer.importDesignSystemResources(EaselDesignSystemImportRequest(
+      profile: makeProfile(workingDirectory: rootDirectory.path),
+      directoryURL: rootDirectory,
+      figFileURLs: [figURL],
+      importMode: .extractCatalog
+    ))
+
+    let manifest = try #require(result.manifest)
+    #expect(manifest.components.map(\.title) == ["Button / Primary"])
+    #expect(manifest.references.isEmpty)
+    #expect(manifest.summary.contains("1 component family"))
+
+    let catalog = try #require(result.catalog)
+    #expect(catalog.componentFamilies?.map(\.title) == ["Button / Primary"])
   }
 
   @Test
@@ -790,10 +879,10 @@ struct EaselDesignSystemManagerTests {
     #expect(example.preview?.layers.isEmpty == false)
   }
 
-  // Files organized as one Figma page per component (e.g. PlusPlus) surface
-  // page-level CANVAS nodes as examples. A CANVAS has no width/height of its
-  // own, so without resolving a framed descendant every example preview comes
-  // back nil and renders as an empty placeholder in the catalog viewer.
+  // Files organized as one Figma page per screen can surface page-level CANVAS
+  // nodes as examples. A CANVAS has no width/height of its own, so without
+  // resolving a framed descendant every example preview comes back nil and
+  // renders as an empty placeholder in the catalog viewer.
   @Test
   func extractImportRendersPreviewForPageLevelCanvasExamples() async throws {
     let rootDirectory = temporaryRoot(named: "DesignSystemCanvasExampleTests")
@@ -809,23 +898,23 @@ struct EaselDesignSystemManagerTests {
       nodes: [
         // A Figma page: a reference candidate, but with no bounding box of its own.
         EaselParsedFigNode(
-          id: "30:1", type: "CANVAS", name: "Accordion", parentID: nil, pageName: "Accordion",
+          id: "30:1", type: "CANVAS", name: "Dashboard", parentID: nil, pageName: "Dashboard",
           depth: 1, x: 0, y: 0, width: nil, height: nil, childCount: 1,
           fillColors: [], strokeColors: [], fontFamily: nil, fontStyle: nil,
           fontSize: nil, text: nil, cornerRadius: nil, effectTypes: []
         ),
         // The representative framed child the preview should resolve to.
         EaselParsedFigNode(
-          id: "30:2", type: "FRAME", name: "Accordion Example", parentID: "30:1", pageName: "Accordion",
+          id: "30:2", type: "FRAME", name: "Dashboard Screen", parentID: "30:1", pageName: "Dashboard",
           depth: 2, x: 120, y: -80, width: 360, height: 200, childCount: 1,
           fillColors: ["#FFFFFF"], strokeColors: [], fontFamily: nil, fontStyle: nil,
           fontSize: nil, text: nil, cornerRadius: 8, effectTypes: []
         ),
         EaselParsedFigNode(
-          id: "30:3", type: "TEXT", name: "Title", parentID: "30:2", pageName: "Accordion",
+          id: "30:3", type: "TEXT", name: "Title", parentID: "30:2", pageName: "Dashboard",
           depth: 3, x: 16, y: 16, width: 200, height: 24, childCount: 0,
           fillColors: ["#111111"], strokeColors: [], fontFamily: "Inter", fontStyle: "Semi Bold",
-          fontSize: 18, text: "Accordion", cornerRadius: nil, effectTypes: []
+          fontSize: 18, text: "Dashboard", cornerRadius: nil, effectTypes: []
         ),
       ]
     )
@@ -839,12 +928,76 @@ struct EaselDesignSystemManagerTests {
     ))
 
     let catalog = try #require(result.catalog)
-    let example = try #require(catalog.examples?.first { $0.title == "Accordion" })
+    let example = try #require(catalog.examples?.first { $0.title == "Dashboard" })
     let scene = try #require(example.preview, "page-level CANVAS example should resolve a framed preview")
     // Scene dimensions come from the resolved child frame, not the box-less page.
     #expect(scene.width == 360)
     #expect(scene.height == 200)
-    #expect(scene.layers.contains { $0.kind == .text && $0.text == "Accordion" })
+    #expect(scene.layers.contains { $0.kind == .text && $0.text == "Dashboard" })
+  }
+
+  @Test
+  func extractImportOmitsComponentDocumentationExamples() async throws {
+    let rootDirectory = temporaryRoot(named: "DesignSystemComponentDocExampleTests")
+    defer { try? FileManager.default.removeItem(at: rootDirectory) }
+
+    let figURL = rootDirectory.appendingPathComponent("System.fig")
+    try FileManager.default.createDirectory(at: rootDirectory, withIntermediateDirectories: true)
+    try Data([19, 20, 21]).write(to: figURL)
+
+    let document = EaselParsedFigDocument(
+      parser: EaselParsedFigParser(name: "fixture-parser", version: "1.0"),
+      document: EaselParsedFigDocumentInfo(nodeCount: 6, pageCount: 2),
+      nodes: [
+        EaselParsedFigNode(
+          id: "35:1", type: "FRAME", name: "Checkout Screen", parentID: nil, pageName: "Examples",
+          depth: 1, x: 0, y: 0, width: 390, height: 844, childCount: 1,
+          fillColors: ["#FFFFFF"], strokeColors: [], fontFamily: nil, fontStyle: nil,
+          fontSize: nil, text: nil, cornerRadius: 16, effectTypes: []
+        ),
+        EaselParsedFigNode(
+          id: "35:2", type: "TEXT", name: "Title", parentID: "35:1", pageName: "Examples",
+          depth: 2, x: 24, y: 32, width: 240, height: 32, childCount: 0,
+          fillColors: ["#111111"], strokeColors: [], fontFamily: "Inter", fontStyle: "Semi Bold",
+          fontSize: 24, text: "Checkout", cornerRadius: nil, effectTypes: []
+        ),
+        EaselParsedFigNode(
+          id: "35:3", type: "FRAME", name: "Button", parentID: nil, pageName: "Design System",
+          depth: 1, x: 0, y: 0, width: 320, height: 80, childCount: 1,
+          fillColors: ["#FFFFFF"], strokeColors: [], fontFamily: nil, fontStyle: nil,
+          fontSize: nil, text: nil, cornerRadius: 8, effectTypes: []
+        ),
+        EaselParsedFigNode(
+          id: "35:4", type: "TEXT", name: "Label", parentID: "35:3", pageName: "Design System",
+          depth: 2, x: 24, y: 24, width: 120, height: 24, childCount: 0,
+          fillColors: ["#111111"], strokeColors: [], fontFamily: "Inter", fontStyle: "Medium",
+          fontSize: 16, text: "Button", cornerRadius: nil, effectTypes: []
+        ),
+        EaselParsedFigNode(
+          id: "35:5", type: "FRAME", name: "Colors", parentID: nil, pageName: "Design System",
+          depth: 1, x: 0, y: 120, width: 800, height: 600, childCount: 1,
+          fillColors: ["#FFFFFF"], strokeColors: [], fontFamily: nil, fontStyle: nil,
+          fontSize: nil, text: nil, cornerRadius: nil, effectTypes: []
+        ),
+        EaselParsedFigNode(
+          id: "35:6", type: "RECTANGLE", name: "Swatch", parentID: "35:5", pageName: "Design System",
+          depth: 2, x: 24, y: 24, width: 120, height: 120, childCount: 0,
+          fillColors: ["#0055FF"], strokeColors: [], fontFamily: nil, fontStyle: nil,
+          fontSize: nil, text: nil, cornerRadius: 12, effectTypes: []
+        ),
+      ]
+    )
+
+    let importer = LocalEaselDesignSystemImporter(parser: FixtureFigFileParser(document: document))
+    let result = await importer.importDesignSystemResources(EaselDesignSystemImportRequest(
+      profile: makeProfile(workingDirectory: rootDirectory.path),
+      directoryURL: rootDirectory,
+      figFileURLs: [figURL],
+      importMode: .extractCatalog
+    ))
+
+    let catalog = try #require(result.catalog)
+    #expect(catalog.examples?.map(\.title) == ["Checkout Screen"])
   }
 
   // Pages that resolve to oversized documentation boards (e.g. a 1536x6192 spec

@@ -24,6 +24,8 @@ struct EaselAgentInstructionsTests {
     #expect(prefix.contains("Easel"))
     // The agent must treat a bundled design system as the source of truth.
     #expect(prefix.contains("resources/design-system/DESIGN.md"))
+    #expect(prefix.contains("resources/design-system/components.md"))
+    #expect(prefix.contains("resources/design-system/assets.md"))
     #expect(prefix.contains("source of truth"))
     #expect(prefix.contains("component families"))
     // Slide deck projects get presentation-design guidance in addition to the layout contract.
@@ -64,8 +66,11 @@ struct EaselAgentInstructionsTests {
     )
 
     #expect(context.contains("Active design system: PlusPlus"))
+    #expect(context.contains("project-local pack"))
     #expect(context.contains("resources/design-system/DESIGN.md"))
-    #expect(context.contains("do not improvise a different palette"))
+    #expect(context.contains("components.md"))
+    #expect(context.contains("assets.md"))
+    #expect(context.contains("instead of loading the whole catalog into context"))
   }
 
   @Test

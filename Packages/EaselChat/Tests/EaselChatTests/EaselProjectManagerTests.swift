@@ -285,7 +285,7 @@ struct EaselProjectManagerTests {
   }
 
   @Test
-  func createProjectCopiesCustomDesignSystemBriefIntoProject() async throws {
+  func createProjectEmbedsCustomDesignSystemResourcePackIntoProject() async throws {
     let rootDirectory = temporaryRoot()
     let designSystemDirectory = temporaryRoot()
     defer {
@@ -295,7 +295,50 @@ struct EaselProjectManagerTests {
 
     // Stage a design system catalog on disk, as a real extraction would.
     let easelDirectory = designSystemDirectory.appendingPathComponent(".easel", isDirectory: true)
+    let extractedAssetsDirectory = easelDirectory.appendingPathComponent("assets", isDirectory: true)
+    let sourceCodeDirectory = designSystemDirectory.appendingPathComponent("resources/code", isDirectory: true)
+    let sourceAssetsDirectory = designSystemDirectory.appendingPathComponent("resources/assets", isDirectory: true)
     try FileManager.default.createDirectory(at: easelDirectory, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: extractedAssetsDirectory, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: sourceCodeDirectory, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: sourceAssetsDirectory, withIntermediateDirectories: true)
+    try Data("logo image".utf8).write(to: extractedAssetsDirectory.appendingPathComponent("logo.png"))
+    try Data("example image".utf8).write(to: extractedAssetsDirectory.appendingPathComponent("example.png"))
+    try Data("exported icon".utf8).write(to: sourceAssetsDirectory.appendingPathComponent("icon.svg"))
+    try Data("export const Button = () => null".utf8).write(to: sourceCodeDirectory.appendingPathComponent("Button.tsx"))
+
+    let buttonPreview = EaselDesignSystemPreviewScene(
+      width: 200,
+      height: 120,
+      background: nil,
+      layers: [
+        EaselDesignSystemPreviewLayer(
+          id: "button-image",
+          kind: .image,
+          x: 0,
+          y: 0,
+          width: 120,
+          height: 60,
+          imagePath: ".easel/assets/logo.png"
+        ),
+      ]
+    )
+    let examplePreview = EaselDesignSystemPreviewScene(
+      width: 320,
+      height: 200,
+      background: nil,
+      layers: [
+        EaselDesignSystemPreviewLayer(
+          id: "example-image",
+          kind: .image,
+          x: 0,
+          y: 0,
+          width: 320,
+          height: 200,
+          imagePath: ".easel/assets/example.png"
+        ),
+      ]
+    )
     let catalog = EaselDesignSystemCatalog(
       name: "Plus UI",
       summary: "Local snapshot",
@@ -310,8 +353,32 @@ struct EaselProjectManagerTests {
         effects: []
       ),
       componentFamilies: [
-        EaselDesignSystemComponentFamily(id: "f1", title: "Button", category: "Buttons", summary: "", sourcePage: nil, variantCount: 2, variantProperties: [], confidence: 0.9)
-      ]
+        EaselDesignSystemComponentFamily(
+          id: "f1",
+          title: "Button",
+          category: "Buttons",
+          summary: "Primary action",
+          sourcePage: "Components",
+          variantCount: 2,
+          variantProperties: [
+            EaselDesignSystemVariantProperty(id: "f1.state", name: "State", values: ["default", "hover"]),
+          ],
+          preview: buttonPreview,
+          confidence: 0.9
+        ),
+      ],
+      examples: [
+        EaselDesignSystemExample(
+          id: "screen-1",
+          title: "Checkout",
+          sourcePage: "Examples",
+          preview: examplePreview
+        ),
+      ],
+      assets: [
+        EaselDesignSystemAsset(id: "logo", name: "Logo", relativePath: ".easel/assets/logo.png", kind: "image"),
+      ],
+      heroThumbnailPath: ".easel/assets/logo.png"
     )
     let encoder = JSONEncoder()
     encoder.dateEncodingStrategy = .iso8601
@@ -337,16 +404,318 @@ struct EaselProjectManagerTests {
     ))
 
     let projectURL = URL(fileURLWithPath: project.workingDirectory)
-    let briefURL = projectURL.appendingPathComponent("resources/design-system/DESIGN.md")
+    let packURL = projectURL.appendingPathComponent("resources/design-system", isDirectory: true)
+    let briefURL = packURL.appendingPathComponent("DESIGN.md")
     #expect(FileManager.default.fileExists(atPath: briefURL.path))
+    #expect(FileManager.default.fileExists(atPath: packURL.appendingPathComponent("README.md").path))
+    #expect(FileManager.default.fileExists(atPath: packURL.appendingPathComponent("components.md").path))
+    #expect(FileManager.default.fileExists(atPath: packURL.appendingPathComponent("examples.md").path))
+    #expect(FileManager.default.fileExists(atPath: packURL.appendingPathComponent("assets.md").path))
+    #expect(FileManager.default.fileExists(atPath: packURL.appendingPathComponent("catalog.json").path))
+    #expect(FileManager.default.fileExists(atPath: packURL.appendingPathComponent("manifest.json").path))
 
     let brief = try String(contentsOf: briefURL, encoding: .utf8)
     #expect(brief.contains("# Design system: Plus UI"))
     #expect(brief.contains("#0055FF"))
     #expect(brief.contains("Button"))
 
+    let catalogData = try Data(contentsOf: packURL.appendingPathComponent("catalog.json"))
+    let embeddedCatalog = try JSONDecoder().decode(EaselDesignSystemCatalog.self, from: catalogData)
+    #expect(embeddedCatalog.assets?.first?.relativePath == "resources/design-system/assets/extracted/logo.png")
+    #expect(embeddedCatalog.heroThumbnailPath == "resources/design-system/assets/extracted/logo.png")
+    #expect(embeddedCatalog.componentFamilies?.first?.preview?.layers.first?.imagePath == "resources/design-system/assets/extracted/logo.png")
+    #expect(embeddedCatalog.examples?.first?.preview?.layers.first?.imagePath == "resources/design-system/assets/extracted/example.png")
+
+    #expect(FileManager.default.fileExists(atPath: projectURL.appendingPathComponent("resources/design-system/assets/extracted/logo.png").path))
+    #expect(FileManager.default.fileExists(atPath: projectURL.appendingPathComponent("resources/design-system/assets/extracted/example.png").path))
+    #expect(FileManager.default.fileExists(atPath: projectURL.appendingPathComponent("resources/design-system/assets/imported/icon.svg").path))
+    #expect(FileManager.default.fileExists(atPath: projectURL.appendingPathComponent("resources/design-system/code/Button.tsx").path))
+
+    let components = try String(contentsOf: packURL.appendingPathComponent("components.md"), encoding: .utf8)
+    #expect(components.contains("## Button"))
+    #expect(components.contains("State: default, hover"))
+    #expect(components.contains("resources/design-system/assets/extracted/logo.png"))
+
+    let examples = try String(contentsOf: packURL.appendingPathComponent("examples.md"), encoding: .utf8)
+    #expect(examples.contains("## Checkout"))
+    #expect(examples.contains("resources/design-system/assets/extracted/example.png"))
+
+    let assets = try String(contentsOf: packURL.appendingPathComponent("assets.md"), encoding: .utf8)
+    #expect(assets.contains("resources/design-system/assets/extracted/logo.png"))
+    #expect(assets.contains("resources/design-system/assets/extracted/example.png"))
+    #expect(assets.contains("resources/design-system/assets/imported/icon.svg"))
+
+    let manifestData = try Data(contentsOf: packURL.appendingPathComponent("manifest.json"))
+    let manifestDecoder = JSONDecoder()
+    manifestDecoder.dateDecodingStrategy = .iso8601
+    let manifest = try manifestDecoder.decode(DesignSystemResourcePackManifest.self, from: manifestData)
+    #expect(manifest.designSystemName == "Plus UI")
+    #expect(manifest.componentCount == 1)
+    #expect(manifest.exampleCount == 1)
+    #expect(manifest.assetCount == 3)
+    #expect(manifest.codeExampleCount == 1)
+
     let readme = try String(contentsOf: projectURL.appendingPathComponent("README.md"), encoding: .utf8)
     #expect(readme.contains("resources/design-system/DESIGN.md"))
+    #expect(readme.contains("resources/design-system/components.md"))
+    #expect(readme.contains("resources/design-system/assets.md"))
+  }
+
+  @Test
+  func createProjectComponentsIndexOmitsLowSignalSingletonsFromNoisyCatalog() async throws {
+    let rootDirectory = temporaryRoot()
+    let designSystemDirectory = temporaryRoot()
+    defer {
+      try? FileManager.default.removeItem(at: rootDirectory)
+      try? FileManager.default.removeItem(at: designSystemDirectory)
+    }
+
+    let easelDirectory = designSystemDirectory.appendingPathComponent(".easel", isDirectory: true)
+    try FileManager.default.createDirectory(at: easelDirectory, withIntermediateDirectories: true)
+    let screensDirectory = easelDirectory
+      .appendingPathComponent("assets", isDirectory: true)
+      .appendingPathComponent("screens", isDirectory: true)
+    try FileManager.default.createDirectory(at: screensDirectory, withIntermediateDirectories: true)
+    try Data([1, 2, 3]).write(to: screensDirectory.appendingPathComponent("checkout.png"))
+
+    let screenPreview = EaselDesignSystemPreviewScene(
+      width: 390,
+      height: 844,
+      background: "#FFFFFF",
+      layers: [
+        EaselDesignSystemPreviewLayer(
+          id: "hero",
+          kind: .image,
+          x: 0,
+          y: 0,
+          width: 390,
+          height: 240,
+          imagePath: ".easel/assets/screens/checkout.png"
+        ),
+        EaselDesignSystemPreviewLayer(
+          id: "hero-repeat",
+          kind: .image,
+          x: 0,
+          y: 260,
+          width: 390,
+          height: 240,
+          imagePath: ".easel/assets/screens/checkout.png"
+        ),
+      ]
+    )
+    let componentDocPreview = EaselDesignSystemPreviewScene(
+      width: 320,
+      height: 200,
+      background: "#FFFFFF",
+      layers: []
+    )
+    let catalog = EaselDesignSystemCatalog(
+      name: "Noisy UI",
+      summary: "Local snapshot",
+      generatedAt: nil,
+      componentGroups: [],
+      componentFamilies: [
+        EaselDesignSystemComponentFamily(
+          id: "button",
+          title: "Button",
+          category: "Buttons",
+          summary: "Action family",
+          sourcePage: "Components",
+          variantCount: 3,
+          variantProperties: [
+            EaselDesignSystemVariantProperty(id: "state", name: "State", values: ["Default", "Hover"]),
+          ],
+          confidence: 0.9
+        ),
+        EaselDesignSystemComponentFamily(
+          id: "card",
+          title: "Card (Vertical)",
+          category: "Cards",
+          summary: "Content surface",
+          sourcePage: "Components",
+          variantCount: 1,
+          variantProperties: [],
+          confidence: 0.8
+        ),
+        EaselDesignSystemComponentFamily(
+          id: "state-default",
+          title: "State=Default",
+          category: "Components",
+          summary: "Variant fragment",
+          sourcePage: "Components",
+          variantCount: 1,
+          variantProperties: [
+            EaselDesignSystemVariantProperty(id: "state", name: "State", values: ["Default"]),
+          ],
+          confidence: 0.7
+        ),
+        EaselDesignSystemComponentFamily(
+          id: "arrow-right",
+          title: "arrow right",
+          category: "Components",
+          summary: "Icon singleton",
+          sourcePage: "Components",
+          variantCount: 1,
+          variantProperties: [],
+          confidence: 0.7
+        ),
+      ],
+      examples: [
+        EaselDesignSystemExample(
+          id: "checkout-screen",
+          title: "Checkout Screen",
+          sourcePage: "Examples",
+          preview: screenPreview
+        ),
+        EaselDesignSystemExample(
+          id: "button-doc",
+          title: "Button",
+          sourcePage: "Design System",
+          preview: componentDocPreview
+        ),
+        EaselDesignSystemExample(
+          id: "colors-doc",
+          title: "Colors",
+          sourcePage: "Design System",
+          preview: nil
+        ),
+        EaselDesignSystemExample(
+          id: "welcome-doc",
+          title: "Welcome!",
+          sourcePage: "Welcome",
+          preview: nil
+        ),
+      ]
+    )
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+    try encoder.encode(catalog).write(to: easelDirectory.appendingPathComponent("catalog.json"))
+
+    let profile = EaselDesignSystemProfile(
+      id: UUID(),
+      name: "Noisy UI",
+      blurb: "Noisy UI kit",
+      notes: "",
+      sourceLinks: [],
+      workingDirectory: designSystemDirectory.path,
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+
+    let manager = LocalEaselProjectManager(rootDirectory: rootDirectory)
+    let project = try await manager.createProject(from: EaselProjectCreateRequest(
+      name: "Noisy Prototype",
+      kind: .prototype,
+      designSystem: .custom(profile),
+      fidelity: .highFidelity
+    ))
+
+    let packURL = URL(fileURLWithPath: project.workingDirectory)
+      .appendingPathComponent("resources/design-system", isDirectory: true)
+    let components = try String(contentsOf: packURL.appendingPathComponent("components.md"), encoding: .utf8)
+    #expect(components.contains("## Button"))
+    #expect(components.contains("## Card (Vertical)"))
+    #expect(components.contains("State=Default") == false)
+    #expect(components.contains("arrow right") == false)
+    #expect(components.contains("Omitted 2 low-signal one-off candidates"))
+
+    let brief = try String(contentsOf: packURL.appendingPathComponent("DESIGN.md"), encoding: .utf8)
+    #expect(brief.contains("Button"))
+    #expect(brief.contains("Card (Vertical)"))
+    #expect(brief.contains("State=Default") == false)
+    #expect(brief.contains("arrow right") == false)
+
+    let examples = try String(contentsOf: packURL.appendingPathComponent("examples.md"), encoding: .utf8)
+    #expect(examples.contains("## Checkout Screen"))
+    #expect(examples.contains("## Button") == false)
+    #expect(examples.contains("## Colors") == false)
+    #expect(examples.contains("## Welcome!") == false)
+    #expect(examples.contains("Omitted 3 component documentation or foundation reference pages"))
+    #expect(examples.components(separatedBy: "resources/design-system/assets/extracted/screens/checkout.png").count == 2)
+  }
+
+  @Test
+  func createProjectWithCustomDesignSystemWithoutCatalogWritesEmptyIndexes() async throws {
+    let rootDirectory = temporaryRoot()
+    let designSystemDirectory = temporaryRoot()
+    defer {
+      try? FileManager.default.removeItem(at: rootDirectory)
+      try? FileManager.default.removeItem(at: designSystemDirectory)
+    }
+
+    try FileManager.default.createDirectory(at: designSystemDirectory, withIntermediateDirectories: true)
+    let designMarkdown = [
+      "---",
+      "version: alpha",
+      "name: Bare System",
+      "colors:",
+      "  primary: \"#111111\"",
+      "---",
+      "",
+      "## Overview",
+      "",
+      "A bare design system.",
+    ].joined(separator: "\n")
+    try Data(designMarkdown.utf8).write(to: designSystemDirectory.appendingPathComponent("DESIGN.md"))
+
+    let profile = EaselDesignSystemProfile(
+      id: UUID(),
+      name: "Bare System",
+      blurb: "No generated catalog yet",
+      notes: "",
+      sourceLinks: [],
+      workingDirectory: designSystemDirectory.path,
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+
+    let manager = LocalEaselProjectManager(rootDirectory: rootDirectory)
+    let project = try await manager.createProject(from: EaselProjectCreateRequest(
+      name: "Bare Project",
+      kind: .prototype,
+      designSystem: .custom(profile),
+      fidelity: .highFidelity
+    ))
+
+    let packURL = URL(fileURLWithPath: project.workingDirectory)
+      .appendingPathComponent("resources/design-system", isDirectory: true)
+    let components = try String(contentsOf: packURL.appendingPathComponent("components.md"), encoding: .utf8)
+    let examples = try String(contentsOf: packURL.appendingPathComponent("examples.md"), encoding: .utf8)
+    let assets = try String(contentsOf: packURL.appendingPathComponent("assets.md"), encoding: .utf8)
+
+    #expect(FileManager.default.fileExists(atPath: packURL.appendingPathComponent("DESIGN.md").path))
+    #expect(FileManager.default.fileExists(atPath: packURL.appendingPathComponent("catalog.json").path))
+    #expect(components.contains("No component families were available"))
+    #expect(examples.contains("No example screens were available"))
+    #expect(assets.contains("No reusable assets were available"))
+  }
+
+  @Test
+  func createProjectWithMissingCustomDesignSystemDirectoryThrows() async throws {
+    let rootDirectory = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: rootDirectory) }
+
+    let missingDirectory = rootDirectory.appendingPathComponent("missing-design-system", isDirectory: true)
+    let profile = EaselDesignSystemProfile(
+      id: UUID(),
+      name: "Missing System",
+      blurb: "Missing",
+      notes: "",
+      sourceLinks: [],
+      workingDirectory: missingDirectory.path,
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+    let manager = LocalEaselProjectManager(rootDirectory: rootDirectory)
+
+    await #expect(throws: EaselProjectManagerError.missingDesignSystemDirectory(missingDirectory.path)) {
+      try await manager.createProject(from: EaselProjectCreateRequest(
+        name: "Broken",
+        kind: .prototype,
+        designSystem: .custom(profile),
+        fidelity: .highFidelity
+      ))
+    }
   }
 
   private func temporaryRoot() -> URL {

@@ -74,6 +74,15 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
   private var pendingSessionContextsByViewModelId: [ObjectIdentifier: ChatSessionContext] = [:]
   private var sessionIdByViewModelId: [ObjectIdentifier: String] = [:]
   private var activeSessionContext: ChatSessionContext?
+  private static let designSystemResourceManifestEntryPaths: Set<String> = [
+    "resources/design-system/README.md",
+    "resources/design-system/DESIGN.md",
+    "resources/design-system/components.md",
+    "resources/design-system/examples.md",
+    "resources/design-system/assets.md",
+    "resources/design-system/catalog.json",
+    "resources/design-system/manifest.json",
+  ]
 
   // MARK: - Init
 
@@ -758,8 +767,6 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
 
     var manifest: [ProjectResourceManifestEntry] = []
     for case let fileURL as URL in enumerator {
-      guard manifest.count < 80 else { break }
-
       let values = try? fileURL.resourceValues(
         forKeys: [.contentModificationDateKey, .fileSizeKey, .isRegularFileKey]
       )
@@ -769,6 +776,9 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
       guard filePath.hasPrefix(projectURL.path + "/") else { continue }
 
       let relativePath = String(filePath.dropFirst(projectURL.path.count + 1))
+      guard shouldIncludeResourceManifestPath(relativePath) else { continue }
+      guard manifest.count < 80 else { break }
+
       manifest.append(ProjectResourceManifestEntry(
         relativePath: relativePath,
         signature: ProjectResourceFileSignature(
@@ -779,6 +789,13 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
     }
 
     return manifest.sorted { $0.relativePath < $1.relativePath }
+  }
+
+  private func shouldIncludeResourceManifestPath(_ relativePath: String) -> Bool {
+    if relativePath.hasPrefix("resources/design-system/") {
+      return Self.designSystemResourceManifestEntryPaths.contains(relativePath)
+    }
+    return true
   }
 
   private func normalized(_ value: String?) -> String? {

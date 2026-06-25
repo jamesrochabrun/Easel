@@ -20,6 +20,8 @@ final class LocalAgentHandoffPromptBuilderTests: XCTestCase {
     XCTAssertTrue(prompt.contains("Read `/tmp/easel-project/README.md`"))
     XCTAssertTrue(prompt.contains("Inspect `/tmp/easel-project/resources/`"))
     XCTAssertTrue(prompt.contains("/tmp/easel-project/resources/design-system/DESIGN.md"))
+    XCTAssertTrue(prompt.contains("/tmp/easel-project/resources/design-system/components.md"))
+    XCTAssertTrue(prompt.contains("catalog.json"))
     XCTAssertTrue(prompt.contains("Implement: polish the onboarding flow"))
   }
 
