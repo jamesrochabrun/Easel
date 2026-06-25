@@ -32,6 +32,7 @@ struct DesignKindSymbolPaletteTests {
   func projectKindsResolveToTheirMatchingLibraryPalettes() {
     #expect(DesignLibraryItemKind(projectKind: .prototype).symbolPalette == .prototype)
     #expect(DesignLibraryItemKind(projectKind: .slideDeck).symbolPalette == .slideDeck)
+    #expect(DesignLibraryItemKind(projectKind: .animation).symbolPalette == .animation)
   }
 }
 

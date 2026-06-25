@@ -44,6 +44,10 @@ enum LocalAgentHandoffPromptBuilder {
       case .slideDeck:
         lines.append("Current project type: \(project.kind.displayName)")
         lines.append("Slide deck contract: \(SlideDeckContract.authoringSummary)")
+
+      case .animation:
+        lines.append("Current project type: \(project.kind.displayName)")
+        lines.append("Animation contract: \(AnimationScaffold.authoringGuidance)")
       }
 
       if project.designSystem.kind == .custom {

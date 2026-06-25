@@ -148,6 +148,33 @@ struct SidebarViewModelTests {
   }
 
   @Test
+  func animationProjectStartsWithoutExtraContextPanel() {
+    let project = EaselDesignProject(
+      id: UUID(),
+      name: "Launch Motion",
+      kind: .animation,
+      designSystem: .none,
+      fidelity: .highFidelity,
+      workingDirectory: "/tmp/launch-motion",
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+    let viewModel = SidebarViewModel(
+      sessionStorage: NoOpSessionStorage(),
+      projectManager: SidebarProjectManagerStub(project: project),
+      designSystemManager: SidebarDesignSystemManagerStub()
+    )
+    viewModel.projectName = "Launch Motion"
+    viewModel.selectedProjectKind = .animation
+
+    #expect(viewModel.shouldShowFidelityPicker == false)
+    #expect(viewModel.shouldShowCodebasePicker == false)
+    #expect(viewModel.shouldRequestHighFidelityContext == false)
+    #expect(viewModel.shouldRequestWireframeContext == false)
+    #expect(viewModel.shouldRequestSlideDeckContext == false)
+  }
+
+  @Test
   func creatingSlideDeckUsesHighFidelityWhenFidelityPickerIsHidden() async {
     let project = EaselDesignProject(
       id: UUID(),
@@ -175,6 +202,49 @@ struct SidebarViewModelTests {
     #expect(viewModel.shouldShowFidelityPicker == false)
     #expect(requests.first?.kind == .slideDeck)
     #expect(requests.first?.fidelity == .highFidelity)
+  }
+
+  @Test
+  func creatingAnimationUsesHighFidelityAndSelectedDesignSystem() async {
+    let project = EaselDesignProject(
+      id: UUID(),
+      name: "Launch Motion",
+      kind: .animation,
+      designSystem: .none,
+      fidelity: .highFidelity,
+      workingDirectory: "/tmp/launch-motion",
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+    let designSystem = EaselDesignSystemProfile(
+      id: UUID(),
+      name: "Motion System",
+      blurb: "Neutral motion system",
+      notes: "",
+      sourceLinks: [],
+      workingDirectory: "/tmp/motion-system",
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+    let projectManager = SidebarProjectManagerStub(project: project)
+    let viewModel = SidebarViewModel(
+      sessionStorage: NoOpSessionStorage(),
+      projectManager: projectManager,
+      designSystemManager: SidebarDesignSystemManagerStub(profiles: [designSystem])
+    )
+    viewModel.selectedProjectKind = .animation
+    viewModel.selectedFidelity = .wireframe
+    viewModel.selectCodebase(URL(fileURLWithPath: "/tmp/reference-app"))
+    viewModel.selectDesignSystem(.custom(designSystem))
+    viewModel.projectName = "Launch Motion"
+
+    await viewModel.createProjectAndStartSession()
+
+    let requests = await projectManager.createdRequests()
+    #expect(requests.first?.kind == .animation)
+    #expect(requests.first?.fidelity == .highFidelity)
+    #expect(requests.first?.codebasePath == nil)
+    #expect(requests.first?.designSystem == .custom(designSystem))
   }
 
   @Test

@@ -170,6 +170,58 @@ struct EaselProjectManagerTests {
   }
 
   @Test
+  func createAnimationWritesTimelineScaffold() async throws {
+    let rootDirectory = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: rootDirectory) }
+
+    let manager = LocalEaselProjectManager(rootDirectory: rootDirectory)
+    let project = try await manager.createProject(from: EaselProjectCreateRequest(
+      name: "Launch Motion",
+      kind: .animation,
+      designSystem: .none,
+      fidelity: .wireframe,
+      codebasePath: "/tmp/reference-app"
+    ))
+
+    let projectURL = URL(fileURLWithPath: project.workingDirectory)
+    let indexHTML = try String(contentsOf: projectURL.appendingPathComponent("index.html"), encoding: .utf8)
+    let readme = try String(contentsOf: projectURL.appendingPathComponent("README.md"), encoding: .utf8)
+    let starterURL = projectURL.appendingPathComponent(AnimationScaffold.starterResourcePath)
+    let starter = try String(contentsOf: starterURL, encoding: .utf8)
+    let vendorDirectoryURL = projectURL.appendingPathComponent(AnimationScaffold.vendorDirectoryPath)
+
+    #expect(project.fidelity == .highFidelity)
+    #expect(project.codebasePath == nil)
+    #expect(readme.contains("- Type: Animation"))
+    #expect(readme.contains("- Fidelity:") == false)
+    #expect(readme.contains("Animation starter: `resources/animations.jsx`"))
+    #expect(readme.contains("resources/vendor/"))
+    for fileName in AnimationScaffold.vendorFileNames {
+      #expect(FileManager.default.fileExists(atPath: vendorDirectoryURL.appendingPathComponent(fileName).path))
+    }
+    #expect(indexHTML.contains("<script src=\"./resources/vendor/react.production.min.js\"></script>"))
+    #expect(indexHTML.contains("<script src=\"./resources/vendor/react-dom.production.min.js\"></script>"))
+    #expect(indexHTML.contains("<script src=\"./resources/vendor/babel.min.js\"></script>"))
+    #expect(indexHTML.contains("Babel.registerPreset('react-classic'"))
+    #expect(indexHTML.contains("<script type=\"text/babel\" data-presets=\"react-classic\" src=\"./resources/animations.jsx\"></script>"))
+    #expect(indexHTML.contains("Preview failed to mount"))
+    #expect(indexHTML.contains("function boot()"))
+    #expect(indexHTML.contains("https://unpkg.com") == false)
+    #expect(indexHTML.contains("const projectTitle = \"Launch Motion\";"))
+    #expect(indexHTML.contains("const designSystemName = \"No design system\";"))
+    #expect(indexHTML.contains("<Stage width={1280} height={720} duration={8}"))
+    #expect(indexHTML.contains("#f6f4ef") == false)
+    #expect(indexHTML.contains("#cc785c") == false)
+    #expect(indexHTML.contains("Timeline-based motion\\\\n") == false)
+    #expect(indexHTML.contains("starter-note") == false)
+    #expect(starter.contains("@ds-adherence-ignore"))
+    #expect(starter.contains("Object.assign(window"))
+    #expect(starter.contains("Stage, PlaybackBar"))
+    #expect(starter.contains("background = '#f8fafc'"))
+    #expect(starter.contains("#f6f4ef") == false)
+  }
+
+  @Test
   func createPrototypeDoesNotWriteSlideRuntime() async throws {
     let rootDirectory = temporaryRoot()
     defer { try? FileManager.default.removeItem(at: rootDirectory) }

@@ -56,7 +56,7 @@ enum CanvasWorkspaceEmptyStateContent: Equatable {
   var message: String {
     switch self {
     case .noDesigns:
-      return "Create a prototype, slide deck, or design system to start working."
+      return "Create a prototype, slide deck, animation, or design system to start working."
     case .noSelection:
       return "Select an existing design or create a new one before sending a message."
     }

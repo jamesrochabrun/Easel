@@ -29,6 +29,7 @@ enum EaselAgentInstructions {
     - When the project ships a design system, it is the source of truth. Before writing any UI, read its spec at `resources/design-system/DESIGN.md`, then build every screen or slide directly from that system: reuse its exact colors, typography, spacing, radii, effects, and component families instead of inventing an ad-hoc palette, type scale, or component style. If you need a token the system does not define, extend it consistently rather than departing from it.
     - For slide deck projects, \(SlideDeckContract.authoringSummary)
     - For slide deck creation, \(slideDeckCreationGuidance)
+    - For animation projects, \(AnimationScaffold.authoringGuidance)
     """
 
   static let codexDeveloperInstructionsPrefix = """
@@ -257,6 +258,10 @@ enum EaselAgentInstructions {
 
       if projectKind == .slideDeck {
         lines.append("Slide deck contract: \(SlideDeckContract.authoringSummary)")
+      }
+
+      if projectKind == .animation {
+        lines.append("Animation contract: \(AnimationScaffold.authoringGuidance)")
       }
 
       if projectKind == .prototype, let projectFidelity {
