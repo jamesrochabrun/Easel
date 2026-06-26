@@ -763,18 +763,23 @@ enum EaselDesignSystemManifestNormalizer {
       )
     }
 
-    // Examples are only surfaced when their schematic preview reads like a
-    // screen/frame thumbnail. Box-less pages resolve to a framed child (see
-    // `renderRoot`), but documentation boards still produce oversized or
-    // extreme-aspect scenes that shrink to an illegible sliver in the gallery —
-    // drop those so the section shows real screens or hides itself entirely.
+    // Examples are only surfaced when they read like product/layout references,
+    // and their schematic preview reads like a screen/frame thumbnail. Box-less
+    // pages resolve to a framed child (see `renderRoot`), but component docs and
+    // oversized boards are dropped so the section shows real screens or hides
+    // itself entirely.
     let examples = manifest.references.compactMap { reference -> EaselDesignSystemExample? in
       guard let preview = makeScene(
         forNodeID: reference.sourceNodeID,
         fileName: reference.sourceFileName,
         indexes: sceneIndexes,
         existingAssets: existingAssets
-      ), isPresentableExampleScene(preview) else {
+      ), isPresentableExampleScene(preview),
+        EaselDesignSystemExampleIndexing.isHighSignalExample(
+          title: reference.title,
+          sourcePage: reference.sourcePageName,
+          preview: preview
+        ) else {
         return nil
       }
       return EaselDesignSystemExample(
@@ -1383,9 +1388,19 @@ enum EaselDesignSystemManifestNormalizer {
 
     let components = buckets
       .values
-      .map { bucket in
+      .compactMap { bucket -> EaselDesignSystemManifestComponent? in
         let representative = bucket.representative
         let confidence = min(bucket.confidence + min(Double(bucket.variantCount) / 1_000, 0.08), 0.96)
+        let variantProperties = bucket.variantProperties
+        guard EaselDesignSystemComponentIndexing.isHighSignalFamily(
+          title: bucket.title,
+          category: bucket.category,
+          variantCount: bucket.variantCount,
+          variantProperties: variantProperties
+        ) else {
+          return nil
+        }
+
         return EaselDesignSystemManifestComponent(
           id: "component-\(slug(for: "\(bucket.sourceFileName)-\(bucket.category)-\(bucket.title)"))",
           title: bucket.title,
@@ -1403,7 +1418,7 @@ enum EaselDesignSystemManifestNormalizer {
           sourceNodeType: representative.type,
           childCount: representative.childCount,
           variantCount: bucket.variantCount,
-          variantProperties: bucket.variantProperties,
+          variantProperties: variantProperties,
           confidence: confidence
         )
       }
@@ -1529,23 +1544,29 @@ enum EaselDesignSystemManifestNormalizer {
     let componentTerms = [
       "button", "input", "field", "card", "modal", "dialog", "nav", "tab", "menu",
       "badge", "chip", "avatar", "toast", "tooltip", "checkbox", "radio", "switch",
-      "dropdown", "select", "list", "table", "banner"
+      "toggle", "dropdown", "select", "list", "table", "banner", "alert", "progress",
+      "pagination", "page control", "popup", "pop up", "stepper", "slider", "carousel",
+      "accordion", "drawer", "sheet", "popover", "segmented"
     ]
     return node.childCount > 0 && componentTerms.contains { name.contains($0) }
   }
 
   private static func isReferenceCandidate(_ node: EaselParsedFigNode) -> Bool {
     let type = node.type.uppercased()
-    guard type == "CANVAS" || type == "FRAME" || type.contains("COMPONENT") || type.contains("SYMBOL") else {
+    let name = node.name.lowercased()
+    let referenceTerms = ["screen", "page", "flow", "example", "reference", "template"]
+
+    if type == "CANVAS" || type == "FRAME" {
+      if node.depth <= 2 && node.childCount > 0 {
+        return true
+      }
+      return referenceTerms.contains { name.contains($0) }
+    }
+
+    guard type.contains("COMPONENT") || type.contains("SYMBOL") else {
       return false
     }
-
-    if node.depth <= 2 && node.childCount > 0 {
-      return true
-    }
-
-    let name = node.name.lowercased()
-    return ["screen", "page", "flow", "example", "reference", "template"].contains { name.contains($0) }
+    return referenceTerms.contains { name.contains($0) }
   }
 
   private static func componentConfidence(for node: EaselParsedFigNode, familyTitle: String) -> Double {
@@ -1585,16 +1606,28 @@ enum EaselDesignSystemManifestNormalizer {
       ("checkbox", "Inputs"),
       ("radio", "Inputs"),
       ("switch", "Inputs"),
+      ("toggle", "Inputs"),
       ("card", "Cards"),
       ("modal", "Overlays"),
       ("dialog", "Overlays"),
       ("toast", "Overlays"),
       ("tooltip", "Overlays"),
+      ("popover", "Overlays"),
+      ("popup", "Overlays"),
+      ("pop up", "Overlays"),
       ("nav", "Navigation"),
       ("tab", "Navigation"),
       ("menu", "Navigation"),
+      ("pagination", "Navigation"),
+      ("page control", "Navigation"),
       ("badge", "Indicators"),
       ("chip", "Indicators"),
+      ("alert", "Components"),
+      ("progress", "Components"),
+      ("stepper", "Components"),
+      ("slider", "Components"),
+      ("carousel", "Components"),
+      ("accordion", "Components"),
       ("avatar", "Media"),
       ("icon", "Media"),
       ("logo", "Media"),

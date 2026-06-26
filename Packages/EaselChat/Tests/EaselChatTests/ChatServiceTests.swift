@@ -124,6 +124,49 @@ struct ChatServiceTests {
   }
 
   @Test
+  func resourceManifestListsDesignSystemEntryPointsButOmitsBulkPackFiles() async throws {
+    let rootDirectory = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: rootDirectory) }
+
+    let projectManager = LocalEaselProjectManager(rootDirectory: rootDirectory)
+    let project = try await projectManager.createProject(from: EaselProjectCreateRequest(
+      name: "Design System Pack",
+      kind: .prototype,
+      designSystem: .none,
+      fidelity: .highFidelity
+    ))
+    let projectURL = URL(fileURLWithPath: project.workingDirectory, isDirectory: true)
+    let designSystemURL = projectURL.appendingPathComponent("resources/design-system", isDirectory: true)
+    try FileManager.default.createDirectory(
+      at: designSystemURL.appendingPathComponent("assets", isDirectory: true),
+      withIntermediateDirectories: true
+    )
+    try FileManager.default.createDirectory(
+      at: designSystemURL.appendingPathComponent("code", isDirectory: true),
+      withIntermediateDirectories: true
+    )
+    try Data("# Design".utf8).write(to: designSystemURL.appendingPathComponent("DESIGN.md"))
+    try Data("# Components".utf8).write(to: designSystemURL.appendingPathComponent("components.md"))
+    try Data("# Examples".utf8).write(to: designSystemURL.appendingPathComponent("examples.md"))
+    try Data("# Assets".utf8).write(to: designSystemURL.appendingPathComponent("assets.md"))
+    try Data("{}".utf8).write(to: designSystemURL.appendingPathComponent("catalog.json"))
+    try Data("{}".utf8).write(to: designSystemURL.appendingPathComponent("manifest.json"))
+    try Data("image".utf8).write(to: designSystemURL.appendingPathComponent("assets/logo.png"))
+    try Data("code".utf8).write(to: designSystemURL.appendingPathComponent("code/Button.tsx"))
+
+    let service = ChatService(sessionStorage: NoOpSessionStorage(), projectManager: projectManager)
+    await service.startNewSession(workingDirectory: project.workingDirectory)
+
+    let context = service.makeHiddenContextForCurrentState(nil)
+    #expect(context.contains("- `resources/design-system/DESIGN.md`"))
+    #expect(context.contains("- `resources/design-system/components.md`"))
+    #expect(context.contains("- `resources/design-system/assets.md`"))
+    #expect(context.contains("- `resources/design-system/catalog.json`"))
+    #expect(context.contains("resources/design-system/assets/logo.png") == false)
+    #expect(context.contains("resources/design-system/code/Button.tsx") == false)
+  }
+
+  @Test
   func resourceManifestDeltaContextIsScopedToCurrentSession() async throws {
     let rootDirectory = temporaryRoot()
     defer { try? FileManager.default.removeItem(at: rootDirectory) }

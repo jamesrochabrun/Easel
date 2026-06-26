@@ -13,9 +13,10 @@ public protocol EaselProjectManaging: Sendable {
   func deleteProject(_ project: EaselDesignProject) async throws
 }
 
-enum EaselProjectManagerError: LocalizedError {
+enum EaselProjectManagerError: LocalizedError, Equatable {
   case projectNotFound
   case bundledTemplateResourceMissing(String)
+  case missingDesignSystemDirectory(String)
 
   var errorDescription: String? {
     switch self {
@@ -23,6 +24,8 @@ enum EaselProjectManagerError: LocalizedError {
       return "The project could not be found."
     case .bundledTemplateResourceMissing(let fileName):
       return "The bundled project template resource \(fileName) could not be found."
+    case .missingDesignSystemDirectory:
+      return "The selected design system folder could not be found."
     }
   }
 }
@@ -32,13 +35,27 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
   private let fileManager: FileManager
   private let encoder: JSONEncoder
   private let decoder: JSONDecoder
+  private let designSystemResourcePacker: any DesignSystemResourcePacking
 
   public init(
     rootDirectory: URL? = nil,
     fileManager: FileManager = .default
   ) {
+    self.init(
+      rootDirectory: rootDirectory,
+      fileManager: fileManager,
+      designSystemResourcePacker: LocalDesignSystemResourcePackBuilder(fileManager: fileManager)
+    )
+  }
+
+  init(
+    rootDirectory: URL? = nil,
+    fileManager: FileManager = .default,
+    designSystemResourcePacker: any DesignSystemResourcePacking
+  ) {
     self.fileManager = fileManager
     self.rootDirectory = rootDirectory ?? Self.defaultRootDirectory(fileManager: fileManager)
+    self.designSystemResourcePacker = designSystemResourcePacker
 
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -196,7 +213,7 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
       try copyAnimationVendorAssets(to: directoryURL)
     }
 
-    writeDesignSystemBrief(for: project, at: directoryURL)
+    try designSystemResourcePacker.writeResourcePack(for: project.designSystem, intoProjectAt: directoryURL)
   }
 
   private func copyAnimationVendorAssets(to directoryURL: URL) throws {
@@ -220,50 +237,6 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
       let destinationURL = vendorDirectoryURL.appendingPathComponent(fileName)
       try fileManager.copyItem(at: sourceURL, to: destinationURL)
     }
-  }
-
-  /// Provides the custom design system's spec to the project so the agent can
-  /// reuse its tokens/components. Prefers the canonical, spec-compliant
-  /// `DESIGN.md` authored by the design system; falls back to a derived brief
-  /// only for legacy systems that predate it.
-  private func writeDesignSystemBrief(for project: EaselDesignProject, at directoryURL: URL) {
-    let choice = project.designSystem
-    guard choice.kind == .custom, let designSystemDirectory = choice.workingDirectory else {
-      return
-    }
-
-    let briefDirectory = directoryURL
-      .appendingPathComponent(ProjectResource.resourcesDirectoryName, isDirectory: true)
-      .appendingPathComponent("design-system", isDirectory: true)
-    try? fileManager.createDirectory(at: briefDirectory, withIntermediateDirectories: true)
-    let destination = briefDirectory.appendingPathComponent("DESIGN.md")
-
-    let canonicalURL = URL(fileURLWithPath: designSystemDirectory, isDirectory: true)
-      .appendingPathComponent("DESIGN.md")
-    if let canonical = try? Data(contentsOf: canonicalURL), !canonical.isEmpty {
-      try? canonical.write(to: destination, options: .atomic)
-      return
-    }
-
-    let catalog = loadDesignSystemCatalog(atDesignSystemDirectory: designSystemDirectory)
-    let markdown = DesignSystemBriefBuilder.markdown(
-      displayName: choice.displayName,
-      detail: choice.detail,
-      notes: choice.notes,
-      catalog: catalog
-    )
-    try? Data(markdown.utf8).write(to: destination, options: .atomic)
-  }
-
-  private func loadDesignSystemCatalog(atDesignSystemDirectory directory: String) -> EaselDesignSystemCatalog? {
-    let catalogURL = URL(fileURLWithPath: directory, isDirectory: true)
-      .appendingPathComponent(".easel", isDirectory: true)
-      .appendingPathComponent("catalog.json")
-    guard let data = try? Data(contentsOf: catalogURL) else { return nil }
-
-    let decoder = JSONDecoder()
-    decoder.dateDecodingStrategy = .iso8601
-    return try? decoder.decode(EaselDesignSystemCatalog.self, from: data)
   }
 
   private func write(_ contents: String, to url: URL) throws {
@@ -361,7 +334,7 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
     metadataLines.append("- Design system: \(project.designSystem.displayName)")
 
     let designSystemGuidance = project.designSystem.kind == .custom
-      ? "\nThis project uses the **\(project.designSystem.displayName)** design system. Follow `resources/design-system/DESIGN.md` for its colors, type, spacing, and component families, and reuse them throughout the UI.\n"
+      ? "\nThis project uses the **\(project.designSystem.displayName)** design system. Follow `resources/design-system/DESIGN.md` for its colors, type, spacing, and component families. Search `resources/design-system/components.md`, `resources/design-system/examples.md`, `resources/design-system/assets.md`, and `resources/design-system/catalog.json` when you need reusable components, example screens, or assets.\n"
       : ""
 
     let slideDeckGuidance = project.kind == .slideDeck
