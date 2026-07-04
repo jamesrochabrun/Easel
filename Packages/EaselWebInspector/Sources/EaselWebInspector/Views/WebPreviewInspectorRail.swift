@@ -14,6 +14,7 @@ public struct WebPreviewInspectorRail: View {
   @Bindable var viewModel: WebPreviewInspectorViewModel
   let updateState: WebPreviewUpdateState
   let onUpdate: () -> Void
+  let onApplyPendingEdits: () -> Void
   let onClose: () -> Void
   @Environment(\.colorScheme) private var colorScheme
 
@@ -21,11 +22,13 @@ public struct WebPreviewInspectorRail: View {
     viewModel: WebPreviewInspectorViewModel,
     updateState: WebPreviewUpdateState,
     onUpdate: @escaping () -> Void,
+    onApplyPendingEdits: @escaping () -> Void,
     onClose: @escaping () -> Void
   ) {
     self.viewModel = viewModel
     self.updateState = updateState
     self.onUpdate = onUpdate
+    self.onApplyPendingEdits = onApplyPendingEdits
     self.onClose = onClose
   }
 
@@ -42,7 +45,7 @@ public struct WebPreviewInspectorRail: View {
       if viewModel.shouldShowLowConfidenceFallback {
         statusBanner(
           viewModel.needsSourceConfirmation
-            ? "Low-confidence match. Choose a source file before live editing is enabled."
+            ? "Low-confidence match. Choose a source file before code editing is enabled."
             : "Low-confidence match. Review the selected file before editing.",
           color: EaselDesignSystem.Palette.warning
         )
@@ -64,13 +67,36 @@ public struct WebPreviewInspectorRail: View {
     }
     .background(EaselDesignSystem.Palette.canvas(for: colorScheme))
     .safeAreaInset(edge: .bottom, spacing: 0) {
-      if updateState.isVisible {
-        WebPreviewUpdateBar(
-          state: updateState,
-          onUpdate: onUpdate
-        )
+      VStack(spacing: 0) {
+        if viewModel.pendingEditCount > 0 {
+          pendingEditsFooter
+        }
+        if updateState.isVisible {
+          WebPreviewUpdateBar(
+            state: updateState,
+            onUpdate: onUpdate
+          )
+        }
       }
     }
+  }
+
+  private var pendingEditsFooter: some View {
+    HStack(spacing: 10) {
+      Text(viewModel.saveStatusText)
+        .font(.system(size: 11))
+        .foregroundStyle(.secondary)
+        .lineLimit(2)
+
+      Spacer()
+
+      Button("Apply", action: onApplyPendingEdits)
+        .controlSize(.small)
+        .help("Send these changes to the agent (⌘↵)")
+    }
+    .padding(.horizontal, 12)
+    .padding(.vertical, 8)
+    .background(EaselDesignSystem.Palette.surface(for: colorScheme))
   }
 
   private var header: some View {
@@ -102,6 +128,15 @@ public struct WebPreviewInspectorRail: View {
             .font(.system(size: 11, design: .monospaced))
             .foregroundStyle(.secondary)
             .lineLimit(2)
+        }
+
+        if let sourceHint = viewModel.primarySourceHintDisplay {
+          Label(sourceHint, systemImage: "scope")
+            .font(.system(size: 11, design: .monospaced))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .help("Source location reported by the framework's dev build")
         }
 
         if let parentContext = viewModel.parentContext {
@@ -191,9 +226,7 @@ public struct WebPreviewInspectorRail: View {
   private var designTabContent: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 14) {
-        if let message = viewModel.designTabMessage {
-          statusBanner(message, color: EaselDesignSystem.Palette.secondaryText(for: colorScheme))
-        }
+        statusBanner(viewModel.persistenceTierLabel, color: EaselDesignSystem.Palette.secondaryText(for: colorScheme))
 
         layoutSection
         propertiesSection
@@ -539,7 +572,7 @@ public struct WebPreviewInspectorRail: View {
     if viewModel.writeErrorMessage != nil {
       return EaselDesignSystem.Palette.danger
     }
-    if viewModel.isWriting || viewModel.hasUnsavedChanges {
+    if viewModel.isWriting || viewModel.hasUnsavedChanges || viewModel.pendingEditCount > 0 {
       return EaselDesignSystem.Palette.warning
     }
     return EaselDesignSystem.Palette.secondaryText(for: colorScheme)

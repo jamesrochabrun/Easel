@@ -1,0 +1,246 @@
+import Canvas
+import Foundation
+import Testing
+
+@testable import EaselWebInspector
+
+private struct SourceResolverFixture {
+  let root: URL
+
+  static func create() throws -> SourceResolverFixture {
+    let root = FileManager.default.temporaryDirectory
+      .appendingPathComponent("WebPreviewSourceResolver-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    return SourceResolverFixture(root: root)
+  }
+
+  func cleanup() {
+    try? FileManager.default.removeItem(at: root)
+  }
+
+  func write(_ relativePath: String, content: String) throws -> String {
+    let fileURL = root.appendingPathComponent(relativePath)
+    try FileManager.default.createDirectory(
+      at: fileURL.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
+    try content.write(to: fileURL, atomically: true, encoding: .utf8)
+    return normalizedPath(fileURL.path)
+  }
+}
+
+private func normalizedPath(_ path: String) -> String {
+  URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath().path
+}
+
+private func makeInspectedElement(
+  tagName: String,
+  selector: String,
+  elementID: String = "",
+  className: String = "",
+  textContent: String = "",
+  parentTagName: String = "",
+  parentStyles: [String: String] = [:],
+  children: ElementRelationships = ElementRelationships(),
+  siblings: ElementRelationships = ElementRelationships()
+) -> ElementInspectorData {
+  ElementInspectorData(
+    tagName: tagName,
+    elementId: elementID,
+    className: className,
+    textContent: textContent,
+    outerHTML: "",
+    cssSelector: selector,
+    computedStyles: [:],
+    boundingRect: .zero,
+    parentTagName: parentTagName,
+    parentStyles: parentStyles,
+    children: children,
+    siblings: siblings
+  )
+}
+
+@Suite("WebPreviewSourceResolver")
+struct WebPreviewSourceResolverSourceMappingTests {
+
+  @Test("Uses the preview file when it contains a strong unique match")
+  func resolvesPreviewFileWithHighConfidence() async throws {
+    let fixture = try SourceResolverFixture.create()
+    defer { fixture.cleanup() }
+
+    let indexPath = try fixture.write(
+      "index.html",
+      content: """
+      <html>
+        <body>
+          <button id="launch" class="cta">Launch now</button>
+        </body>
+      </html>
+      """
+    )
+
+    let resolver = WebPreviewSourceResolver(fileService: DefaultProjectFileService())
+    let resolution = await resolver.resolveSource(
+      for: makeInspectedElement(
+        tagName: "BUTTON",
+        selector: "button.cta",
+        elementID: "launch",
+        className: "cta",
+        textContent: "Launch now"
+      ),
+      projectPath: fixture.root.path,
+      previewFilePath: indexPath,
+      recentFilePaths: []
+    )
+
+    #expect(resolution.primaryFilePath == indexPath)
+    #expect(resolution.confidence == .high)
+    #expect(resolution.candidateFilePaths.first == indexPath)
+  }
+
+  @Test("Preview HTML with a unique text match outranks a stylesheet, which stays a candidate")
+  func prefersPreviewHTMLAndKeepsStylesheetCandidate() async throws {
+    let fixture = try SourceResolverFixture.create()
+    defer { fixture.cleanup() }
+
+    let indexPath = try fixture.write(
+      "index.html",
+      content: """
+      <html>
+        <body>
+          <button class="cta">Launch now</button>
+        </body>
+      </html>
+      """
+    )
+    let stylesheetPath = try fixture.write(
+      "styles/site.css",
+      content: """
+      .cta {
+        color: #ffffff;
+        line-height: 28px;
+      }
+      """
+    )
+
+    let resolver = WebPreviewSourceResolver(fileService: DefaultProjectFileService())
+    let resolution = await resolver.resolveSource(
+      for: makeInspectedElement(
+        tagName: "BUTTON",
+        selector: ".cta",
+        className: "cta",
+        textContent: "Launch now"
+      ),
+      projectPath: fixture.root.path,
+      previewFilePath: indexPath,
+      recentFilePaths: []
+    )
+
+    #expect(resolution.primaryFilePath == indexPath)
+    #expect(resolution.candidateFilePaths.contains(stylesheetPath))
+  }
+
+  @Test("Prefers recently edited files with a selector match")
+  func resolvesRecentStylesheetForStyleEditing() async throws {
+    let fixture = try SourceResolverFixture.create()
+    defer { fixture.cleanup() }
+
+    let stylesheetPath = try fixture.write(
+      "styles/site.css",
+      content: """
+      .cta {
+        color: #ffffff;
+        padding: 12px;
+      }
+      """
+    )
+
+    let resolver = WebPreviewSourceResolver(fileService: DefaultProjectFileService())
+    let resolution = await resolver.resolveSource(
+      for: makeInspectedElement(
+        tagName: "BUTTON",
+        selector: ".cta",
+        className: "cta"
+      ),
+      projectPath: fixture.root.path,
+      previewFilePath: nil,
+      recentFilePaths: [stylesheetPath]
+    )
+
+    #expect(resolution.primaryFilePath == stylesheetPath)
+    #expect(resolution.confidence == .high)
+    #expect(resolution.matchedSelector == ".cta")
+  }
+
+  @Test("Leaves ambiguous matches in low confidence fallback mode")
+  func returnsLowConfidenceForAmbiguousMatches() async throws {
+    let fixture = try SourceResolverFixture.create()
+    defer { fixture.cleanup() }
+
+    let firstPath = try fixture.write("pages/a.html", content: "<button>Launch</button>")
+    let secondPath = try fixture.write("pages/b.html", content: "<button>Launch</button>")
+
+    let resolver = WebPreviewSourceResolver(fileService: DefaultProjectFileService())
+    let resolution = await resolver.resolveSource(
+      for: makeInspectedElement(
+        tagName: "BUTTON",
+        selector: "button",
+        textContent: "Launch"
+      ),
+      projectPath: fixture.root.path,
+      previewFilePath: nil,
+      recentFilePaths: []
+    )
+
+    #expect(resolution.confidence == .low)
+    #expect(Set(resolution.candidateFilePaths) == Set([firstPath, secondPath]))
+  }
+
+  @Test("Parent and sibling context break ties between otherwise similar candidates")
+  func parentAndSiblingContextImproveScoring() async throws {
+    let fixture = try SourceResolverFixture.create()
+    defer { fixture.cleanup() }
+
+    let firstPath = try fixture.write(
+      "pages/plain.html",
+      content: """
+      <section>
+        <button class="cta">Launch</button>
+        <p>Secondary copy</p>
+      </section>
+      """
+    )
+    let secondPath = try fixture.write(
+      "pages/layout.html",
+      content: """
+      <div class="container">
+        <button class="cta">Launch</button>
+        <span class="eyebrow">Secondary copy</span>
+      </div>
+      """
+    )
+
+    let resolver = WebPreviewSourceResolver(fileService: DefaultProjectFileService())
+    let resolution = await resolver.resolveSource(
+      for: makeInspectedElement(
+        tagName: "BUTTON",
+        selector: ".cta",
+        className: "cta",
+        textContent: "Launch",
+        parentTagName: "div",
+        siblings: ElementRelationships(
+          count: 1,
+          items: [
+            ElementSummary(tagName: "SPAN", className: "eyebrow", textContent: "Secondary copy")
+          ]
+        )
+      ),
+      projectPath: fixture.root.path,
+      previewFilePath: nil,
+      recentFilePaths: []
+    )
+
+    #expect(resolution.primaryFilePath == secondPath)
+    #expect(resolution.primaryFilePath != firstPath)
+  }
+}

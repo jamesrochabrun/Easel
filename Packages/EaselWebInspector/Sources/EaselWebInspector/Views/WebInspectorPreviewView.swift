@@ -201,6 +201,9 @@ public struct WebInspectorPreviewView: View {
       guard inspectState.isActive else { return }
       inspectState.activate(mode: newBehavior.canvasMode)
       if let inspectorViewModel {
+        if newBehavior != .edit {
+          flushPendingDesignEditsToQueue()
+        }
         Task {
           await inspectorViewModel.flushPendingWriteIfNeeded()
           if newBehavior != .edit {
@@ -340,10 +343,16 @@ public struct WebInspectorPreviewView: View {
           .keyboardShortcut("i", modifiers: [.command, .shift])
         Button("") { refreshPreview() }
           .keyboardShortcut("r", modifiers: .command)
-        if showsInspectorRail {
-          Button("") { handleManualUpdate() }
-            .keyboardShortcut(.return, modifiers: .command)
-            .disabled(!updateState.isEnabled)
+        if showsInspectorRail || showsInlineDesignToolbar {
+          Button("") {
+            if let inspectorViewModel, inspectorViewModel.pendingEditCount > 0 {
+              applyPendingDesignEdits()
+            } else {
+              handleManualUpdate()
+            }
+          }
+          .keyboardShortcut(.return, modifiers: .command)
+          .disabled((inspectorViewModel?.pendingEditCount ?? 0) == 0 && !updateState.isEnabled)
         }
       }
       .hidden()
@@ -365,6 +374,7 @@ public struct WebInspectorPreviewView: View {
           viewModel: inspectorViewModel,
           updateState: updateState,
           onUpdate: handleManualUpdate,
+          onApplyPendingEdits: applyPendingDesignEdits,
           onClose: closeEditRail
         )
         .frame(width: 360)
@@ -519,6 +529,33 @@ public struct WebInspectorPreviewView: View {
                   handleInspectOverlayHover(hovering)
                 }
               }
+
+              if inspectBehavior == .edit, inspectorViewModel.pendingEditCount > 0 {
+                WebPreviewPendingEditsBar(
+                  count: inspectorViewModel.pendingEditCount,
+                  tierLabel: inspectorViewModel.persistenceTierLabel,
+                  onApply: applyPendingDesignEdits
+                )
+                .inspectOverlayCursor(label: "pendingEditsBar") { hovering in
+                  handleInspectOverlayHover(hovering)
+                }
+              }
+
+              if inspectBehavior == .edit, let offer = inspectorViewModel.tokenPromotionOffer {
+                WebPreviewTokenPromotionBar(
+                  offer: offer,
+                  onPromote: {
+                    Task {
+                      await inspectorViewModel.promoteTokenDetachment()
+                      refreshPreview()
+                    }
+                  },
+                  onDismiss: { inspectorViewModel.dismissTokenPromotionOffer() }
+                )
+                .inspectOverlayCursor(label: "tokenPromotionBar") { hovering in
+                  handleInspectOverlayHover(hovering)
+                }
+              }
             }
           }
         }
@@ -614,6 +651,7 @@ public struct WebInspectorPreviewView: View {
   }
 
   private func deactivateInspector() {
+    flushPendingDesignEditsToQueue()
     inspectState.deactivate()
     if let inspectorViewModel {
       Task {
@@ -686,6 +724,7 @@ public struct WebInspectorPreviewView: View {
   }
 
   private func closeEditRail() {
+    flushPendingDesignEditsToQueue()
     inspectState.dismissInput()
     lastSelectedSelector = nil
     if let inspectorViewModel {
@@ -713,10 +752,77 @@ public struct WebInspectorPreviewView: View {
     }
 
     if inspectBehavior == .edit, let inspectorViewModel {
+      flushPendingDesignEditsToQueue()
       Task {
-        await inspectorViewModel.inspect(element: element, previewFilePath: nil)
+        await inspectorViewModel.inspect(
+          element: element,
+          previewFilePath: servedPreviewFilePath,
+          stylesheetContext: stylesheetPreviewContext
+        )
       }
     }
+  }
+
+  /// The on-disk path of the previewed document, when the preview is served
+  /// straight from a local file rather than a dev server.
+  private var servedPreviewFilePath: String? {
+    guard let url = previewURLProvider.previewURL, url.isFileURL else { return nil }
+    return url.standardizedFileURL.resolvingSymlinksInPath().path
+  }
+
+  /// How the current preview serves its stylesheets, so Edit Mode can prove
+  /// direct CSS write targets. File URLs resolve rules from disk; http(s)
+  /// previews use in-page CSSOM provenance.
+  private var stylesheetPreviewContext: WebPreviewStylesheetPreviewContext? {
+    guard let projectPath = normalizedProjectPath,
+          let url = previewURLProvider.previewURL else {
+      return nil
+    }
+    if url.isFileURL {
+      return .directFile(
+        servedFilePath: url.standardizedFileURL.resolvingSymlinksInPath().path,
+        projectPath: projectPath
+      )
+    }
+    return .devServer(baseURL: url, projectPath: projectPath)
+  }
+
+  /// Describes the running preview so agent prompts can reference it.
+  private var previewContextDescription: String? {
+    guard let url = previewURLProvider.previewURL else { return nil }
+    if url.isFileURL {
+      return "static file preview of \(url.lastPathComponent)"
+    }
+    return "dev server at \(url.absoluteString)"
+  }
+
+  /// Sends the pending design-edit batch to the session's agent immediately.
+  /// Falls back to the context queue when sending fails so nothing is lost.
+  private func applyPendingDesignEdits() {
+    guard let inspectorViewModel else { return }
+    queueSendFailureMessage = nil
+    guard let handoff = inspectorViewModel.takePendingDesignEditHandoff(
+      previewContext: previewContextDescription
+    ) else { return }
+
+    var queue = WebPreviewContextQueue()
+    queue.append(handoff.element, instruction: handoff.instruction)
+
+    guard sendWebPreviewQueue(queue) else {
+      localContextQueue.append(handoff.element, instruction: handoff.instruction)
+      return
+    }
+  }
+
+  /// Moves the pending design-edit batch into the local context queue, where
+  /// it is sent with the next message and remains removable as a chip.
+  private func flushPendingDesignEditsToQueue() {
+    guard let inspectorViewModel,
+          let handoff = inspectorViewModel.takePendingDesignEditHandoff(
+            previewContext: previewContextDescription
+          ) else { return }
+    queueSendFailureMessage = nil
+    localContextQueue.append(handoff.element, instruction: handoff.instruction)
   }
 
   private func handleSelectedElementDataChange(_ element: ElementInspectorData) {
@@ -934,6 +1040,19 @@ public struct WebInspectorPreviewView: View {
       previewWebView = webView
     }
 
+    attachInspectorViewModel(to: webView)
+
+    let controller = webView.configuration.userContentController
+    controller.removeScriptMessageHandler(forName: Self.consoleMessageName)
+    controller.add(WeakScriptMessageHandler(consoleMessageHandler), name: Self.consoleMessageName)
+    installConsoleHook(in: webView)
+  }
+
+  /// Binds the current inspector view model to the live preview web view.
+  /// Called both when the web view becomes ready and when the view model is
+  /// recreated for a project change — whichever happens last completes the
+  /// wiring, so Edit Mode tier proving always has a web view to query.
+  private func attachInspectorViewModel(to webView: WKWebView) {
     guard isAdvancedEditingEnabled, let inspectorViewModel else { return }
     inspectorViewModel.registerWebView(webView)
     consoleMessageHandler.onMessage = { [weak inspectorViewModel] level, message in
@@ -941,11 +1060,6 @@ public struct WebInspectorPreviewView: View {
         inspectorViewModel?.appendConsoleEntry(level: level, message: message)
       }
     }
-
-    let controller = webView.configuration.userContentController
-    controller.removeScriptMessageHandler(forName: Self.consoleMessageName)
-    controller.add(WeakScriptMessageHandler(consoleMessageHandler), name: Self.consoleMessageName)
-    installConsoleHook(in: webView)
   }
 
   private func installConsoleHookIfReady() {
@@ -1003,6 +1117,10 @@ public struct WebInspectorPreviewView: View {
       fileService: projectFileProvider,
       recentActivityProvider: recentActivityProvider
     )
+
+    if let previewWebView {
+      attachInspectorViewModel(to: previewWebView)
+    }
   }
 
   private static func normalizedProjectPath(_ path: String?) -> String? {

@@ -15,15 +15,56 @@ import WebKit
 @MainActor
 @Observable
 public final class WebPreviewInspectorViewModel {
+  private struct SourceTextSegment {
+    let rawRange: Range<String.Index>
+    let text: String
+    let textStart: Int
+
+    var textEnd: Int {
+      textStart + text.count
+    }
+  }
+
+  private struct SourceTextContentMapping {
+    let text: String
+    let segments: [SourceTextSegment]
+  }
+
+  private struct TextSplice {
+    let start: Int
+    let end: Int
+    let replacement: String
+  }
+
   public let projectPath: String
 
   private let sourceResolver: any WebPreviewSourceResolverProtocol
   private let fileService: any ProjectFileProviding
   private let recentActivityProvider: (any RecentActivityProviding)?
+  private let liveEditApplier: any WebPreviewLiveEditApplying
   private let writeDebounceDuration: Duration
+  private let styleProvenanceCapture: any WebPreviewStyleProvenanceCapturing
+  private let sourceHintCapture: any WebPreviewSourceHintCapturing
+  private let pageEnvironmentCapture: any WebPreviewPageEnvironmentCapturing
+  private let stylesheetSourceMapper: any StylesheetSourceMapping
+  private let staticStyleResolver: any WebPreviewStaticStyleResolving
+  private let directWriteCoordinator: any WebPreviewDirectCSSWriting
+  private let isDirectCSSWriteEnabled: () -> Bool
 
   private var pendingWriteTask: Task<Void, Never>?
+  private var previewFilePath: String?
+  private var stylesheetContext: WebPreviewStylesheetPreviewContext?
+  private var provenanceTask: Task<Void, Never>?
+  private var sourceHintTask: Task<Void, Never>?
+  /// Unit-conversion context read from the page for the selected element;
+  /// direct writes fall back to `.fallback` when the probe fails.
+  private var pageEnvironment: WebPreviewPageEnvironment?
+  /// Property → new value for the debounced Tier-1 flush ("" removes).
+  private var pendingDirectWrites: [String: String] = [:]
+  private var pendingDirectWriteTask: Task<Void, Never>?
   private var trackedTextToken: String?
+  private var trackedTextLocation: Int?
+  private var trackedStructuredTextContent: SourceTextContentMapping?
   private var userConfirmedLowConfidenceFile = false
   private weak var previewWebView: WKWebView?
 
@@ -33,6 +74,17 @@ public final class WebPreviewInspectorViewModel {
   public private(set) var selectedElementSnapshot: NSImage?
   public private(set) var toolbarValues: DesignToolbarValues?
   public private(set) var consoleEntries: [String] = []
+  public private(set) var pendingEditBatch: WebPreviewPendingDesignEditBatch?
+  public private(set) var styleTiers: [String: WebPreviewStyleEditTier] = [:]
+  /// Property → short human-readable reason why it routes to the agent tier.
+  public private(set) var styleTierReasons: [String: String] = [:]
+  /// Blanket reason when tier proving could not run at all (probe failed,
+  /// element inside a frame, direct writes disabled, …).
+  public private(set) var styleTierGeneralReason: String?
+  public private(set) var sourceHints: [WebPreviewElementSourceHint] = []
+  /// Set when the latest direct write detached from a shared design token
+  /// and can be promoted to a token-wide update instead.
+  public private(set) var tokenPromotionOffer: WebPreviewTokenPromotionOffer?
 
   public var isPanelVisible = false
   public var isResolving = false
@@ -53,13 +105,31 @@ public final class WebPreviewInspectorViewModel {
     sourceResolver: any WebPreviewSourceResolverProtocol,
     fileService: any ProjectFileProviding,
     recentActivityProvider: (any RecentActivityProviding)? = nil,
-    writeDebounceDuration: Duration = .milliseconds(600)
+    liveEditApplier: any WebPreviewLiveEditApplying = CanvasWebPreviewLiveEditApplier(),
+    writeDebounceDuration: Duration = .milliseconds(600),
+    styleProvenanceCapture: (any WebPreviewStyleProvenanceCapturing)? = nil,
+    sourceHintCapture: (any WebPreviewSourceHintCapturing)? = nil,
+    pageEnvironmentCapture: (any WebPreviewPageEnvironmentCapturing)? = nil,
+    stylesheetSourceMapper: (any StylesheetSourceMapping)? = nil,
+    staticStyleResolver: (any WebPreviewStaticStyleResolving)? = nil,
+    directWriteCoordinator: (any WebPreviewDirectCSSWriting)? = nil,
+    isDirectCSSWriteEnabled: (() -> Bool)? = nil
   ) {
     self.projectPath = projectPath
     self.sourceResolver = sourceResolver
     self.fileService = fileService
     self.recentActivityProvider = recentActivityProvider
+    self.liveEditApplier = liveEditApplier
     self.writeDebounceDuration = writeDebounceDuration
+    self.styleProvenanceCapture = styleProvenanceCapture ?? WebPreviewStyleProvenanceCapture()
+    self.sourceHintCapture = sourceHintCapture ?? WebPreviewSourceHintCapture()
+    self.pageEnvironmentCapture = pageEnvironmentCapture ?? WebPreviewPageEnvironmentCapture()
+    self.stylesheetSourceMapper = stylesheetSourceMapper ?? StylesheetSourceMapper(fileService: fileService)
+    self.staticStyleResolver = staticStyleResolver ?? WebPreviewStaticStyleResolver(fileService: fileService)
+    self.directWriteCoordinator = directWriteCoordinator ?? WebPreviewDirectCSSWriteCoordinator(fileService: fileService)
+    self.isDirectCSSWriteEnabled = isDirectCSSWriteEnabled ?? {
+      WebInspectorDefaults.isDirectCSSWriteEnabled()
+    }
   }
 
   public var candidateFilePaths: [String] {
@@ -79,11 +149,11 @@ public final class WebPreviewInspectorViewModel {
   }
 
   public var isDesignValueEditingEnabled: Bool {
-    isEditingEnabled && !editableStyleProperties.isEmpty
+    selectedElement != nil && !editableStyleProperties.isEmpty
   }
 
   public var canEditContent: Bool {
-    isEditingEnabled && activeCapabilities.contains(.content)
+    selectedElement != nil && activeCapabilities.contains(.content)
   }
 
   public var editableStyleProperties: [WebPreviewStyleProperty] {
@@ -94,14 +164,57 @@ public final class WebPreviewInspectorViewModel {
     canEditContent || isDesignValueEditingEnabled
   }
 
-  public var designTabMessage: String? {
-    if needsSourceConfirmation {
-      return "Choose a source file in Code mode to enable design edits."
+  public var pendingEditCount: Int {
+    pendingEditBatch?.changeCount ?? 0
+  }
+
+  /// The most specific framework source hint, for the rail's Source row.
+  public var primarySourceHintDisplay: String? {
+    let best = sourceHints.first(where: { $0.file != nil }) ?? sourceHints.first
+    return best?.promptLine
+  }
+
+  public var persistenceTierLabel: String {
+    let directFileNames = Set(styleTiers.values.compactMap { tier -> String? in
+      guard case .direct(let target) = tier else { return nil }
+      return URL(fileURLWithPath: target.filePath).lastPathComponent
+    })
+    if directFileNames.count == 1, let name = directFileNames.first {
+      return "Edits \(name) directly"
     }
-    if !hasEditableDesignControls {
-      return "This element does not have a safe design mapping. Edit it in Code mode."
+    if directFileNames.count > 1 {
+      return "Edits \(directFileNames.count) stylesheets directly"
     }
-    return nil
+    if let reason = dominantAgentTierReason {
+      return "Applies via agent · \(reason)"
+    }
+    return "Applies via agent"
+  }
+
+  /// Why the pending edits route to the agent. Reasons for properties the
+  /// user actually edited take priority over the rest of the element's
+  /// properties; ties break alphabetically so the label is deterministic.
+  public var dominantAgentTierReason: String? {
+    let pendingReasons = (pendingEditBatch?.styleChanges ?? [])
+      .compactMap { styleTierReasons[$0.property] }
+    let pool = pendingReasons.isEmpty ? Array(styleTierReasons.values) : pendingReasons
+    let counts = pool.reduce(into: [String: Int]()) { $0[$1, default: 0] += 1 }
+    let dominant = counts.max { lhs, rhs in
+      (lhs.value, rhs.key) < (rhs.value, lhs.key)
+    }
+    return dominant?.key ?? styleTierGeneralReason
+  }
+
+  /// The reason a specific property cannot be written directly, if known.
+  public func agentTierReason(for property: String) -> String? {
+    styleTierReasons[property] ?? styleTierGeneralReason
+  }
+
+  /// True when the loaded source file is the file being previewed directly
+  /// (static preview) — the only case where text edits write straight to disk.
+  private var isDirectPreviewTarget: Bool {
+    guard let currentFilePath, let previewFilePath else { return false }
+    return currentFilePath == previewFilePath
   }
 
   public var selectedTagName: String? {
@@ -168,9 +281,6 @@ public final class WebPreviewInspectorViewModel {
   }
 
   public var saveStatusText: String {
-    if needsSourceConfirmation {
-      return "Choose a source file to enable editing"
-    }
     if let writeErrorMessage {
       return writeErrorMessage
     }
@@ -180,10 +290,18 @@ public final class WebPreviewInspectorViewModel {
     if isWriting {
       return "Updating file…"
     }
+    if pendingEditCount > 0 {
+      return pendingEditCount == 1
+        ? "1 design change pending — Apply sends it to the agent"
+        : "\(pendingEditCount) design changes pending — Apply sends them to the agent"
+    }
+    if needsSourceConfirmation {
+      return "Choose a source file to enable code editing"
+    }
     if hasUnsavedChanges {
       return "Pending update"
     }
-    return (isDesignValueEditingEnabled || canEditContent) ? "Live design sync on" : "Code editing available"
+    return "Design edits apply via agent"
   }
 
   public func displayPath(for path: String) -> String {
@@ -279,10 +397,13 @@ public final class WebPreviewInspectorViewModel {
 
   public func inspect(
     element: ElementInspectorData,
-    previewFilePath: String?
+    previewFilePath: String?,
+    stylesheetContext: WebPreviewStylesheetPreviewContext? = nil
   ) async {
     await flushPendingWriteIfNeeded()
 
+    provenanceTask?.cancel()
+    sourceHintTask?.cancel()
     selectedElement = element
     liveProperties = WebPreviewLivePropertiesSnapshot(element: element)
     toolbarValues = DesignToolbarValues(element: element)
@@ -292,14 +413,28 @@ public final class WebPreviewInspectorViewModel {
     errorMessage = nil
     writeErrorMessage = nil
     resolution = nil
+    pendingEditBatch = nil
+    styleTiers = [:]
+    styleTierReasons = [:]
+    styleTierGeneralReason = nil
+    tokenPromotionOffer = nil
+    sourceHints = []
+    pendingDirectWrites = [:]
+    self.previewFilePath = previewFilePath
+    self.stylesheetContext = stylesheetContext
     currentFilePath = nil
     fileContent = ""
     savedFileContent = ""
     trackedTextToken = nil
+    trackedTextLocation = nil
+    trackedStructuredTextContent = nil
     matchedSelector = element.cssSelector.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
     styleValues = [:]
     activeCapabilities = [.code]
     userConfirmedLowConfidenceFile = false
+
+    refreshStyleTiers(for: element)
+    refreshSourceHints(for: element)
 
     let recentFiles = recentActivityProvider?.recentFilePaths(projectPath: projectPath) ?? []
 
@@ -318,11 +453,13 @@ public final class WebPreviewInspectorViewModel {
     let startingFilePath = resolved.primaryFilePath ?? resolved.candidateFilePaths.first
     guard let startingFilePath else {
       errorMessage = "No editable source files were found for this element."
+      recomputeEditingState()
       isResolving = false
       return
     }
 
     if resolved.isLowConfidence {
+      recomputeEditingState()
       isResolving = false
       return
     }
@@ -333,6 +470,10 @@ public final class WebPreviewInspectorViewModel {
 
   public func closePanel() async {
     await flushPendingWriteIfNeeded()
+    provenanceTask?.cancel()
+    provenanceTask = nil
+    sourceHintTask?.cancel()
+    sourceHintTask = nil
     isPanelVisible = false
     isResolving = false
     isWriting = false
@@ -340,6 +481,15 @@ public final class WebPreviewInspectorViewModel {
     writeErrorMessage = nil
     selectedElement = nil
     resolution = nil
+    pendingEditBatch = nil
+    styleTiers = [:]
+    styleTierReasons = [:]
+    styleTierGeneralReason = nil
+    tokenPromotionOffer = nil
+    sourceHints = []
+    pendingDirectWrites = [:]
+    stylesheetContext = nil
+    previewFilePath = nil
     liveProperties = nil
     selectedElementSnapshot = nil
     toolbarValues = nil
@@ -348,6 +498,8 @@ public final class WebPreviewInspectorViewModel {
     savedFileContent = ""
     activeCapabilities = [.code]
     trackedTextToken = nil
+    trackedTextLocation = nil
+    trackedStructuredTextContent = nil
     matchedSelector = nil
     styleValues = [:]
     consoleEntries.removeAll()
@@ -368,24 +520,71 @@ public final class WebPreviewInspectorViewModel {
   }
 
   public func updateContentValue(_ value: String) {
-    guard canEditContent,
-          let previousTextToken = trackedTextToken,
-          !previousTextToken.isEmpty,
-          let updatedContent = Self.replaceUniqueOccurrence(
-            in: fileContent,
-            from: previousTextToken,
-            to: value
-          ) else {
+    updateContentValue(value, propagateLiveEdit: true)
+  }
+
+  private func updateContentValue(_ value: String, propagateLiveEdit: Bool) {
+    guard canEditContent else {
       return
     }
 
-    if let selectedElement, let previewWebView {
-      ElementInspectorBridge.applyDesignEdit(
+    if isDirectPreviewTarget {
+      if let trackedStructuredTextContent,
+         let selectedElement,
+         let update = Self.updateStructuredTextContent(
+          trackedStructuredTextContent,
+          in: fileContent,
+          to: value,
+          element: selectedElement
+         ) {
+        applyContentUpdate(
+          value: value,
+          updatedContent: update.content,
+          textLocation: nil,
+          structuredMapping: update.mapping,
+          propagateLiveEdit: propagateLiveEdit
+        )
+        return
+      }
+
+      if let previousTextToken = trackedTextToken,
+         let replacementRange = Self.trackedTextRange(
+           in: fileContent,
+           token: previousTextToken,
+           location: trackedTextLocation
+         ) {
+        let replacementLocation = Self.characterOffset(of: replacementRange, in: fileContent)
+        let updatedContent = fileContent.replacingCharacters(in: replacementRange, with: value)
+        applyContentUpdate(
+          value: value,
+          updatedContent: updatedContent,
+          textLocation: replacementLocation,
+          structuredMapping: nil,
+          propagateLiveEdit: propagateLiveEdit
+        )
+        return
+      }
+    }
+
+    recordTextEdit(value, propagateLiveEdit: propagateLiveEdit)
+  }
+
+  private func applyContentUpdate(
+    value: String,
+    updatedContent: String,
+    textLocation: Int?,
+    structuredMapping: SourceTextContentMapping?,
+    propagateLiveEdit: Bool
+  ) {
+    if propagateLiveEdit, let selectedElement {
+      liveEditApplier.apply(
         DesignEdit(element: selectedElement, action: .updateTextContent(value)),
         in: previewWebView
       )
     }
     trackedTextToken = value
+    trackedTextLocation = textLocation
+    trackedStructuredTextContent = structuredMapping
     fileContent = updatedContent
     liveProperties = liveProperties?.updatingContent(value)
     toolbarValues?.textContent = value
@@ -395,7 +594,7 @@ public final class WebPreviewInspectorViewModel {
   public func updateStyleValue(_ property: WebPreviewStyleProperty, value: String) {
     guard isEditable(property) else { return }
     applyLiveStyleEdit(property: property, value: value)
-    applyRawStyleValue(property.rawValue, value: value, mappedProperty: property)
+    recordStyleEdit(propertyName: property.rawValue, value: value)
   }
 
   public func updateStyleEditorValue(_ property: WebPreviewStyleProperty, value: String) {
@@ -421,7 +620,10 @@ public final class WebPreviewInspectorViewModel {
   public func flushPendingWriteIfNeeded() async {
     pendingWriteTask?.cancel()
     pendingWriteTask = nil
+    pendingDirectWriteTask?.cancel()
+    pendingDirectWriteTask = nil
     await persistCurrentFileIfNeeded()
+    await flushPendingDirectWrites()
   }
 
   public func apply(_ edit: DesignEdit) {
@@ -429,21 +631,43 @@ public final class WebPreviewInspectorViewModel {
 
     switch edit.action {
     case .updateProperty(let property, value: let value):
-      if let previewWebView {
-        ElementInspectorBridge.applyDesignEdit(edit, in: previewWebView)
-      }
-      applyRawStyleValue(property.rawValue, value: value, mappedProperty: WebPreviewStyleProperty(rawValue: property.rawValue))
+      liveEditApplier.apply(edit, in: previewWebView)
+      recordStyleEdit(propertyName: property.rawValue, value: value)
     case .updateTextContent(let value):
-      updateContentValue(value)
+      updateContentValue(value, propagateLiveEdit: true)
     case .fitContent:
-      if let previewWebView {
-        ElementInspectorBridge.applyDesignEdit(edit, in: previewWebView)
-      }
-      applyRawStyleValue("width", value: "fit-content", mappedProperty: .width)
-      applyRawStyleValue("height", value: "fit-content", mappedProperty: .height)
+      liveEditApplier.apply(edit, in: previewWebView)
+      recordStyleEdit(propertyName: "width", value: "fit-content")
+      recordStyleEdit(propertyName: "height", value: "fit-content")
     case .deleteElement:
       return
     }
+  }
+
+  /// Removes and returns the pending batch as an element-anchored agent
+  /// instruction. Returns nil when nothing is pending.
+  public func takePendingDesignEditHandoff(previewContext: String?) -> WebPreviewPendingDesignEditHandoff? {
+    guard let batch = pendingEditBatch, !batch.isEmpty else {
+      pendingEditBatch = nil
+      return nil
+    }
+    pendingEditBatch = nil
+
+    let candidateFiles = (resolution?.candidateFilePaths ?? []).map { displayPath(for: $0) }
+    guard let instruction = WebPreviewDesignEditPromptComposer.instruction(
+      for: batch,
+      previewContext: previewContext,
+      candidateFiles: candidateFiles,
+      sourceHints: sourceHints.map(\.promptLine)
+    ) else {
+      return nil
+    }
+
+    return WebPreviewPendingDesignEditHandoff(element: batch.element, instruction: instruction)
+  }
+
+  public func discardPendingEdits() {
+    pendingEditBatch = nil
   }
 
   public func refreshFromLiveElement(_ element: ElementInspectorData) {
@@ -463,12 +687,11 @@ public final class WebPreviewInspectorViewModel {
 
   private func applyLiveStyleEdit(property: WebPreviewStyleProperty, value: String) {
     guard let selectedElement,
-          let designProperty = DesignEdit.Property(rawValue: property.rawValue),
-          let previewWebView else {
+          let designProperty = DesignEdit.Property(rawValue: property.rawValue) else {
       return
     }
 
-    ElementInspectorBridge.applyDesignEdit(
+    liveEditApplier.apply(
       DesignEdit(element: selectedElement, action: .updateProperty(designProperty, value: value)),
       in: previewWebView
     )
@@ -508,6 +731,8 @@ public final class WebPreviewInspectorViewModel {
       fileContent = ""
       savedFileContent = ""
       trackedTextToken = nil
+      trackedTextLocation = nil
+      trackedStructuredTextContent = nil
       styleValues = [:]
       activeCapabilities = [.code]
     }
@@ -534,51 +759,57 @@ public final class WebPreviewInspectorViewModel {
     guard let selectedElement else {
       activeCapabilities = [.code]
       styleValues = [:]
+      trackedTextToken = nil
+      trackedTextLocation = nil
+      trackedStructuredTextContent = nil
       return
     }
 
-    var capabilities: Set<WebPreviewEditableCapability> = [.code]
-    var nextStyleValues: [WebPreviewStyleProperty: String] = [:]
+    // Design and content edits are always available — they batch to the
+    // session's agent when no direct source mapping is proven.
+    var capabilities: Set<WebPreviewEditableCapability> = [.code, .content]
+    for property in WebPreviewStyleProperty.allCases {
+      capabilities.insert(property.capability)
+    }
+
     matchedSelector = resolution?.matchedSelector
       ?? selectedElement.cssSelector.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
 
-    guard currentFilePath != nil else {
-      activeCapabilities = capabilities
-      trackedTextToken = nil
-      styleValues = nextStyleValues
-      return
-    }
-
-    if let contentCandidate = trackedTextToken ?? selectedElement.textContent.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
-       Self.literalOccurrenceCount(of: contentCandidate, in: fileContent) == 1,
-       userConfirmedLowConfidenceFile || resolution?.isLowConfidence != true {
-      capabilities.insert(.content)
-      trackedTextToken = contentCandidate
+    // A direct text mapping is tracked only when the loaded file is the file
+    // being previewed (static preview); otherwise text edits batch to the agent.
+    let canTrustContentMatch = userConfirmedLowConfidenceFile || resolution?.isLowConfidence != true
+    if isDirectPreviewTarget, canTrustContentMatch {
+      if let trackedTextToken,
+         let trackedRange = Self.trackedTextRange(
+          in: fileContent,
+          token: trackedTextToken,
+          location: trackedTextLocation
+         ) {
+        trackedTextLocation = Self.characterOffset(of: trackedRange, in: fileContent)
+        trackedStructuredTextContent = nil
+      } else if let contentCandidate = selectedElement.textContent.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
+                Self.literalOccurrenceCount(of: contentCandidate, in: fileContent) == 1,
+                let range = fileContent.range(of: contentCandidate) {
+        trackedTextToken = contentCandidate
+        trackedTextLocation = Self.characterOffset(of: range, in: fileContent)
+        trackedStructuredTextContent = nil
+      } else if let mapping = Self.structuredTextContentMapping(for: selectedElement, in: fileContent) {
+        trackedTextToken = mapping.text
+        trackedTextLocation = nil
+        trackedStructuredTextContent = mapping
+        toolbarValues?.textContent = mapping.text
+      } else {
+        trackedTextToken = nil
+        trackedTextLocation = nil
+        trackedStructuredTextContent = nil
+      }
     } else {
       trackedTextToken = nil
+      trackedTextLocation = nil
+      trackedStructuredTextContent = nil
     }
 
-    let mayEnableInlineEditing =
-      (resolution?.matchedSelector != nil && resolution?.confidence != .low) || userConfirmedLowConfidenceFile
-
-    if mayEnableInlineEditing,
-       let selector = Self.firstMatchingSelector(
-        candidates: Self.selectorCandidates(for: selectedElement, fallback: matchedSelector),
-        in: fileContent
-       ),
-       Self.cssBodyRange(for: [selector], in: fileContent) != nil {
-      matchedSelector = selector
-      for property in WebPreviewStyleProperty.allCases {
-        capabilities.insert(property.capability)
-        nextStyleValues[property] = Self.currentCSSDeclaration(
-          in: fileContent,
-          selectorCandidates: [selector],
-          property: property.rawValue
-        ) ?? liveProperties?.value(for: property) ?? ""
-      }
-    }
-
-    styleValues = nextStyleValues
+    styleValues = [:]
     activeCapabilities = capabilities
   }
 
@@ -593,26 +824,458 @@ public final class WebPreviewInspectorViewModel {
     }
   }
 
-  private func applyRawStyleValue(
-    _ propertyName: String,
-    value: String,
-    mappedProperty: WebPreviewStyleProperty?
-  ) {
-    guard let selector = matchedSelector,
-          let updatedContent = Self.updateCSSDeclaration(
-            in: fileContent,
-            selectorCandidates: [selector],
-            property: propertyName,
-            value: value
-          ) else {
-      return
+  private func recordStyleEdit(propertyName: String, value: String) {
+    guard let selectedElement else { return }
+
+    let mappedProperty = WebPreviewStyleProperty(rawValue: propertyName)
+    let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    if case .direct = styleTiers[propertyName] {
+      pendingDirectWrites[propertyName] = trimmedValue
+      scheduleDirectWriteFlush()
+    } else if trimmedValue.isEmpty {
+      pendingEditBatch?.removeStyleChange(property: propertyName)
+    } else {
+      let oldValue = mappedProperty.map { displayedStyleValue(for: $0) }
+      ensurePendingBatch(for: selectedElement)
+      pendingEditBatch?.recordStyleChange(
+        property: propertyName,
+        oldValue: oldValue,
+        newValue: trimmedValue
+      )
     }
 
     if let mappedProperty {
-      styleValues[mappedProperty] = value
-      liveProperties = liveProperties?.applyingStyleValue(value, for: mappedProperty)
+      styleValues[mappedProperty] = trimmedValue
+      liveProperties = liveProperties?.applyingStyleValue(trimmedValue, for: mappedProperty)
     }
 
+    syncToolbarValue(propertyName: propertyName, value: trimmedValue)
+  }
+
+  // MARK: - Tier-1 direct writes
+
+  /// Captures per-property winning-rule provenance for the selected element
+  /// and proves file mappings; unprovable properties stay agent-applied.
+  private func refreshStyleTiers(for element: ElementInspectorData) {
+    provenanceTask?.cancel()
+    styleTiers = [:]
+    styleTierReasons = [:]
+    styleTierGeneralReason = nil
+    pageEnvironment = nil
+
+    guard isDirectCSSWriteEnabled() else {
+      styleTierGeneralReason = "direct writes are disabled"
+      return
+    }
+    guard let stylesheetContext else {
+      styleTierGeneralReason = "the preview source is unknown"
+      return
+    }
+    guard let previewWebView else {
+      styleTierGeneralReason = "the preview is not connected"
+      return
+    }
+
+    let selector = element.cssSelector.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !selector.isEmpty else {
+      styleTierGeneralReason = "the element has no usable selector"
+      return
+    }
+
+    let properties = WebPreviewStyleProperty.allCases.map(\.rawValue)
+    provenanceTask = Task { [weak self, weak previewWebView] in
+      guard let self, let previewWebView else { return }
+
+      let environment = await self.pageEnvironmentCapture.captureEnvironment(
+        selector: selector,
+        in: previewWebView
+      )
+      guard !Task.isCancelled, self.selectedElement?.id == element.id else { return }
+      self.pageEnvironment = environment
+
+      let tiers: [String: WebPreviewStyleEditTier]
+      var reasons: [String: String] = [:]
+      var generalReason: String?
+      switch stylesheetContext {
+      case .directFile(let servedFilePath, let contextProjectPath):
+        // Static previews: CSSOM cannot read file:// linked stylesheets, but
+        // the sources ARE local files — enumerate rules from disk and ask the
+        // page only for match verdicts.
+        let targets = await self.staticStyleResolver.resolveDirectTargets(
+          elementSelector: selector,
+          servedFilePath: servedFilePath,
+          projectPath: contextProjectPath,
+          properties: properties,
+          in: previewWebView
+        )
+        tiers = targets.mapValues { .direct($0) }
+        for property in properties where targets[property] == nil {
+          reasons[property] = "no matching rule in the served stylesheets"
+        }
+
+      case .devServer:
+        guard let provenance = await self.styleProvenanceCapture.captureProvenance(
+          selector: selector,
+          properties: properties,
+          in: previewWebView
+        ) else {
+          guard !Task.isCancelled, self.selectedElement?.id == element.id else { return }
+          // The probe anchors via the top document; a frame-hosted element
+          // or a failed script leaves nothing provable.
+          self.styleTierGeneralReason = "the element's styles couldn't be probed"
+          return
+        }
+        guard !Task.isCancelled, self.selectedElement?.id == element.id else { return }
+
+        var resolved: [String: WebPreviewStyleEditTier] = [:]
+        var mappingCache: [WebPreviewCSSRuleLocator: StylesheetMappingResult] = [:]
+
+        for winner in provenance.winners {
+          guard winner.isProvable, let rule = winner.rule else {
+            reasons[winner.property] = Self.agentReason(for: winner)
+            continue
+          }
+          let result: StylesheetMappingResult
+          if let cached = mappingCache[rule] {
+            result = cached
+          } else {
+            result = await self.stylesheetSourceMapper.mapToProvenFile(
+              ruleLocator: rule,
+              context: stylesheetContext
+            )
+            mappingCache[rule] = result
+          }
+          guard !Task.isCancelled else { return }
+          if case .proven(let filePath, let contentSHA256, let blockIndex) = result {
+            resolved[winner.property] = .direct(WebPreviewDirectStyleTarget(
+              filePath: filePath,
+              ruleIndexPath: rule.ruleIndexPath,
+              contentSHA256: contentSHA256,
+              embeddedStyleBlockIndex: blockIndex
+            ))
+          } else {
+            reasons[winner.property] = "the rule didn't match a project file"
+          }
+        }
+        // Properties no rule declares at all: insert them into the
+        // element's plainest matching rule when that rule maps to a
+        // project file and no hidden sheet could contradict the proof.
+        // When insertion is impossible, record WHICH guard blocked it so
+        // the pending-edits pill can say so.
+        let coveredProperties = Set(provenance.winners.map(\.property))
+        let uncoveredProperties = properties.filter { !coveredProperties.contains($0) }
+        var insertionBlocker: String?
+        if !provenance.unreadableSheetHrefs.isEmpty {
+          insertionBlocker = "a stylesheet isn't readable, so new rules can't be proven"
+        } else if provenance.hasAdoptedSheets {
+          insertionBlocker = "the page injects styles via constructed stylesheets"
+        } else if provenance.anchorRule == nil {
+          insertionBlocker = "no plain rule matches the element"
+        }
+        if !uncoveredProperties.isEmpty, insertionBlocker == nil,
+           let anchor = provenance.anchorRule {
+          let result: StylesheetMappingResult
+          if let cached = mappingCache[anchor] {
+            result = cached
+          } else {
+            result = await self.stylesheetSourceMapper.mapToProvenFile(
+              ruleLocator: anchor,
+              context: stylesheetContext
+            )
+            mappingCache[anchor] = result
+          }
+          guard !Task.isCancelled else { return }
+          switch result {
+          case .proven(let filePath, let contentSHA256, let blockIndex):
+            let blockers = Set(
+              (provenance.declaredPropertyNames + provenance.inlinePropertyNames).map { $0.lowercased() }
+            )
+            for property in uncoveredProperties {
+              if CSSPropertyFamily.conflicts(property, with: blockers) {
+                reasons[property] = "it overlaps a property the page already sets"
+              } else {
+                resolved[property] = .direct(WebPreviewDirectStyleTarget(
+                  filePath: filePath,
+                  ruleIndexPath: anchor.ruleIndexPath,
+                  contentSHA256: contentSHA256,
+                  embeddedStyleBlockIndex: blockIndex
+                ))
+              }
+            }
+          case .unproven:
+            insertionBlocker = "the element's rule isn't in a project file"
+          }
+        }
+        for property in uncoveredProperties
+        where resolved[property] == nil && reasons[property] == nil {
+          reasons[property] = insertionBlocker ?? "no existing rule sets it"
+        }
+        if resolved.isEmpty, reasons.isEmpty {
+          generalReason = "the element's styles couldn't be probed"
+        }
+        tiers = resolved
+      }
+
+      guard !Task.isCancelled, self.selectedElement?.id == element.id else { return }
+      self.styleTiers = tiers
+      self.styleTierReasons = reasons
+      self.styleTierGeneralReason = generalReason
+      self.rerouteBatchedEditsAfterTierRefresh()
+    }
+  }
+
+  /// Short label for why a winning declaration is not directly writable.
+  private static func agentReason(for winner: WebPreviewPropertyWinner) -> String {
+    if winner.isInline {
+      return "an inline style attribute overrides it"
+    }
+    guard let uncertainty = winner.uncertainties.sorted(by: { $0.rawValue < $1.rawValue }).first else {
+      return "the owning rule couldn't be located"
+    }
+    switch uncertainty {
+    case .layer: return "the rule lives in an @layer block"
+    case .scope: return "the rule lives in an @scope block"
+    case .containerQuery: return "the rule lives in a container query"
+    case .unknownGroup: return "the rule lives in an unrecognized at-rule"
+    case .adoptedSheet: return "styles come from a constructed stylesheet"
+    case .unreadableSheet: return "the stylesheet isn't readable"
+    case .nestedSelector: return "the rule uses a nested selector"
+    case .complexSelector: return "the rule uses a complex selector"
+    case .importantConflict: return "an !important rule conflicts"
+    }
+  }
+
+  /// Edits recorded while tier proving was still in flight land in the agent
+  /// batch; once proving completes, move every change whose property proved
+  /// direct into the direct-write queue so it persists deterministically.
+  private func rerouteBatchedEditsAfterTierRefresh() {
+    guard let batch = pendingEditBatch else { return }
+    var rerouted = false
+    for change in batch.styleChanges {
+      guard case .direct = styleTiers[change.property] else { continue }
+      pendingDirectWrites[change.property] = change.newValue
+      pendingEditBatch?.removeStyleChange(property: change.property)
+      rerouted = true
+    }
+    guard rerouted else { return }
+    if pendingEditBatch?.isEmpty == true {
+      pendingEditBatch = nil
+    }
+    scheduleDirectWriteFlush()
+  }
+
+  /// Reads framework dev-build source metadata for the selected element.
+  private func refreshSourceHints(for element: ElementInspectorData) {
+    sourceHintTask?.cancel()
+    sourceHints = []
+
+    guard let previewWebView else { return }
+    let selector = element.cssSelector.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !selector.isEmpty else { return }
+
+    sourceHintTask = Task { [weak self, weak previewWebView] in
+      guard let self, let previewWebView else { return }
+      let hints = await self.sourceHintCapture.captureSourceHints(
+        selector: selector,
+        in: previewWebView
+      )
+      guard !Task.isCancelled, self.selectedElement?.id == element.id else { return }
+      self.sourceHints = hints
+    }
+  }
+
+  private func scheduleDirectWriteFlush() {
+    pendingDirectWriteTask?.cancel()
+    pendingDirectWriteTask = Task { [weak self] in
+      guard let self else { return }
+      try? await Task.sleep(for: self.writeDebounceDuration)
+      guard !Task.isCancelled else { return }
+      await self.flushPendingDirectWrites()
+    }
+  }
+
+  private func flushPendingDirectWrites() async {
+    let writes = pendingDirectWrites
+    pendingDirectWrites = [:]
+    guard !writes.isEmpty else { return }
+
+    isWriting = true
+    for (property, value) in writes.sorted(by: { $0.key < $1.key }) {
+      guard case .direct(var target) = styleTiers[property] else {
+        downgradeToAgentBatch(property: property, value: value)
+        continue
+      }
+
+      let edit = CSSDeclarationEdit(
+        ruleIndexPath: target.ruleIndexPath,
+        property: property,
+        value: value.isEmpty ? nil : value
+      )
+      let outcome = await directWriteCoordinator.write(
+        edit: edit,
+        filePath: target.filePath,
+        embeddedStyleBlockIndex: target.embeddedStyleBlockIndex,
+        expectedSHA256: target.contentSHA256,
+        environment: pageEnvironment ?? .fallback,
+        projectPath: projectPath
+      )
+
+      switch outcome {
+      case .written(let newSHA256):
+        target.contentSHA256 = newSHA256
+        styleTiers[property] = .direct(target)
+        rebaseDirectTargets(filePath: target.filePath, to: newSHA256, excluding: property)
+        await refreshCodeTabAfterDirectWrite(to: target.filePath)
+        writeErrorMessage = nil
+        if tokenPromotionOffer?.property == property {
+          tokenPromotionOffer = nil
+        }
+      case .writtenWithTokenDetachment(let newSHA256, let detachment):
+        target.contentSHA256 = newSHA256
+        styleTiers[property] = .direct(target)
+        rebaseDirectTargets(filePath: target.filePath, to: newSHA256, excluding: property)
+        await refreshCodeTabAfterDirectWrite(to: target.filePath)
+        writeErrorMessage = nil
+        // Offer promoting the detached edit to a token-wide update when the
+        // definition is provably editable in the same source.
+        if let definitionRuleIndexPath = detachment.definitionRuleIndexPath {
+          tokenPromotionOffer = WebPreviewTokenPromotionOffer(
+            property: property,
+            token: detachment.token,
+            usageCount: detachment.projectUsageCount,
+            appliedLiteral: detachment.appliedLiteral,
+            definitionRuleIndexPath: definitionRuleIndexPath
+          )
+        }
+      case .baselineDrift, .editFailed:
+        styleTiers[property] = .agent
+        downgradeToAgentBatch(property: property, value: value)
+      }
+    }
+    isWriting = false
+  }
+
+  /// Promotes the last detached token edit into a token-wide update: the
+  /// element's declaration is restored to `var(token)` and the token's
+  /// definition is rewritten to the new value, so every consumer updates.
+  /// Both steps are ordinary proven writes with post-conditions.
+  public func promoteTokenDetachment() async {
+    guard let offer = tokenPromotionOffer else { return }
+    tokenPromotionOffer = nil
+    guard case .direct(var target) = styleTiers[offer.property] else { return }
+
+    isWriting = true
+    defer { isWriting = false }
+
+    // 1. Point the element's declaration back at the token.
+    let restore = CSSDeclarationEdit(
+      ruleIndexPath: target.ruleIndexPath,
+      property: offer.property,
+      value: "var(\(offer.token))"
+    )
+    let restoreOutcome = await directWriteCoordinator.write(
+      edit: restore,
+      filePath: target.filePath,
+      embeddedStyleBlockIndex: target.embeddedStyleBlockIndex,
+      expectedSHA256: target.contentSHA256,
+      environment: pageEnvironment ?? .fallback,
+      projectPath: projectPath
+    )
+    guard let restoredSHA = restoreOutcome.writtenSHA256 else {
+      writeErrorMessage = "Couldn't update \(offer.token): the file changed underneath"
+      return
+    }
+    target.contentSHA256 = restoredSHA
+    styleTiers[offer.property] = .direct(target)
+    rebaseDirectTargets(filePath: target.filePath, to: restoredSHA, excluding: offer.property)
+
+    // 2. Rewrite the token's definition; the planner preserves the
+    // definition's notation automatically.
+    let definitionEdit = CSSDeclarationEdit(
+      ruleIndexPath: offer.definitionRuleIndexPath,
+      property: offer.token,
+      value: offer.appliedLiteral
+    )
+    let definitionOutcome = await directWriteCoordinator.write(
+      edit: definitionEdit,
+      filePath: target.filePath,
+      embeddedStyleBlockIndex: target.embeddedStyleBlockIndex,
+      expectedSHA256: restoredSHA,
+      environment: pageEnvironment ?? .fallback,
+      projectPath: projectPath
+    )
+    guard let finalSHA = definitionOutcome.writtenSHA256 else {
+      writeErrorMessage = "Couldn't update \(offer.token): the file changed underneath"
+      return
+    }
+    target.contentSHA256 = finalSHA
+    styleTiers[offer.property] = .direct(target)
+    rebaseDirectTargets(filePath: target.filePath, to: finalSHA, excluding: offer.property)
+    await refreshCodeTabAfterDirectWrite(to: target.filePath)
+    writeErrorMessage = nil
+  }
+
+  /// Dismisses the pending token-promotion offer without acting on it.
+  public func dismissTokenPromotionOffer() {
+    tokenPromotionOffer = nil
+  }
+
+  private func rebaseDirectTargets(filePath: String, to newSHA256: String, excluding property: String) {
+    for (otherProperty, tier) in styleTiers {
+      guard otherProperty != property,
+            case .direct(var otherTarget) = tier,
+            otherTarget.filePath == filePath else {
+        continue
+      }
+      otherTarget.contentSHA256 = newSHA256
+      styleTiers[otherProperty] = .direct(otherTarget)
+    }
+  }
+
+  /// Keeps the Code tab in sync when a direct write lands in the loaded file.
+  private func refreshCodeTabAfterDirectWrite(to filePath: String) async {
+    guard currentFilePath == filePath,
+          fileContent == savedFileContent,
+          let updated = try? await fileService.readFile(at: filePath, projectPath: projectPath) else {
+      return
+    }
+    fileContent = updated
+    savedFileContent = updated
+  }
+
+  private func downgradeToAgentBatch(property: String, value: String) {
+    guard let selectedElement, !value.isEmpty else { return }
+    ensurePendingBatch(for: selectedElement)
+    pendingEditBatch?.recordStyleChange(property: property, oldValue: nil, newValue: value)
+  }
+
+  private func recordTextEdit(_ value: String, propagateLiveEdit: Bool) {
+    guard let selectedElement else { return }
+
+    if propagateLiveEdit {
+      liveEditApplier.apply(
+        DesignEdit(element: selectedElement, action: .updateTextContent(value)),
+        in: previewWebView
+      )
+    }
+
+    let oldText = liveProperties?.content
+      ?? selectedElement.textContent.trimmingCharacters(in: .whitespacesAndNewlines)
+    ensurePendingBatch(for: selectedElement)
+    pendingEditBatch?.recordTextChange(oldText: oldText, newText: value)
+
+    liveProperties = liveProperties?.updatingContent(value)
+    toolbarValues?.textContent = value
+  }
+
+  private func ensurePendingBatch(for element: ElementInspectorData) {
+    if pendingEditBatch == nil {
+      pendingEditBatch = WebPreviewPendingDesignEditBatch(element: element)
+    }
+  }
+
+  private func syncToolbarValue(propertyName: String, value: String) {
     switch propertyName {
     case "font-family":
       toolbarValues?.fontFamily = value
@@ -643,9 +1306,6 @@ public final class WebPreviewInspectorViewModel {
     default:
       break
     }
-
-    fileContent = updatedContent
-    scheduleWrite()
   }
 
   private func persistCurrentFileIfNeeded() async {
@@ -669,26 +1329,439 @@ public final class WebPreviewInspectorViewModel {
     isWriting = false
   }
 
-  private static func selectorCandidates(for element: ElementInspectorData, fallback: String?) -> [String] {
-    let classes = element.className
-      .split(whereSeparator: \.isWhitespace)
-      .map(String.init)
-      .filter { !$0.isEmpty }
+  private static func structuredTextContentMapping(
+    for element: ElementInspectorData,
+    in content: String,
+    expectedText: String? = nil
+  ) -> SourceTextContentMapping? {
+    let category = ElementCategory(tagName: element.tagName)
+    guard category == .text || category == .button else {
+      return nil
+    }
 
-    return WebPreviewSourceResolver.uniqueOrdered(
-      [fallback].compactMap { $0 }
-        + (element.elementId.isEmpty ? [] : ["#\(element.elementId)"])
-        + classes.map { ".\($0)" }
-        + [element.tagName.lowercased()]
+    let expected = (expectedText ?? element.textContent.trimmingCharacters(in: .whitespacesAndNewlines))
+    guard expectedText != nil || !expected.isEmpty else {
+      return nil
+    }
+
+    let innerRanges = htmlElementInnerRanges(for: element, in: content)
+    let matches = innerRanges.compactMap { innerRange -> SourceTextContentMapping? in
+      guard let mapping = sourceTextContentMapping(in: innerRange, content: content),
+            mapping.text == expected else {
+        return nil
+      }
+      return mapping
+    }
+
+    return matches.count == 1 ? matches[0] : nil
+  }
+
+  private static func updateStructuredTextContent(
+    _ mapping: SourceTextContentMapping,
+    in content: String,
+    to newText: String,
+    element: ElementInspectorData
+  ) -> (content: String, mapping: SourceTextContentMapping)? {
+    guard let splice = textSplice(from: mapping.text, to: newText) else {
+      return (content, mapping)
+    }
+
+    guard !mapping.segments.isEmpty else {
+      return nil
+    }
+
+    var segmentTexts = mapping.segments.map(\.text)
+    if splice.start == mapping.text.count {
+      let targetIndex = mapping.text.isEmpty ? 0 : segmentTexts.count - 1
+      segmentTexts[targetIndex] += splice.replacement
+    } else {
+      var inserted = false
+      for index in mapping.segments.indices {
+        let segment = mapping.segments[index]
+        if segment.textEnd < splice.start || segment.textStart > splice.end {
+          continue
+        }
+
+        let localStart = max(0, splice.start - segment.textStart)
+        let localEnd = min(segment.text.count, splice.end - segment.textStart)
+        if !inserted {
+          segmentTexts[index] = prefix(segment.text, count: localStart)
+            + splice.replacement
+            + suffix(segment.text, droppingFirst: localEnd)
+          inserted = true
+        } else {
+          segmentTexts[index] = suffix(segment.text, droppingFirst: localEnd)
+        }
+      }
+
+      if !inserted {
+        segmentTexts[segmentTexts.count - 1] += splice.replacement
+      }
+    }
+
+    var updatedContent = content
+    for index in mapping.segments.indices.reversed() {
+      updatedContent.replaceSubrange(
+        mapping.segments[index].rawRange,
+        with: escapeHTMLText(segmentTexts[index])
+      )
+    }
+
+    guard let updatedMapping = structuredTextContentMapping(
+      for: element,
+      in: updatedContent,
+      expectedText: newText
+    ) else {
+      return nil
+    }
+
+    return (updatedContent, updatedMapping)
+  }
+
+  private static func textSplice(from oldText: String, to newText: String) -> TextSplice? {
+    guard oldText != newText else {
+      return nil
+    }
+
+    let oldCharacters = Array(oldText)
+    let newCharacters = Array(newText)
+    var prefixCount = 0
+    let maxPrefixCount = min(oldCharacters.count, newCharacters.count)
+    while prefixCount < maxPrefixCount,
+          oldCharacters[prefixCount] == newCharacters[prefixCount] {
+      prefixCount += 1
+    }
+
+    var oldSuffixIndex = oldCharacters.count
+    var newSuffixIndex = newCharacters.count
+    while oldSuffixIndex > prefixCount,
+          newSuffixIndex > prefixCount,
+          oldCharacters[oldSuffixIndex - 1] == newCharacters[newSuffixIndex - 1] {
+      oldSuffixIndex -= 1
+      newSuffixIndex -= 1
+    }
+
+    return TextSplice(
+      start: prefixCount,
+      end: oldSuffixIndex,
+      replacement: String(newCharacters[prefixCount..<newSuffixIndex])
     )
   }
 
-  private static func replaceUniqueOccurrence(in content: String, from oldValue: String, to newValue: String) -> String? {
-    guard literalOccurrenceCount(of: oldValue, in: content) == 1,
-          let range = content.range(of: oldValue) else {
+  private static func sourceTextContentMapping(
+    in innerRange: Range<String.Index>,
+    content: String
+  ) -> SourceTextContentMapping? {
+    var segments: [SourceTextSegment] = []
+    var textOffset = 0
+    var cursor = innerRange.lowerBound
+
+    func appendSegment(_ range: Range<String.Index>) {
+      guard !range.isEmpty else { return }
+      let rawText = String(content[range])
+      let text = decodeHTMLText(rawText)
+      guard !text.isEmpty else { return }
+      segments.append(SourceTextSegment(rawRange: range, text: text, textStart: textOffset))
+      textOffset += text.count
+    }
+
+    while cursor < innerRange.upperBound {
+      guard let tagStart = content.range(of: "<", range: cursor..<innerRange.upperBound)?.lowerBound else {
+        appendSegment(cursor..<innerRange.upperBound)
+        break
+      }
+
+      appendSegment(cursor..<tagStart)
+
+      guard let tagEnd = htmlTagEnd(startingAt: tagStart, in: content),
+            tagEnd < innerRange.upperBound else {
+        return nil
+      }
+      cursor = content.index(after: tagEnd)
+    }
+
+    guard !segments.isEmpty else {
       return nil
     }
-    return content.replacingCharacters(in: range, with: newValue)
+
+    return SourceTextContentMapping(
+      text: segments.map(\.text).joined(),
+      segments: segments
+    )
+  }
+
+  private static func htmlElementInnerRanges(
+    for element: ElementInspectorData,
+    in content: String
+  ) -> [Range<String.Index>] {
+    let tagName = element.tagName.lowercased()
+    guard !tagName.isEmpty else {
+      return []
+    }
+
+    var ranges: [Range<String.Index>] = []
+    var cursor = content.startIndex
+    while let start = htmlStartTagStart(tagName: tagName, in: content, range: cursor..<content.endIndex) {
+      guard let startTagEnd = htmlTagEnd(startingAt: start, in: content) else {
+        break
+      }
+
+      let startTag = String(content[start...startTagEnd])
+      if htmlStartTag(startTag, matches: element),
+         let closeStart = htmlClosingTagStart(
+          tagName: tagName,
+          afterOpeningTagEndingAt: startTagEnd,
+          in: content
+         ) {
+        ranges.append(content.index(after: startTagEnd)..<closeStart)
+      }
+
+      cursor = content.index(after: start)
+    }
+
+    return ranges
+  }
+
+  private static func htmlStartTag(
+    _ startTag: String,
+    matches element: ElementInspectorData
+  ) -> Bool {
+    if !element.elementId.isEmpty {
+      guard htmlAttribute("id", in: startTag) == element.elementId else {
+        return false
+      }
+    }
+
+    let classNames = element.className
+      .split(whereSeparator: \.isWhitespace)
+      .map(String.init)
+      .filter { !$0.isEmpty }
+    if !classNames.isEmpty {
+      let sourceClasses = Set(
+        (htmlAttribute("class", in: startTag) ?? "")
+          .split(whereSeparator: \.isWhitespace)
+          .map(String.init)
+      )
+      guard classNames.allSatisfy(sourceClasses.contains) else {
+        return false
+      }
+    }
+
+    return true
+  }
+
+  private static func htmlAttribute(_ name: String, in startTag: String) -> String? {
+    let escapedName = NSRegularExpression.escapedPattern(for: name)
+    let pattern = #"\b"# + escapedName + #"\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)"#
+    guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+      return nil
+    }
+
+    let range = NSRange(startTag.startIndex..<startTag.endIndex, in: startTag)
+    guard let match = regex.firstMatch(in: startTag, range: range),
+          let valueRange = Range(match.range(at: 1), in: startTag) else {
+      return nil
+    }
+
+    var value = String(startTag[valueRange])
+    if (value.hasPrefix("\"") && value.hasSuffix("\"")) || (value.hasPrefix("'") && value.hasSuffix("'")) {
+      value.removeFirst()
+      value.removeLast()
+    }
+    return decodeHTMLText(value)
+  }
+
+  private static func htmlStartTagStart(
+    tagName: String,
+    in content: String,
+    range: Range<String.Index>
+  ) -> String.Index? {
+    var cursor = range.lowerBound
+    let needle = "<\(tagName)"
+    while cursor < range.upperBound,
+          let found = content.range(of: needle, options: [.caseInsensitive], range: cursor..<range.upperBound) {
+      let afterTagName = found.upperBound
+      if afterTagName == content.endIndex || isHTMLTagNameBoundary(content[afterTagName]) {
+        return found.lowerBound
+      }
+      cursor = afterTagName
+    }
+    return nil
+  }
+
+  private static func htmlClosingTagStart(
+    tagName: String,
+    afterOpeningTagEndingAt openingTagEnd: String.Index,
+    in content: String
+  ) -> String.Index? {
+    var depth = 1
+    var cursor = content.index(after: openingTagEnd)
+
+    while cursor < content.endIndex {
+      let searchRange = cursor..<content.endIndex
+      let nextOpening = htmlStartTagStart(tagName: tagName, in: content, range: searchRange)
+      let nextClosing = htmlClosingTagStart(tagName: tagName, in: content, range: searchRange)
+
+      guard let nearest = nearestHTMLTag(opening: nextOpening, closing: nextClosing) else {
+        return nil
+      }
+
+      switch nearest.kind {
+      case .opening:
+        guard let tagEnd = htmlTagEnd(startingAt: nearest.index, in: content) else {
+          return nil
+        }
+        if !isSelfClosingHTMLTag(content[nearest.index...tagEnd]) {
+          depth += 1
+        }
+        cursor = content.index(after: tagEnd)
+      case .closing:
+        depth -= 1
+        if depth == 0 {
+          return nearest.index
+        }
+        guard let tagEnd = htmlTagEnd(startingAt: nearest.index, in: content) else {
+          return nil
+        }
+        cursor = content.index(after: tagEnd)
+      }
+    }
+
+    return nil
+  }
+
+  private enum HTMLTagKind {
+    case opening
+    case closing
+  }
+
+  private static func nearestHTMLTag(
+    opening: String.Index?,
+    closing: String.Index?
+  ) -> (kind: HTMLTagKind, index: String.Index)? {
+    switch (opening, closing) {
+    case (.some(let opening), .some(let closing)):
+      if opening < closing {
+        return (kind: .opening, index: opening)
+      }
+      return (kind: .closing, index: closing)
+    case (.some(let opening), nil):
+      return (kind: .opening, index: opening)
+    case (nil, .some(let closing)):
+      return (kind: .closing, index: closing)
+    case (nil, nil):
+      return nil
+    }
+  }
+
+  private static func htmlClosingTagStart(
+    tagName: String,
+    in content: String,
+    range: Range<String.Index>
+  ) -> String.Index? {
+    var cursor = range.lowerBound
+    let needle = "</\(tagName)"
+    while cursor < range.upperBound,
+          let found = content.range(of: needle, options: [.caseInsensitive], range: cursor..<range.upperBound) {
+      let afterTagName = found.upperBound
+      if afterTagName == content.endIndex || isHTMLTagNameBoundary(content[afterTagName]) {
+        return found.lowerBound
+      }
+      cursor = afterTagName
+    }
+    return nil
+  }
+
+  private static func htmlTagEnd(startingAt start: String.Index, in content: String) -> String.Index? {
+    var cursor = start
+    var quote: Character?
+
+    while cursor < content.endIndex {
+      let character = content[cursor]
+      if let activeQuote = quote {
+        if character == activeQuote {
+          quote = nil
+        }
+      } else if character == "\"" || character == "'" {
+        quote = character
+      } else if character == ">" {
+        return cursor
+      }
+      cursor = content.index(after: cursor)
+    }
+
+    return nil
+  }
+
+  private static func isSelfClosingHTMLTag(_ tag: Substring) -> Bool {
+    String(tag.dropLast()).trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix("/")
+  }
+
+  private static func isHTMLTagNameBoundary(_ character: Character) -> Bool {
+    character == ">" || character == "/" || character.isWhitespace
+  }
+
+  private static func decodeHTMLText(_ text: String) -> String {
+    text
+      .replacingOccurrences(of: "&nbsp;", with: " ")
+      .replacingOccurrences(of: "&lt;", with: "<")
+      .replacingOccurrences(of: "&gt;", with: ">")
+      .replacingOccurrences(of: "&quot;", with: "\"")
+      .replacingOccurrences(of: "&#39;", with: "'")
+      .replacingOccurrences(of: "&apos;", with: "'")
+      .replacingOccurrences(of: "&amp;", with: "&")
+  }
+
+  private static func escapeHTMLText(_ text: String) -> String {
+    text
+      .replacingOccurrences(of: "&", with: "&amp;")
+      .replacingOccurrences(of: "<", with: "&lt;")
+      .replacingOccurrences(of: ">", with: "&gt;")
+  }
+
+  private static func prefix(_ text: String, count: Int) -> String {
+    String(text.prefix(max(0, count)))
+  }
+
+  private static func suffix(_ text: String, droppingFirst count: Int) -> String {
+    String(text.dropFirst(max(0, count)))
+  }
+
+  private static func trackedTextRange(
+    in content: String,
+    token: String,
+    location: Int?
+  ) -> Range<String.Index>? {
+    if let location,
+       let startIndex = index(in: content, atCharacterOffset: location) {
+      if token.isEmpty {
+        return startIndex..<startIndex
+      }
+
+      if let endIndex = content.index(startIndex, offsetBy: token.count, limitedBy: content.endIndex) {
+        let range = startIndex..<endIndex
+        if String(content[range]) == token {
+          return range
+        }
+      }
+    }
+
+    guard !token.isEmpty,
+          literalOccurrenceCount(of: token, in: content) == 1 else {
+      return nil
+    }
+    return content.range(of: token)
+  }
+
+  private static func index(in content: String, atCharacterOffset offset: Int) -> String.Index? {
+    guard offset >= 0, offset <= content.count else {
+      return nil
+    }
+    return content.index(content.startIndex, offsetBy: offset, limitedBy: content.endIndex)
+  }
+
+  private static func characterOffset(of range: Range<String.Index>, in content: String) -> Int {
+    content.distance(from: content.startIndex, to: range.lowerBound)
   }
 
   static func literalOccurrenceCount(of needle: String, in haystack: String) -> Int {
@@ -701,15 +1774,6 @@ public final class WebPreviewInspectorViewModel {
       start = range.upperBound
     }
     return count
-  }
-
-  private static func firstMatchingSelector(candidates: [String], in content: String) -> String? {
-    for candidate in candidates where !candidate.isEmpty {
-      if content.range(of: candidate) != nil {
-        return candidate
-      }
-    }
-    return nil
   }
 
   private func preferredUnit(for property: WebPreviewStyleProperty) -> String? {
@@ -856,74 +1920,5 @@ public final class WebPreviewInspectorViewModel {
     }
 
     return Color.hexString(from: resolvedColor)
-  }
-
-  static func currentCSSDeclaration(
-    in content: String,
-    selectorCandidates: [String],
-    property: String
-  ) -> String? {
-    guard let body = cssBody(for: selectorCandidates, in: content) else { return nil }
-    let lines = body.components(separatedBy: .newlines)
-    for line in lines {
-      let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-      guard trimmed.hasPrefix("\(property):") || trimmed.hasPrefix("\(property) :") else { continue }
-      return trimmed
-        .components(separatedBy: ":")
-        .dropFirst()
-        .joined(separator: ":")
-        .trimmingCharacters(in: CharacterSet(charactersIn: " ;"))
-    }
-    return nil
-  }
-
-  static func updateCSSDeclaration(
-    in content: String,
-    selectorCandidates: [String],
-    property: String,
-    value: String
-  ) -> String? {
-    guard let bodyRange = Self.cssBodyRange(for: selectorCandidates, in: content) else { return nil }
-
-    let body = String(content[bodyRange])
-    let lines = body.components(separatedBy: .newlines)
-    var updatedLines: [String] = []
-    var replaced = false
-
-    for line in lines {
-      let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-      if trimmed.hasPrefix("\(property):") || trimmed.hasPrefix("\(property) :") {
-        replaced = true
-        if !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-          let indentation = line.prefix(while: { $0 == " " || $0 == "\t" })
-          updatedLines.append("\(indentation)\(property): \(value);")
-        }
-      } else {
-        updatedLines.append(line)
-      }
-    }
-
-    if !replaced, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      let insertLine = "  \(property): \(value);"
-      if updatedLines.isEmpty {
-        updatedLines = [insertLine]
-      } else {
-        updatedLines.append(insertLine)
-      }
-    }
-
-    let updatedBody = updatedLines.joined(separator: "\n")
-    var newContent = content
-    newContent.replaceSubrange(bodyRange, with: updatedBody)
-    return newContent
-  }
-
-  private static func cssBody(for selectorCandidates: [String], in content: String) -> String? {
-    guard let range = cssBodyRange(for: selectorCandidates, in: content) else { return nil }
-    return String(content[range])
-  }
-
-  private static func cssBodyRange(for selectorCandidates: [String], in content: String) -> Range<String.Index>? {
-    WebPreviewSourceResolver.cssBodyRange(for: selectorCandidates, in: content)
   }
 }
