@@ -11,6 +11,13 @@ protocol DesignSystemResourcePacking: Sendable {
     for designSystem: EaselDesignSystemChoice,
     intoProjectAt projectURL: URL
   ) throws
+
+  /// Whether the project-local pack at `packURL` is stale relative to its source
+  /// design system (source changed since the pack was embedded, or no pack yet).
+  func needsRefresh(
+    for designSystem: EaselDesignSystemChoice,
+    packAt packURL: URL
+  ) throws -> Bool
 }
 
 struct DesignSystemResourcePackManifest: Codable, Equatable, Sendable {
@@ -24,9 +31,17 @@ struct DesignSystemResourcePackManifest: Codable, Equatable, Sendable {
   let assetCount: Int
   let codeExampleCount: Int
   let sourceCatalogGeneratedAt: Date?
+  /// Layout version of the embedded pack. Bumped when the packer changes what it
+  /// copies so existing projects re-embed once on open. Optional for packs
+  /// written before the field existed (treated as the oldest version).
+  var packVersion: Int?
 }
 
 struct LocalDesignSystemResourcePackBuilder: DesignSystemResourcePacking {
+  /// Current pack layout version. Bump when the packer changes what it copies so
+  /// existing projects re-embed their design system's resources on next open.
+  /// v2 added the loose/generated image sweep and the enriched assets index.
+  static let currentPackVersion = 2
   private static let packDirectoryPath = "resources/design-system"
   private static let entryPointPaths = [
     "resources/design-system/README.md",
@@ -39,6 +54,13 @@ struct LocalDesignSystemResourcePackBuilder: DesignSystemResourcePacking {
   ]
   private static let skippedDirectoryNames: Set<String> = [
     ".git", ".svn", "node_modules", ".build", "build", "dist", "DerivedData", ".cache",
+  ]
+  /// Directories to skip when sweeping a design system for loose image assets:
+  /// the already-embedded pack, the source `.fig` files, and code examples.
+  private static let imageSweepSkippedDirectoryNames: Set<String> = skippedDirectoryNames
+    .union(["design-system", "figma", "code"])
+  private static let imageFileExtensions: Set<String> = [
+    "png", "jpg", "jpeg", "gif", "svg", "webp", "avif", "heic", "heif", "bmp", "tif", "tiff", "ico",
   ]
 
   private let fileManager: FileManager
@@ -84,6 +106,10 @@ struct LocalDesignSystemResourcePackBuilder: DesignSystemResourcePacking {
       from: sourceURL,
       using: &pathMapper
     )
+    // Sweep for images the catalog does not enumerate — un-referenced Figma
+    // extractions and anything the agent generated into the design system's
+    // `resources/` while building it — so every asset reaches the prototype.
+    try copyLooseDesignSystemImages(from: sourceURL, using: &pathMapper)
     let assetReferences = (pathMapper.assetReferences + importedAssetReferences)
       .deduplicatedByPath()
       .sortedByPath()
@@ -105,7 +131,8 @@ struct LocalDesignSystemResourcePackBuilder: DesignSystemResourcePacking {
       exampleCount: rebasedCatalog.examples?.count ?? 0,
       assetCount: assetReferences.count,
       codeExampleCount: codeExamplePaths.count,
-      sourceCatalogGeneratedAt: sourceCatalog?.generatedAt
+      sourceCatalogGeneratedAt: sourceCatalog?.generatedAt,
+      packVersion: Self.currentPackVersion
     )
     try write(manifest, to: packURL.appendingPathComponent("manifest.json"))
   }
@@ -193,6 +220,98 @@ struct LocalDesignSystemResourcePackBuilder: DesignSystemResourcePacking {
         projectRelativePath: projectRelativePath
       )
     }
+  }
+
+  /// Copies every image found under the design system's `.easel/assets/` and
+  /// `resources/` trees that has not already been copied (catalog assets and
+  /// `resources/assets/` are handled earlier and de-duplicated by the mapper).
+  /// This is what lets prompt- or markdown-authored design systems — and images
+  /// the agent generated in place — contribute assets to attached prototypes.
+  private func copyLooseDesignSystemImages(
+    from sourceURL: URL,
+    using pathMapper: inout DesignSystemResourcePathMapper
+  ) throws {
+    let sweepRoots = [
+      sourceURL.appendingPathComponent(".easel", isDirectory: true)
+        .appendingPathComponent("assets", isDirectory: true),
+      sourceURL.appendingPathComponent("resources", isDirectory: true),
+    ]
+
+    for root in sweepRoots {
+      guard fileManager.fileExists(atPath: root.path) else { continue }
+      for fileURL in files(in: root, skippingDirectoryNames: Self.imageSweepSkippedDirectoryNames) {
+        guard Self.imageFileExtensions.contains(fileURL.pathExtension.lowercased()) else { continue }
+        let sourceRelativePath = relativePath(for: fileURL, relativeTo: sourceURL)
+        // Never re-ingest a previously embedded pack that lives under the source.
+        guard !sourceRelativePath.hasPrefix("resources/design-system/") else { continue }
+        _ = try pathMapper.copiedAssetProjectPath(for: sourceRelativePath)
+      }
+    }
+  }
+
+  func needsRefresh(
+    for designSystem: EaselDesignSystemChoice,
+    packAt packURL: URL
+  ) throws -> Bool {
+    guard designSystem.kind == .custom else { return false }
+    // If the source folder is gone or unreadable, keep the existing pack as-is.
+    guard let sourceURL = try? validatedDesignSystemURL(for: designSystem) else { return false }
+
+    let manifestURL = packURL.appendingPathComponent("manifest.json")
+    guard fileManager.fileExists(atPath: manifestURL.path),
+          let data = try? Data(contentsOf: manifestURL),
+          let manifest = try? decoder.decode(DesignSystemResourcePackManifest.self, from: data) else {
+      // A custom design system with no readable pack still needs one.
+      return true
+    }
+
+    // Packs written by an older packer re-embed once to pick up newer copy rules.
+    if (manifest.packVersion ?? 1) < Self.currentPackVersion {
+      return true
+    }
+
+    guard let sourceModifiedAt = latestSourceModification(at: sourceURL) else { return false }
+    // The manifest timestamp is persisted at whole-second precision, so require
+    // the source to be at least a second newer to avoid a spurious rebuild from
+    // sub-second rounding right after the pack was written.
+    return sourceModifiedAt.timeIntervalSince(manifest.embeddedAt) >= 1
+  }
+
+  /// Newest modification date among the source spec (`DESIGN.md`, `catalog.json`)
+  /// and every image asset. Used as a cheap staleness signal on project open.
+  private func latestSourceModification(at sourceURL: URL) -> Date? {
+    var newest: Date?
+    func consider(_ url: URL) {
+      guard let date = try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate else {
+        return
+      }
+      if let current = newest {
+        newest = max(current, date)
+      } else {
+        newest = date
+      }
+    }
+
+    consider(sourceURL.appendingPathComponent("DESIGN.md"))
+    consider(
+      sourceURL.appendingPathComponent(".easel", isDirectory: true)
+        .appendingPathComponent("catalog.json")
+    )
+
+    let sweepRoots = [
+      sourceURL.appendingPathComponent(".easel", isDirectory: true)
+        .appendingPathComponent("assets", isDirectory: true),
+      sourceURL.appendingPathComponent("resources", isDirectory: true),
+    ]
+    for root in sweepRoots {
+      guard fileManager.fileExists(atPath: root.path) else { continue }
+      for fileURL in files(in: root, skippingDirectoryNames: Self.imageSweepSkippedDirectoryNames) {
+        guard Self.imageFileExtensions.contains(fileURL.pathExtension.lowercased()) else { continue }
+        consider(fileURL)
+      }
+    }
+
+    return newest
   }
 
   private func copyCodeExamples(from sourceURL: URL, to packURL: URL) throws -> [String] {
@@ -327,7 +446,10 @@ struct LocalDesignSystemResourcePackBuilder: DesignSystemResourcePacking {
     var lines = [
       "# Design System Assets",
       "",
-      "Copy assets into project UI from these local project-relative paths. Do not reference the original design-system folder.",
+      "These images ship with the attached design system and already live inside this project.",
+      "Reuse them directly before generating or inventing any new imagery, icons, or logos —",
+      "reference each one by its project-relative path (for example `<img src=\"\(assets.first?.projectRelativePath ?? "resources/design-system/assets/…")\">`).",
+      "Do not reference the original design-system folder.",
       "",
     ]
 
@@ -337,6 +459,9 @@ struct LocalDesignSystemResourcePackBuilder: DesignSystemResourcePacking {
       return lines.joined(separator: "\n")
     }
 
+    let pluralSuffix = assets.count == 1 ? "" : "s"
+    lines.append("Available assets (\(assets.count) file\(pluralSuffix)):")
+    lines.append("")
     for asset in assets {
       lines.append("- \(asset.name) (\(asset.kind)): `\(asset.projectRelativePath)`")
     }
@@ -608,6 +733,10 @@ private struct DesignSystemResourcePathMapper {
     if sourceRelativePath.hasPrefix("resources/assets/") {
       return "assets/imported/\(sourceRelativePath.dropFirst("resources/assets/".count))"
     }
+    if sourceRelativePath.hasPrefix("resources/") {
+      // Images the agent generated into the design system's resources/ folder.
+      return "assets/generated/\(sourceRelativePath.dropFirst("resources/".count))"
+    }
     return "assets/references/\(sanitizedPath(sourceRelativePath))"
   }
 
@@ -669,6 +798,9 @@ private struct DesignSystemResourcePathMapper {
     }
     if sourceRelativePath.hasPrefix("resources/assets/") {
       return "asset"
+    }
+    if sourceRelativePath.hasPrefix("resources/") {
+      return "generated"
     }
     return "reference"
   }

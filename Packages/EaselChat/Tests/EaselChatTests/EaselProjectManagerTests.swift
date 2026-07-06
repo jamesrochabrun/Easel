@@ -718,6 +718,212 @@ struct EaselProjectManagerTests {
     }
   }
 
+  @Test
+  func createProjectCopiesLooseAndGeneratedDesignSystemImagesIntoProject() async throws {
+    let rootDirectory = temporaryRoot()
+    let designSystemDirectory = temporaryRoot()
+    defer {
+      try? FileManager.default.removeItem(at: rootDirectory)
+      try? FileManager.default.removeItem(at: designSystemDirectory)
+    }
+
+    // A prompt/markdown-authored design system: no catalog, but images the agent
+    // generated into resources/ while building it, plus an imported asset.
+    let resourcesDirectory = designSystemDirectory.appendingPathComponent("resources", isDirectory: true)
+    let generatedImagesDirectory = resourcesDirectory.appendingPathComponent("images", isDirectory: true)
+    let importedAssetsDirectory = resourcesDirectory.appendingPathComponent("assets", isDirectory: true)
+    try FileManager.default.createDirectory(at: generatedImagesDirectory, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: importedAssetsDirectory, withIntermediateDirectories: true)
+    try Data("hero image".utf8).write(to: resourcesDirectory.appendingPathComponent("hero.png"))
+    try Data("texture image".utf8).write(to: generatedImagesDirectory.appendingPathComponent("texture.webp"))
+    try Data("brand logo".utf8).write(to: importedAssetsDirectory.appendingPathComponent("logo.svg"))
+    try Data("# Design system: Aurora".utf8).write(to: designSystemDirectory.appendingPathComponent("DESIGN.md"))
+
+    let profile = EaselDesignSystemProfile(
+      id: UUID(),
+      name: "Aurora",
+      blurb: "Prompt-authored kit",
+      notes: "",
+      sourceLinks: [],
+      workingDirectory: designSystemDirectory.path,
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+
+    let manager = LocalEaselProjectManager(rootDirectory: rootDirectory)
+    let project = try await manager.createProject(from: EaselProjectCreateRequest(
+      name: "Aurora Landing",
+      kind: .prototype,
+      designSystem: .custom(profile),
+      fidelity: .highFidelity
+    ))
+
+    let projectURL = URL(fileURLWithPath: project.workingDirectory)
+    let packURL = projectURL.appendingPathComponent("resources/design-system", isDirectory: true)
+
+    // Generated images land under assets/generated, imported ones under assets/imported.
+    #expect(FileManager.default.fileExists(atPath: projectURL.appendingPathComponent("resources/design-system/assets/generated/hero.png").path))
+    #expect(FileManager.default.fileExists(atPath: projectURL.appendingPathComponent("resources/design-system/assets/generated/images/texture.webp").path))
+    #expect(FileManager.default.fileExists(atPath: projectURL.appendingPathComponent("resources/design-system/assets/imported/logo.svg").path))
+
+    let assets = try String(contentsOf: packURL.appendingPathComponent("assets.md"), encoding: .utf8)
+    #expect(assets.contains("resources/design-system/assets/generated/hero.png"))
+    #expect(assets.contains("resources/design-system/assets/generated/images/texture.webp"))
+    #expect(assets.contains("resources/design-system/assets/imported/logo.svg"))
+    #expect(assets.contains("Available assets (3 files)"))
+
+    let manifestData = try Data(contentsOf: packURL.appendingPathComponent("manifest.json"))
+    let manifestDecoder = JSONDecoder()
+    manifestDecoder.dateDecodingStrategy = .iso8601
+    let manifest = try manifestDecoder.decode(DesignSystemResourcePackManifest.self, from: manifestData)
+    #expect(manifest.assetCount == 3)
+  }
+
+  @Test
+  func refreshDesignSystemResourcesReembedsNewAssetsOnlyWhenSourceChanged() async throws {
+    let rootDirectory = temporaryRoot()
+    let designSystemDirectory = temporaryRoot()
+    defer {
+      try? FileManager.default.removeItem(at: rootDirectory)
+      try? FileManager.default.removeItem(at: designSystemDirectory)
+    }
+
+    let resourcesDirectory = designSystemDirectory.appendingPathComponent("resources", isDirectory: true)
+    try FileManager.default.createDirectory(at: resourcesDirectory, withIntermediateDirectories: true)
+    try Data("hero image".utf8).write(to: resourcesDirectory.appendingPathComponent("hero.png"))
+    try Data("# Design system: Aurora".utf8).write(to: designSystemDirectory.appendingPathComponent("DESIGN.md"))
+
+    let profile = EaselDesignSystemProfile(
+      id: UUID(),
+      name: "Aurora",
+      blurb: "Prompt-authored kit",
+      notes: "",
+      sourceLinks: [],
+      workingDirectory: designSystemDirectory.path,
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+
+    let manager = LocalEaselProjectManager(rootDirectory: rootDirectory)
+    let project = try await manager.createProject(from: EaselProjectCreateRequest(
+      name: "Aurora Landing",
+      kind: .prototype,
+      designSystem: .custom(profile),
+      fidelity: .highFidelity
+    ))
+
+    let projectURL = URL(fileURLWithPath: project.workingDirectory)
+    let packURL = projectURL.appendingPathComponent("resources/design-system", isDirectory: true)
+    let manifestURL = packURL.appendingPathComponent("manifest.json")
+    let newAssetInProject = packURL.appendingPathComponent("assets/generated/spotlight.png")
+
+    // Nothing changed in the source: refresh is a no-op.
+    let firstRefresh = try await manager.refreshDesignSystemResources(for: project)
+    #expect(firstRefresh == false)
+    #expect(FileManager.default.fileExists(atPath: newAssetInProject.path) == false)
+
+    // Add a new generated image, then backdate the embedded pack so the source
+    // counts as newer (this mirrors a design system that changed between opens
+    // without relying on wall-clock timing in the test).
+    try Data("spotlight image".utf8).write(to: resourcesDirectory.appendingPathComponent("spotlight.png"))
+    try backdateResourcePackManifest(at: manifestURL)
+
+    let secondRefresh = try await manager.refreshDesignSystemResources(for: project)
+    #expect(secondRefresh == true)
+    #expect(FileManager.default.fileExists(atPath: newAssetInProject.path))
+    #expect(FileManager.default.fileExists(atPath: packURL.appendingPathComponent("assets/generated/hero.png").path))
+
+    // The rewritten pack is now current, so refreshing again finds nothing new.
+    let thirdRefresh = try await manager.refreshDesignSystemResources(for: project)
+    #expect(thirdRefresh == false)
+  }
+
+  @Test
+  func refreshDesignSystemResourcesBackfillsAssetsForOlderPackVersion() async throws {
+    let rootDirectory = temporaryRoot()
+    let designSystemDirectory = temporaryRoot()
+    defer {
+      try? FileManager.default.removeItem(at: rootDirectory)
+      try? FileManager.default.removeItem(at: designSystemDirectory)
+    }
+
+    let resourcesDirectory = designSystemDirectory.appendingPathComponent("resources", isDirectory: true)
+    try FileManager.default.createDirectory(at: resourcesDirectory, withIntermediateDirectories: true)
+    try Data("hero image".utf8).write(to: resourcesDirectory.appendingPathComponent("hero.png"))
+    try Data("# Design system: Aurora".utf8).write(to: designSystemDirectory.appendingPathComponent("DESIGN.md"))
+
+    let profile = EaselDesignSystemProfile(
+      id: UUID(),
+      name: "Aurora",
+      blurb: "Prompt-authored kit",
+      notes: "",
+      sourceLinks: [],
+      workingDirectory: designSystemDirectory.path,
+      createdAt: Date(),
+      updatedAt: Date()
+    )
+
+    let manager = LocalEaselProjectManager(rootDirectory: rootDirectory)
+    let project = try await manager.createProject(from: EaselProjectCreateRequest(
+      name: "Aurora Landing",
+      kind: .prototype,
+      designSystem: .custom(profile),
+      fidelity: .highFidelity
+    ))
+
+    let projectURL = URL(fileURLWithPath: project.workingDirectory)
+    let packURL = projectURL.appendingPathComponent("resources/design-system", isDirectory: true)
+    let heroInProject = packURL.appendingPathComponent("assets/generated/hero.png")
+
+    // Simulate a pack written before the loose-image sweep existed: strip the
+    // copied assets and remove the version stamp, mirroring a legacy pack.
+    try FileManager.default.removeItem(at: packURL.appendingPathComponent("assets"))
+    try stripResourcePackVersion(at: packURL.appendingPathComponent("manifest.json"))
+    #expect(FileManager.default.fileExists(atPath: heroInProject.path) == false)
+
+    // Opening the project re-embeds the pack even though the source is unchanged.
+    let didRefresh = try await manager.refreshDesignSystemResources(for: project)
+    #expect(didRefresh == true)
+    #expect(FileManager.default.fileExists(atPath: heroInProject.path))
+  }
+
+  /// Removes the `packVersion` field so the manifest looks like a legacy pack.
+  private func stripResourcePackVersion(at manifestURL: URL) throws {
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    var manifest = try decoder.decode(DesignSystemResourcePackManifest.self, from: Data(contentsOf: manifestURL))
+    manifest.packVersion = nil
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+    encoder.dateEncodingStrategy = .iso8601
+    try encoder.encode(manifest).write(to: manifestURL)
+  }
+
+  /// Rewrites a pack manifest's `embeddedAt` to the distant past so the source
+  /// design system is treated as newer on the next refresh.
+  private func backdateResourcePackManifest(at manifestURL: URL) throws {
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    let original = try decoder.decode(DesignSystemResourcePackManifest.self, from: Data(contentsOf: manifestURL))
+    let backdated = DesignSystemResourcePackManifest(
+      designSystemID: original.designSystemID,
+      designSystemName: original.designSystemName,
+      embeddedAt: Date(timeIntervalSince1970: 0),
+      sourceWorkingDirectory: original.sourceWorkingDirectory,
+      entryPoints: original.entryPoints,
+      componentCount: original.componentCount,
+      exampleCount: original.exampleCount,
+      assetCount: original.assetCount,
+      codeExampleCount: original.codeExampleCount,
+      sourceCatalogGeneratedAt: original.sourceCatalogGeneratedAt,
+      packVersion: original.packVersion
+    )
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+    encoder.dateEncodingStrategy = .iso8601
+    try encoder.encode(backdated).write(to: manifestURL)
+  }
+
   private func temporaryRoot() -> URL {
     FileManager.default.temporaryDirectory
       .appendingPathComponent("EaselProjectManagerTests-\(UUID().uuidString)", isDirectory: true)

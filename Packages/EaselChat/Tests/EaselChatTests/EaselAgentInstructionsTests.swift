@@ -71,6 +71,33 @@ struct EaselAgentInstructionsTests {
     #expect(context.contains("components.md"))
     #expect(context.contains("assets.md"))
     #expect(context.contains("instead of loading the whole catalog into context"))
+    // Without a known asset count, the awareness line is omitted.
+    #expect(context.contains("reusable image asset") == false)
+  }
+
+  @Test
+  func hiddenContextSurfacesDesignSystemAssetCountWhenPresent() {
+    let designSystem = EaselDesignSystemChoice(
+      kind: .custom,
+      referenceID: "ds-1",
+      displayName: "PlusPlus",
+      detail: "",
+      workingDirectory: "/tmp/design-systems/plusplus",
+      notes: nil,
+      sourceLinks: []
+    )
+
+    let context = EaselAgentInstructions.hiddenContext(
+      projectPath: "/tmp/deck",
+      projectKind: .prototype,
+      designSystem: designSystem,
+      designSystemAssetCount: 14,
+      previewURL: nil
+    )
+
+    #expect(context.contains("ships 14 reusable image assets"))
+    #expect(context.contains("resources/design-system/assets/"))
+    #expect(context.contains("resources/design-system/assets.md"))
   }
 
   @Test
