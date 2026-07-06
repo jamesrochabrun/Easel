@@ -567,9 +567,25 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
       projectKind: project?.kind,
       projectFidelity: prototypeFidelity(for: project),
       designSystem: project?.designSystem,
+      designSystemAssetCount: designSystemAssetCount(at: workingDirectory),
       resourcePaths: resourceManifest.map(\.relativePath),
       previewURL: previewURL
     )
+  }
+
+  private func designSystemAssetCount(at workingDirectory: String?) -> Int {
+    guard let workingDirectory, !workingDirectory.isEmpty else { return 0 }
+
+    let manifestURL = URL(fileURLWithPath: workingDirectory, isDirectory: true)
+      .appendingPathComponent(ProjectResource.resourcesDirectoryName, isDirectory: true)
+      .appendingPathComponent("design-system", isDirectory: true)
+      .appendingPathComponent("manifest.json")
+
+    guard let data = try? Data(contentsOf: manifestURL) else { return 0 }
+
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    return (try? decoder.decode(DesignSystemResourcePackManifest.self, from: data))?.assetCount ?? 0
   }
 
   func makeResourceManifestDeltaContextForCurrentState() -> String? {
@@ -823,6 +839,14 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
       await MainActor.run { [weak self] in
         guard self?.currentWorkingDirectory == workingDirectory else { return }
         self?.currentProject = project
+      }
+
+      // Re-embed the attached design system's assets if it changed since the pack
+      // was last written. Cheap no-op when nothing changed; only rewrites the
+      // design-system-owned pack folder. Any rewritten pack files are reported to
+      // the agent through the normal resource-manifest delta on the next message.
+      if let project, project.designSystem.kind == .custom {
+        _ = try? await projectManager.refreshDesignSystemResources(for: project)
       }
     }
   }

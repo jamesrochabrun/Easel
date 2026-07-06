@@ -236,6 +236,7 @@ enum EaselAgentInstructions {
     projectKind: EaselProjectKind? = nil,
     projectFidelity: EaselProjectFidelity? = nil,
     designSystem: EaselDesignSystemChoice? = nil,
+    designSystemAssetCount: Int = 0,
     resourcePaths: [String] = [],
     previewURL: URL?
   ) -> String {
@@ -273,6 +274,11 @@ enum EaselAgentInstructions {
 
     if let designSystem, designSystem.kind == .custom {
       lines.append("Active design system: \(designSystem.displayName). Its project-local pack is at resources/design-system/. Read resources/design-system/DESIGN.md before writing UI, then search components.md, examples.md, assets.md, and catalog.json in that folder when you need reusable components, example screens, or assets. Use those local project resources instead of loading the whole catalog into context or referencing the original design-system folder.")
+
+      if designSystemAssetCount > 0 {
+        let pluralSuffix = designSystemAssetCount == 1 ? "" : "s"
+        lines.append("This design system ships \(designSystemAssetCount) reusable image asset\(pluralSuffix) already copied into resources/design-system/assets/. Before generating, downloading, or inventing any imagery, icons, or logos, open resources/design-system/assets.md and reuse these first, referencing them by their project-relative paths.")
+      }
     }
 
     if !resourcePaths.isEmpty {
@@ -294,6 +300,7 @@ enum EaselAgentInstructions {
     projectKind: EaselProjectKind? = nil,
     projectFidelity: EaselProjectFidelity? = nil,
     designSystem: EaselDesignSystemChoice? = nil,
+    designSystemAssetCount: Int = 0,
     resourcePaths: [String] = [],
     previewURL: URL?
   ) -> String {
@@ -302,6 +309,7 @@ enum EaselAgentInstructions {
       projectKind: projectKind,
       projectFidelity: projectFidelity,
       designSystem: designSystem,
+      designSystemAssetCount: designSystemAssetCount,
       resourcePaths: resourcePaths,
       previewURL: previewURL
     )]

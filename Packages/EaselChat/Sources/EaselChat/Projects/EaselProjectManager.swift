@@ -11,6 +11,20 @@ public protocol EaselProjectManaging: Sendable {
   func loadProjects() async throws -> [EaselDesignProject]
   func createProject(from request: EaselProjectCreateRequest) async throws -> EaselDesignProject
   func deleteProject(_ project: EaselDesignProject) async throws
+
+  /// Re-embeds the attached custom design system's resource pack (spec, catalog,
+  /// and assets) when the source design system has changed since it was last
+  /// packed. Returns `true` when the pack was rewritten. Safe to call on open:
+  /// it only touches the design-system-owned `resources/design-system/` folder.
+  @discardableResult
+  func refreshDesignSystemResources(for project: EaselDesignProject) async throws -> Bool
+}
+
+public extension EaselProjectManaging {
+  @discardableResult
+  func refreshDesignSystemResources(for project: EaselDesignProject) async throws -> Bool {
+    false
+  }
 }
 
 enum EaselProjectManagerError: LocalizedError, Equatable {
@@ -127,6 +141,35 @@ public actor LocalEaselProjectManager: EaselProjectManaging {
     }
 
     try fileManager.removeItem(at: directoryURL)
+  }
+
+  @discardableResult
+  public func refreshDesignSystemResources(for project: EaselDesignProject) async throws -> Bool {
+    guard project.designSystem.kind == .custom else { return false }
+
+    let directoryURL = URL(fileURLWithPath: project.workingDirectory, isDirectory: true)
+    var isDirectory: ObjCBool = false
+    guard fileManager.fileExists(atPath: directoryURL.path, isDirectory: &isDirectory),
+          isDirectory.boolValue else {
+      return false
+    }
+
+    let packURL = directoryURL
+      .appendingPathComponent(ProjectResource.resourcesDirectoryName, isDirectory: true)
+      .appendingPathComponent("design-system", isDirectory: true)
+
+    guard try designSystemResourcePacker.needsRefresh(for: project.designSystem, packAt: packURL) else {
+      return false
+    }
+
+    // The pack folder is entirely design-system-owned (the agent writes its own
+    // assets elsewhere under resources/), so clearing and rebuilding it keeps the
+    // rebuild deterministic without disturbing user or agent files.
+    if fileManager.fileExists(atPath: packURL.path) {
+      try fileManager.removeItem(at: packURL)
+    }
+    try designSystemResourcePacker.writeResourcePack(for: project.designSystem, intoProjectAt: directoryURL)
+    return true
   }
 
   private static func defaultRootDirectory(fileManager: FileManager) -> URL {
