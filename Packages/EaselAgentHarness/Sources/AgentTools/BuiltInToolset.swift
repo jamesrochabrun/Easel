@@ -3,12 +3,20 @@ import Foundation
 
 /// Factory for the built-in workspace tool set.
 ///
-/// Workstream B implements the tools (Bash, Read, Write, Edit, Glob, Grep, LS)
-/// and returns them here, sharing one `FileReadRegistry` across the returned
-/// set so Write/Edit can enforce read-before-modify.
+/// Returns the seven built-in tools (Bash, Read, Write, Edit, Glob, Grep, LS)
+/// sharing a single `FileReadRegistry` so Write/Edit can enforce
+/// read-before-modify and stale-read detection against the same read history.
 public enum BuiltInToolset {
   public static func makeTools() -> [any AgentTool] {
-    // Implementation lands in workstream B.
-    []
+    let registry = FileReadRegistry()
+    return [
+      BashTool(),
+      ReadTool(registry: registry),
+      WriteTool(registry: registry),
+      EditTool(registry: registry),
+      GlobTool(),
+      GrepTool(),
+      LSTool(),
+    ]
   }
 }
