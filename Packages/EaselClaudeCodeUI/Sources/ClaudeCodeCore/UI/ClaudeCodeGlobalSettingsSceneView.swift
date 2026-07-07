@@ -10,6 +10,7 @@ public struct ClaudeCodeGlobalSettingsSceneView: View {
   private let chatViewModel: ChatViewModel?
   private let providedGlobalPreferences: GlobalPreferencesStorage?
   private let providedMCPToolsDiscovery: MCPToolsDiscoveryService?
+  private let apiExtraContent: (() -> AnyView)?
 
   @State private var ownedGlobalPreferences = GlobalPreferencesStorage()
   @State private var ownedMCPToolsDiscovery = MCPToolsDiscoveryService()
@@ -18,19 +19,22 @@ public struct ClaudeCodeGlobalSettingsSceneView: View {
     uiConfiguration: UIConfiguration = .default,
     chatViewModel: ChatViewModel? = nil,
     globalPreferences: GlobalPreferencesStorage? = nil,
-    mcpToolsDiscovery: MCPToolsDiscoveryService? = nil
+    mcpToolsDiscovery: MCPToolsDiscoveryService? = nil,
+    apiExtraContent: (() -> AnyView)? = nil
   ) {
     self.uiConfiguration = uiConfiguration
     self.chatViewModel = chatViewModel
     self.providedGlobalPreferences = globalPreferences
     self.providedMCPToolsDiscovery = mcpToolsDiscovery
+    self.apiExtraContent = apiExtraContent
   }
 
   public var body: some View {
     GlobalSettingsView(
       uiConfiguration: uiConfiguration,
       chatViewModel: chatViewModel,
-      mcpToolsDiscovery: activeMCPToolsDiscovery
+      mcpToolsDiscovery: activeMCPToolsDiscovery,
+      apiExtraContent: apiExtraContent
     )
     .environment(activeGlobalPreferences)
   }

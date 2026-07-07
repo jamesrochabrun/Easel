@@ -17,6 +17,10 @@ struct GlobalSettingsView: View {
   let claudeModelCatalog: any ClaudeModelCatalogProviding
   let credentialStore: any CredentialStore
   let apiModelCatalog: any APIModelCatalogProviding
+  /// Optional extra content rendered inside the Form for the `.api` provider
+  /// (e.g. the embedding app's on-device MLX model manager). Injected as a
+  /// closure so ClaudeCodeCore need not link the MLX package.
+  let apiExtraContent: (() -> AnyView)?
 
   init(
     uiConfiguration: UIConfiguration = .default,
@@ -25,7 +29,8 @@ struct GlobalSettingsView: View {
     codexModelCatalog: any CodexModelCatalogProviding = CodexModelCacheCatalog(),
     claudeModelCatalog: any ClaudeModelCatalogProviding = ClaudeModelCatalog(),
     credentialStore: any CredentialStore = KeychainCredentialStore(),
-    apiModelCatalog: any APIModelCatalogProviding = APIModelCatalog()
+    apiModelCatalog: any APIModelCatalogProviding = APIModelCatalog(),
+    apiExtraContent: (() -> AnyView)? = nil
   ) {
     self.uiConfiguration = uiConfiguration
     self.chatViewModel = chatViewModel
@@ -34,6 +39,7 @@ struct GlobalSettingsView: View {
     self.claudeModelCatalog = claudeModelCatalog
     self.credentialStore = credentialStore
     self.apiModelCatalog = apiModelCatalog
+    self.apiExtraContent = apiExtraContent
   }
   
   // MARK: - Constants
@@ -91,6 +97,12 @@ struct GlobalSettingsView: View {
     return VStack(spacing: 0) {
       Form {
         providerConfigurationSection
+
+        if globalPreferences.chatProvider == .api, let apiExtraContent {
+          Section("On-Device Models (MLX)") {
+            apiExtraContent()
+          }
+        }
       }
       .formStyle(.grouped)
 
