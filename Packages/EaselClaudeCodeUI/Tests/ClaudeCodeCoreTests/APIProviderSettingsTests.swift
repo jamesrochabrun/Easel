@@ -111,14 +111,19 @@ final class APIProviderSettingsTests: XCTestCase {
     XCTAssertEqual(client.calls, 1, "second lookup must hit the cache")
   }
 
-  func testCatalogReturnsEmptyForMLXWithoutTouchingClients() async throws {
-    let client = CountingClient(models: [AgentModelInfo(id: "x")])
-    let catalog = APIModelCatalog { _, _ in client }
+  func testCatalogListsMLXFromClientAndBypassesCache() async throws {
+    // On-device models change as the user downloads/deletes them, so MLX must
+    // always query the client (installed-model list), never serve a cached set.
+    let client = CountingClient(models: [AgentModelInfo(id: "mlx-community/Qwen2.5-Coder-7B-Instruct-4bit")])
+    let catalog = APIModelCatalog(cacheLifetime: 60) { _, _ in client }
     let mlx = EndpointProfile.builtInPresets().first { $0.kind == .mlxLocal }!
 
-    let models = try await catalog.availableModels(profile: mlx, apiKey: nil)
-    XCTAssertTrue(models.isEmpty)
-    XCTAssertEqual(client.calls, 0)
+    let first = try await catalog.availableModels(profile: mlx, apiKey: nil)
+    let second = try await catalog.availableModels(profile: mlx, apiKey: nil)
+
+    XCTAssertEqual(first.map(\.id), ["mlx-community/Qwen2.5-Coder-7B-Instruct-4bit"])
+    XCTAssertEqual(second.map(\.id), first.map(\.id))
+    XCTAssertEqual(client.calls, 2, "MLX must not be cached — each lookup re-queries installed models")
   }
 
   // MARK: - Keychain credential store

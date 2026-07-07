@@ -1,3 +1,4 @@
+import AgentHarness
 import Foundation
 import SwiftUI
 
@@ -148,6 +149,13 @@ final class MLXModelManagerViewModel {
     installed = Dictionary(uniqueKeysWithValues: models.map { ($0.id, $0.sizeBytes) })
   }
 
+  /// Refresh, then tell the rest of the app (e.g. the settings model picker)
+  /// that the installed set changed so it can update immediately.
+  private func refreshAndBroadcast() async {
+    await refresh()
+    NotificationCenter.default.post(name: .agentInstalledModelsDidChange, object: nil)
+  }
+
   func download(_ model: MLXCuratedModel) {
     guard downloadTasks[model.id] == nil else { return }
     failures[model.id] = nil
@@ -159,7 +167,7 @@ final class MLXModelManagerViewModel {
             self?.downloading[model.id] = fraction
           }
         }
-        await refresh()
+        await refreshAndBroadcast()
       } catch is CancellationError {
         // Cancelled by the user; nothing to report.
       } catch {
@@ -178,7 +186,7 @@ final class MLXModelManagerViewModel {
   func delete(_ model: MLXCuratedModel) {
     Task {
       try? await manager.delete(repoId: model.id)
-      await refresh()
+      await refreshAndBroadcast()
     }
   }
 

@@ -90,6 +90,13 @@ struct GlobalSettingsView: View {
         saveAPIProfile(profile, isNew: context.isNew)
       }
     }
+    .onReceive(NotificationCenter.default.publisher(for: .agentInstalledModelsDidChange)) { _ in
+      // A local model finished downloading (or was deleted) — refresh the
+      // picker so it shows up immediately.
+      if globalPreferences.chatProvider == .api {
+        refreshAPIModels()
+      }
+    }
   }
   
   // MARK: - Preferences View
@@ -295,7 +302,7 @@ struct GlobalSettingsView: View {
                 Text(preferences.apiModel).tag(preferences.apiModel)
               }
               ForEach(apiModels) { model in
-                Text(model.id).tag(model.id)
+                Text(model.displayName ?? model.id).tag(model.id)
               }
             }
           }

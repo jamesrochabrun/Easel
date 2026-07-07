@@ -33,8 +33,12 @@ public actor APIModelCatalog: APIModelCatalogProviding {
   }
 
   public func availableModels(profile: EndpointProfile, apiKey: String?) async throws -> [AgentModelInfo] {
-    // The on-device MLX catalog integrates later; there is no server to query.
-    guard profile.kind != .mlxLocal else { return [] }
+    // On-device models change whenever the user downloads or deletes one, and
+    // querying the local manager is cheap — never serve MLX from the cache so
+    // a freshly downloaded model appears immediately.
+    if profile.kind == .mlxLocal {
+      return try await clientFactory(profile, apiKey).listModels()
+    }
 
     let key = Self.cacheKey(for: profile)
     if let entry = cache[key], Date().timeIntervalSince(entry.fetchedAt) < cacheLifetime {
@@ -51,8 +55,15 @@ public actor APIModelCatalog: APIModelCatalogProviding {
     switch profile.kind {
     case .ollamaNative:
       return OllamaNativeModelClient(profile: profile)
-    case .openAICompatible, .mlxLocal:
+    case .openAICompatible:
       return OpenAICompatibleModelClient(profile: profile, apiKey: apiKey)
+    case .mlxLocal:
+      // The MLX-aware factory is injected by the embedding app; without it,
+      // there is nothing to list.
+      return UnavailableModelClient(
+        profile: profile,
+        reason: "On-device MLX models are managed by the app."
+      )
     }
   }
 

@@ -30,6 +30,7 @@ public struct EaselChatSettingsView: View {
       chatViewModel: chatService?.chatViewModel,
       globalPreferences: chatService?.globalPreferences,
       mcpToolsDiscovery: chatService?.mcpToolsDiscoveryService,
+      apiModelCatalog: chatService?.apiModelCatalog,
       apiExtraContent: chatService.map { service in
         { AnyView(MLXModelManagerView(manager: service.onDeviceModelManager)) }
       }
