@@ -61,5 +61,9 @@ let package = Package(
       name: "AgentProviderOllamaTests",
       dependencies: ["AgentProviderOllama"]
     ),
+    .testTarget(
+      name: "AgentProviderOpenAITests",
+      dependencies: ["AgentProviderOpenAI"]
+    ),
   ]
 )
