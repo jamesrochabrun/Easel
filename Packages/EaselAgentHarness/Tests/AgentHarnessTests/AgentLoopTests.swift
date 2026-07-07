@@ -138,6 +138,37 @@ final class AgentLoopTests: XCTestCase {
     XCTAssertTrue(calls[0].id.hasPrefix("call_0_"))
   }
 
+  func testTextualPseudoToolCallFallbackExecutesTool() async {
+    // Models like qwen2.5-coder on older Ollama templates emit tool calls as
+    // fenced JSON text; the loop must still execute them.
+    let (loop, client) = makeLoop(scripts: [
+      .events([
+        .textDelta("I'll use the Echo tool.\n```bash\n"),
+        .textDelta(#"{"name": "Echo", "arguments": {"value": "hi"}}"#),
+        .textDelta("\n```"),
+        .finish(.stop),
+      ]),
+      .events([.textDelta("done"), .finish(.stop)]),
+    ])
+
+    let (events, error) = await runLoopToEnd(loop, transcript: seedTranscript)
+    XCTAssertNil(error)
+    XCTAssertEqual(client.requests.count, 2, "tool result must trigger a second model call")
+
+    let transcript = lastTranscript(in: events)!
+    assertTranscriptIsAPIValid(transcript)
+    guard case .assistant(let text, let calls) = transcript.messages[2] else {
+      return XCTFail("expected assistant tool-call message")
+    }
+    XCTAssertEqual(calls.map(\.name), ["Echo"])
+    XCTAssertEqual(text, "I'll use the Echo tool.", "consumed JSON payload is stripped from the echo")
+    guard case .tool(let callId, "Echo", let content, false) = transcript.messages[3] else {
+      return XCTFail("expected executed tool result")
+    }
+    XCTAssertEqual(callId, calls[0].id)
+    XCTAssertTrue(content.contains("hi"))
+  }
+
   // MARK: - Model-visible failures keep the loop alive
 
   func testInvalidJSONArgumentsBecomeErrorResultAndLoopContinues() async {

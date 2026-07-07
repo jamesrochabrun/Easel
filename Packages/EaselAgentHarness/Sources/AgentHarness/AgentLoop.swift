@@ -178,8 +178,17 @@ public actor AgentLoop {
         emit.yield(.usageUpdated(cumulativeUsage))
       }
 
-      let toolCalls = accumulator.finalize()
-      let assistantText = textBuffer.isEmpty ? nil : textBuffer
+      var toolCalls = accumulator.finalize()
+      var assistantText = textBuffer.isEmpty ? nil : textBuffer
+      // Fallback for models that emit tool calls as text (bare or fenced
+      // JSON) instead of structured tool_calls — common on weaker local
+      // models whose output misses the template parser's markers.
+      if toolCalls.isEmpty,
+         let text = assistantText,
+         let fallback = PseudoToolCallParser.parse(text: text, knownToolNames: Set(toolsByName.keys)) {
+        toolCalls = fallback.calls
+        assistantText = fallback.residualText
+      }
       transcript.messages.append(.assistant(text: assistantText, toolCalls: toolCalls))
       emit.yield(.assistantMessageCompleted(text: assistantText, toolCalls: toolCalls))
 
