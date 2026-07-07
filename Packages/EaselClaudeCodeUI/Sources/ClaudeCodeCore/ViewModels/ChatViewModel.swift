@@ -1487,6 +1487,14 @@ EOF
       codexRuntime.extraArguments = CodexChatRuntime.parseArgumentString(globalPreferences.codexExtraArgs)
       codexRuntime.environmentOverrides = globalPreferences.codexEnvironmentVariables
     }
+
+    if let apiRuntime = runtime as? APIChatRuntime {
+      let profiles = globalPreferences.apiEndpointProfiles
+      apiRuntime.profile = profiles.first { $0.id == globalPreferences.selectedAPIProfileId } ?? profiles.first
+      apiRuntime.modelIdentifier = globalPreferences.apiModel
+      apiRuntime.maxTurns = globalPreferences.apiMaxTurns
+      apiRuntime.systemInstructions = combinedAPIInstructions()
+    }
   }
 
   private func getCodexRuntime() -> CodexChatRuntime {
@@ -1554,6 +1562,7 @@ EOF
       messageDisplay: messageStore,
       sessionManager: sessionManager,
       workingDirectory: claudeClient.configuration.workingDirectory,
+      transcriptStore: (sessionStorage as? AgentTranscriptStore) ?? NoOpAgentTranscriptStore(),
       onSessionChange: { [weak self] sessionId in
         self?.handleRuntimeSessionChange(sessionId)
       },
