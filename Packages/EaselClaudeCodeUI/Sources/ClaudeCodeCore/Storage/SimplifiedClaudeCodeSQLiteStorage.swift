@@ -1,3 +1,4 @@
+import AgentHarness
 import Foundation
 import SQLite
 
@@ -102,17 +103,24 @@ public actor SimplifiedClaudeCodeSQLiteStorage: SessionStorageProtocol {
   
   public func deleteSession(id: String) async throws {
     try await initializeDatabaseIfNeeded()
-    
+
     // Delete session (foreign key constraints will cascade to messages and attachments)
     let deleteSession = sessionsTable.filter(sessionIdColumn == id)
     try database.run(deleteSession.delete())
+
+    // api_transcripts has no foreign key; remove the transcript row explicitly
+    let deleteTranscript = apiTranscriptsTable.filter(transcriptSessionIdColumn == id)
+    try database.run(deleteTranscript.delete())
   }
-  
+
   public func deleteAllSessions() async throws {
     try await initializeDatabaseIfNeeded()
-    
+
     // Delete all sessions (foreign key constraints will cascade to messages and attachments)
     try database.run(sessionsTable.delete())
+
+    // api_transcripts has no foreign key; remove all transcript rows explicitly
+    try database.run(apiTranscriptsTable.delete())
   }
   
   public func updateSessionMessages(id: String, messages: [ChatMessage]) async throws {
@@ -203,6 +211,14 @@ public actor SimplifiedClaudeCodeSQLiteStorage: SessionStorageProtocol {
       let oldMessages = messagesTable.filter(messageSessionIdColumn == oldId)
       try database.run(oldMessages.update(messageSessionIdColumn <- newId))
 
+      // Re-key any persisted API transcript to the new session id.
+      let oldTranscript = apiTranscriptsTable.filter(transcriptSessionIdColumn == oldId)
+      if try database.pluck(oldTranscript) != nil {
+        let existingNewTranscript = apiTranscriptsTable.filter(transcriptSessionIdColumn == newId)
+        try database.run(existingNewTranscript.delete())
+        try database.run(oldTranscript.update(transcriptSessionIdColumn <- newId))
+      }
+
       let deleteOldSession = sessionsTable.filter(sessionIdColumn == oldId)
       try database.run(deleteOldSession.delete())
     }
@@ -247,6 +263,7 @@ public actor SimplifiedClaudeCodeSQLiteStorage: SessionStorageProtocol {
   private let sessionsTable = Table("sessions")
   private let messagesTable = Table("messages")
   private let attachmentsTable = Table("attachments")
+  private let apiTranscriptsTable = Table("api_transcripts")
   
   // Session columns
   private let sessionIdColumn = Expression<String>("id")
@@ -284,6 +301,11 @@ public actor SimplifiedClaudeCodeSQLiteStorage: SessionStorageProtocol {
   private let attachmentFileNameColumn = Expression<String>("file_name")
   private let attachmentFilePathColumn = Expression<String>("file_path")
   private let attachmentFileTypeColumn = Expression<String>("file_type")
+
+  // API transcript columns
+  private let transcriptSessionIdColumn = Expression<String>("session_id")
+  private let transcriptJSONColumn = Expression<String>("transcript_json")
+  private let transcriptUpdatedAtColumn = Expression<Double>("updated_at")
   
   private func initializeDatabaseIfNeeded() async throws {
     guard !isInitialized else { return }
@@ -384,6 +406,13 @@ public actor SimplifiedClaudeCodeSQLiteStorage: SessionStorageProtocol {
       table.column(attachmentFileTypeColumn)
       table.foreignKey(attachmentMessageIdColumn, references: messagesTable, messageIdColumn, delete: .cascade)
     })
+
+    // Create api_transcripts table
+    try database.run(apiTranscriptsTable.create(ifNotExists: true) { table in
+      table.column(transcriptSessionIdColumn, primaryKey: true)
+      table.column(transcriptJSONColumn)
+      table.column(transcriptUpdatedAtColumn)
+    })
   }
   
   private func getMessagesForSession(sessionId: String) async throws -> [ChatMessage] {
@@ -447,5 +476,46 @@ public actor SimplifiedClaudeCodeSQLiteStorage: SessionStorageProtocol {
       cachedInputTokens: row[usageCachedInputTokensColumn],
       reasoningOutputTokens: row[usageReasoningOutputTokensColumn]
     )
+  }
+}
+
+// MARK: - AgentTranscriptStore
+
+extension SimplifiedClaudeCodeSQLiteStorage: AgentTranscriptStore {
+
+  public func loadTranscript(sessionId: String) async throws -> AgentTranscript? {
+    try await initializeDatabaseIfNeeded()
+
+    guard let row = try database.pluck(apiTranscriptsTable.filter(transcriptSessionIdColumn == sessionId)) else {
+      return nil
+    }
+
+    do {
+      return try JSONDecoder().decode(AgentTranscript.self, from: Data(row[transcriptJSONColumn].utf8))
+    } catch {
+      // A corrupt/undecodable row is treated as "no transcript" so the runtime starts fresh.
+      print("[SimplifiedClaudeCodeSQLiteStorage] Failed to decode transcript for session \(sessionId): \(error)")
+      return nil
+    }
+  }
+
+  public func saveTranscript(_ transcript: AgentTranscript, sessionId: String) async throws {
+    try await initializeDatabaseIfNeeded()
+
+    let transcriptData = try JSONEncoder().encode(transcript)
+    let upsert = apiTranscriptsTable.insert(
+      or: .replace,
+      transcriptSessionIdColumn <- sessionId,
+      transcriptJSONColumn <- String(decoding: transcriptData, as: UTF8.self),
+      transcriptUpdatedAtColumn <- Date().timeIntervalSince1970
+    )
+    try database.run(upsert)
+  }
+
+  public func deleteTranscript(sessionId: String) async throws {
+    try await initializeDatabaseIfNeeded()
+
+    let deleteTranscript = apiTranscriptsTable.filter(transcriptSessionIdColumn == sessionId)
+    try database.run(deleteTranscript.delete())
   }
 }
