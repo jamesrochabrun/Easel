@@ -145,6 +145,9 @@ final class APIChatRuntime: ChatRuntime {
 
     let mapper = APIMessageMapper(firstAssistantMessageId: messageId, messageDisplay: messageDisplay)
     var lastRecordedUsage = AgentTokenUsage()
+    var executedToolCount = 0
+    var finalAssistantText: String?
+    var latestTranscript = transcript
 
     do {
       for try await event in await loop.run(transcript: transcript, model: model) {
@@ -153,7 +156,12 @@ final class APIChatRuntime: ChatRuntime {
         }
         mapper.handle(event)
         switch event {
+        case .toolExecutionStarted:
+          executedToolCount += 1
+        case .completed(let text):
+          finalAssistantText = text
         case .transcriptUpdated(let updated):
+          latestTranscript = updated
           try? await transcriptStore.saveTranscript(updated, sessionId: sessionId)
         case .usageUpdated(let cumulative):
           let delta = AgentTokenUsage(
@@ -181,6 +189,19 @@ final class APIChatRuntime: ChatRuntime {
         return
       }
       mapper.finalize()
+
+      // Recovery for weak models that paste a page into the chat instead of
+      // calling Write: if the whole turn made no tool calls but the final
+      // message contains a complete page, apply it so the preview updates.
+      if executedToolCount == 0, let text = finalAssistantText {
+        await applyPastedFilesIfNeeded(
+          from: text,
+          workingDirectory: workingDirectory,
+          context: context,
+          sessionId: sessionId,
+          transcript: &latestTranscript
+        )
+      }
     } catch {
       mapper.finalize()
       if error is CancellationError { return }
@@ -191,6 +212,67 @@ final class APIChatRuntime: ChatRuntime {
   }
 
   // MARK: - Private
+
+  /// Writes files a weak model pasted into its final message (instead of
+  /// calling Write) to disk, and renders a tool card for each so the user
+  /// sees what happened. Only fires when the pasted set includes a complete
+  /// page (`index.html`), which signals authoring intent rather than an
+  /// explanatory snippet. Writes go through the path policy (workspace
+  /// confinement, `resources/codebase-references/` denial). The 600ms file
+  /// watcher reloads the preview automatically.
+  private func applyPastedFilesIfNeeded(
+    from text: String,
+    workingDirectory: String,
+    context: ToolExecutionContext,
+    sessionId: String,
+    transcript: inout AgentTranscript
+  ) async {
+    let files = CodeFileExtractor.extractFiles(from: text)
+    guard CodeFileExtractor.containsEntryPoint(files) else { return }
+
+    var appliedAny = false
+    for file in files {
+      guard let url = try? context.pathPolicy.resolveForWrite(file.relativePath) else { continue }
+      do {
+        try FileManager.default.createDirectory(
+          at: url.deletingLastPathComponent(),
+          withIntermediateDirectories: true
+        )
+        try Data(file.content.utf8).write(to: url)
+      } catch {
+        continue
+      }
+      appliedAny = true
+      let callId = "apply_\(UUID().uuidString.prefix(8).lowercased())"
+      messageDisplay.addMessage(
+        MessageFactory.toolUseMessage(
+          toolName: "Write",
+          input: "file_path: \(file.relativePath)",
+          toolInputData: ToolInputData(parameters: ["file_path": file.relativePath]),
+          toolUseID: callId
+        )
+      )
+      let byteCount = file.content.utf8.count
+      messageDisplay.addMessage(
+        ChatMessage(
+          role: .toolResult,
+          content: "Saved \(file.relativePath) from the response (\(byteCount) bytes). The preview will reload.",
+          messageType: .toolResult,
+          toolName: "Write",
+          toolUseID: callId,
+          isError: false
+        )
+      )
+    }
+
+    guard appliedAny else { return }
+    // Record the applied write in the transcript so a resumed session knows
+    // the files exist on disk.
+    transcript.messages.append(
+      .assistant(text: "(Saved the code above to the project files.)", toolCalls: [])
+    )
+    try? await transcriptStore.saveTranscript(transcript, sessionId: sessionId)
+  }
 
   private func ensureSessionExists(firstMessageInSession: String?) -> String {
     if let existing = sessionManager.currentSessionId {

@@ -312,6 +312,64 @@ final class APIChatRuntimeTests: XCTestCase {
     XCTAssertLessThanOrEqual(fixture.store.getAllMessages().count, countBeforeReset)
   }
 
+  func testPastedHTMLWithoutToolCallIsAppliedToDisk() async throws {
+    let html = "<!DOCTYPE html>\n<html><head><title>Lima Peru</title></head><body><h1>Welcome to Lima</h1></body></html>"
+    let message = "Sure, here is the landing page:\n```html\n\(html)\n```\nLet me know if you want changes."
+    let fixture = makeFixture(scripts: [
+      .events([.textDelta(message), .finish(.stop)])
+    ])
+
+    try await fixture.runtime.send(prompt: "make a landing page for lima peru", messageId: UUID(), firstMessageInSession: nil)
+
+    // The page the model pasted was written to index.html.
+    let onDisk = try String(contentsOf: workspace.appendingPathComponent("index.html"), encoding: .utf8)
+    XCTAssertTrue(onDisk.contains("<h1>Welcome to Lima</h1>"), "pasted HTML should be saved to disk")
+
+    // A visible Write card was rendered.
+    let messages = fixture.store.getAllMessages()
+    XCTAssertTrue(messages.contains { $0.messageType == .toolUse && $0.toolName == "Write" })
+    let result = try XCTUnwrap(messages.first { $0.messageType == .toolResult && $0.toolName == "Write" })
+    XCTAssertTrue(result.content.contains("index.html"))
+  }
+
+  func testPlainAnswerWithoutFullPageDoesNotWriteFiles() async throws {
+    // An explanatory reply with a CSS snippet must not touch the project.
+    let message = "To center it, use:\n```css\n.box { display: flex; }\n```"
+    let fixture = makeFixture(scripts: [
+      .events([.textDelta(message), .finish(.stop)])
+    ])
+
+    try await fixture.runtime.send(prompt: "how do I center a div", messageId: UUID(), firstMessageInSession: nil)
+
+    XCTAssertFalse(
+      FileManager.default.fileExists(atPath: workspace.appendingPathComponent("index.html").path),
+      "no complete page → no auto-apply"
+    )
+    let messages = fixture.store.getAllMessages()
+    XCTAssertFalse(messages.contains { $0.messageType == .toolUse })
+  }
+
+  func testPastedFilesNotAppliedWhenModelAlsoCalledTools() async throws {
+    // If the model DID call a tool, don't also auto-apply a code block
+    // (avoids double-writing).
+    try "existing".write(to: workspace.appendingPathComponent("note.txt"), atomically: true, encoding: .utf8)
+    let html = "<!DOCTYPE html><html><body>from paste</body></html>"
+    let fixture = makeFixture(scripts: [
+      .events([
+        .toolCallDelta(index: 0, id: "c1", name: "Read", argumentsFragment: #"{"file_path":"note.txt"}"#),
+        .finish(.toolCalls),
+      ]),
+      .events([.textDelta("Here:\n```html\n\(html)\n```"), .finish(.stop)]),
+    ])
+
+    try await fixture.runtime.send(prompt: "read the note then show a page", messageId: UUID(), firstMessageInSession: nil)
+
+    XCTAssertFalse(
+      FileManager.default.fileExists(atPath: workspace.appendingPathComponent("index.html").path),
+      "a turn that used tools must not trigger paste-recovery"
+    )
+  }
+
   func testVisionProfileAttachesImageBlocks() async throws {
     // A prompt referencing a real image through the attachment marker.
     let imageURL = workspace.appendingPathComponent("shot.png")
