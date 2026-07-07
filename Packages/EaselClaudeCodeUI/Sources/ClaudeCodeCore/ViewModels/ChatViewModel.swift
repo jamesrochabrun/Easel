@@ -5,6 +5,7 @@
 //  Created by James Rochabrun on 5/25/25.
 //
 
+import AgentHarness
 import ClaudeCodeSDK
 import Foundation
 import os.log
@@ -69,6 +70,11 @@ public final class ChatViewModel {
 
   /// Optional API-provider agent instructions prefix. Falls back to systemPromptPrefix when nil.
   private let apiInstructionsPrefix: String?
+
+  /// Optional model-client factory for the `.api` provider. Lets the
+  /// embedding app supply backends ClaudeCodeCore doesn't link (on-device
+  /// MLX); nil uses the built-in OpenAI-compatible/Ollama factory.
+  private let apiModelClientFactory: (@Sendable (EndpointProfile, String?) -> any AgentModelClient)?
 
   @ObservationIgnored private lazy var streamProcessor: StreamProcessor = {
     let processor = StreamProcessor(
@@ -447,6 +453,7 @@ EOF
     systemPromptPrefix: String? = nil,
     codexDeveloperInstructionsPrefix: String? = nil,
     apiInstructionsPrefix: String? = nil,
+    apiModelClientFactory: (@Sendable (EndpointProfile, String?) -> any AgentModelClient)? = nil,
     shouldManageSessions: Bool = true,
     onSessionChange: ((String) -> Void)? = nil,
     onSessionUsageChange: ((String) -> Void)? = nil,
@@ -462,6 +469,7 @@ EOF
     self.systemPromptPrefix = systemPromptPrefix
     self.codexDeveloperInstructionsPrefix = codexDeveloperInstructionsPrefix
     self.apiInstructionsPrefix = apiInstructionsPrefix
+    self.apiModelClientFactory = apiModelClientFactory
     self.shouldManageSessions = shouldManageSessions
     self.onSessionChange = onSessionChange
     self.onSessionUsageChange = onSessionUsageChange
@@ -1563,6 +1571,7 @@ EOF
       sessionManager: sessionManager,
       workingDirectory: claudeClient.configuration.workingDirectory,
       transcriptStore: (sessionStorage as? AgentTranscriptStore) ?? NoOpAgentTranscriptStore(),
+      clientFactory: apiModelClientFactory ?? APIChatRuntime.defaultClientFactory,
       onSessionChange: { [weak self] sessionId in
         self?.handleRuntimeSessionChange(sessionId)
       },
