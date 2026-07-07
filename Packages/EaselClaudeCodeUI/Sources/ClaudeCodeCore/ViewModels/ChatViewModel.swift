@@ -67,6 +67,9 @@ public final class ChatViewModel {
   /// Optional Codex developer instructions prefix. Falls back to systemPromptPrefix when nil.
   private let codexDeveloperInstructionsPrefix: String?
 
+  /// Optional API-provider agent instructions prefix. Falls back to systemPromptPrefix when nil.
+  private let apiInstructionsPrefix: String?
+
   @ObservationIgnored private lazy var streamProcessor: StreamProcessor = {
     let processor = StreamProcessor(
       messageStore: messageStore,
@@ -425,6 +428,7 @@ EOF
       logger: logger,
       systemPromptPrefix: nil,
       codexDeveloperInstructionsPrefix: nil,
+      apiInstructionsPrefix: nil,
       shouldManageSessions: false,
       onSessionChange: nil,
       onSessionUsageChange: nil,
@@ -442,6 +446,7 @@ EOF
     logger: ClaudeCodeLogger = ClaudeCodeLogger(),
     systemPromptPrefix: String? = nil,
     codexDeveloperInstructionsPrefix: String? = nil,
+    apiInstructionsPrefix: String? = nil,
     shouldManageSessions: Bool = true,
     onSessionChange: ((String) -> Void)? = nil,
     onSessionUsageChange: ((String) -> Void)? = nil,
@@ -456,6 +461,7 @@ EOF
     self.debugLogger = logger
     self.systemPromptPrefix = systemPromptPrefix
     self.codexDeveloperInstructionsPrefix = codexDeveloperInstructionsPrefix
+    self.apiInstructionsPrefix = apiInstructionsPrefix
     self.shouldManageSessions = shouldManageSessions
     self.onSessionChange = onSessionChange
     self.onSessionUsageChange = onSessionUsageChange
@@ -1562,6 +1568,24 @@ EOF
   private func combinedCodexDeveloperInstructions() -> String? {
     let parts = [
       codexDeveloperInstructionsPrefix ?? systemPromptPrefix,
+      globalPreferences.systemPrompt,
+      globalPreferences.appendSystemPrompt,
+    ]
+      .compactMap { value -> String? in
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed?.isEmpty == false ? trimmed : nil
+      }
+
+    return parts.isEmpty ? nil : parts.joined(separator: "\n\n")
+  }
+
+  /// Combined system instructions for the `.api` provider runtime: the API
+  /// instructions prefix (falling back to `systemPromptPrefix`), then the
+  /// user's system prompt, then the append-system-prompt — mirroring
+  /// `combinedCodexDeveloperInstructions()`.
+  func combinedAPIInstructions() -> String? {
+    let parts = [
+      apiInstructionsPrefix ?? systemPromptPrefix,
       globalPreferences.systemPrompt,
       globalPreferences.appendSystemPrompt,
     ]

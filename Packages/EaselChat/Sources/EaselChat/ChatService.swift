@@ -393,6 +393,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
       logger: logger,
       systemPromptPrefix: EaselAgentInstructions.systemPromptPrefix,
       codexDeveloperInstructionsPrefix: EaselAgentInstructions.codexDeveloperInstructionsPrefix,
+      apiInstructionsPrefix: EaselAgentInstructions.apiAgentInstructionsPrefix,
       shouldManageSessions: true,
       onSessionChange: { [weak self, weak reference] newSessionId in
         Task { @MainActor in
