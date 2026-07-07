@@ -91,6 +91,7 @@ public final class ChatViewModel {
   private let messageStore = MessageStore()
   @ObservationIgnored private var codexRuntime: CodexChatRuntime?
   @ObservationIgnored private var claudeRuntime: ClaudeChatRuntime?
+  @ObservationIgnored private var apiRuntime: APIChatRuntime?
   @ObservationIgnored private var runtimeTask: Task<Void, Never>?
   private var firstMessageInSession: String?
   private var loadingSessionIdentity: LoadingSessionIdentity?
@@ -145,6 +146,8 @@ public final class ChatViewModel {
       return codexRuntime?.activeSessionId ?? sessionManager.currentSessionId
     case .claude:
       return claudeRuntime?.activeSessionId ?? streamProcessor.activeSessionId
+    case .api:
+      return apiRuntime?.activeSessionId ?? sessionManager.currentSessionId
     }
   }
 
@@ -817,6 +820,7 @@ EOF
     endLoadingState()
     codexRuntime?.resetSession()
     claudeRuntime?.resetSession()
+    apiRuntime?.resetSession()
     runtimeTask = nil
     if resetProviderToDefault {
       setActiveProvider(globalPreferences.chatProvider)
@@ -863,12 +867,14 @@ EOF
         self.claudeClient.configuration.workingDirectory = nil
         self.codexRuntime?.workingDirectory = nil
         self.claudeRuntime?.workingDirectory = nil
+        self.apiRuntime?.workingDirectory = nil
         self.projectPath = ""
         
         // Clear the session manager's current session
         self.sessionManager.clearSession()
         self.codexRuntime?.resetSession()
         self.claudeRuntime?.resetSession()
+        self.apiRuntime?.resetSession()
         self.runtimeTask = nil
         self.setActiveProvider(self.globalPreferences.chatProvider)
         
@@ -1460,6 +1466,8 @@ EOF
       return getCodexRuntime()
     case .claude:
       return getClaudeRuntime()
+    case .api:
+      return getAPIRuntime()
     }
   }
 
@@ -1528,6 +1536,26 @@ EOF
       }
     )
     claudeRuntime = runtime
+    return runtime
+  }
+
+  private func getAPIRuntime() -> APIChatRuntime {
+    if let apiRuntime {
+      return apiRuntime
+    }
+
+    let runtime = APIChatRuntime(
+      messageDisplay: messageStore,
+      sessionManager: sessionManager,
+      workingDirectory: claudeClient.configuration.workingDirectory,
+      onSessionChange: { [weak self] sessionId in
+        self?.handleRuntimeSessionChange(sessionId)
+      },
+      onUsageRecorded: { [weak self] record in
+        self?.recordCompletedTurnUsage(record)
+      }
+    )
+    apiRuntime = runtime
     return runtime
   }
 

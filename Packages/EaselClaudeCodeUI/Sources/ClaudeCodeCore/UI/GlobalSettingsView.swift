@@ -55,10 +55,13 @@ struct GlobalSettingsView: View {
       }
     }
     .onAppear {
-      if globalPreferences.chatProvider == .codex {
+      switch globalPreferences.chatProvider {
+      case .codex:
         refreshCodexModels()
-      } else {
+      case .claude:
         refreshClaudeModels()
+      case .api:
+        break
       }
     }
   }
@@ -91,10 +94,13 @@ struct GlobalSettingsView: View {
     return Section("Assistant Configuration") {
       providerPickerRow
 
-      if globalPreferences.chatProvider == .codex {
+      switch globalPreferences.chatProvider {
+      case .codex:
         codexConfigurationRow
-      } else {
+      case .claude:
         claudeConfigurationRow
+      case .api:
+        apiConfigurationRow
       }
 
       if uiConfiguration.showSystemPromptFields {
@@ -116,10 +122,13 @@ struct GlobalSettingsView: View {
       .pickerStyle(.segmented)
       .onChange(of: preferences.chatProvider) { _, provider in
         chatViewModel?.switchProvider(to: provider)
-        if provider == .codex {
+        switch provider {
+        case .codex:
           refreshCodexModels()
-        } else {
+        case .claude:
           refreshClaudeModels()
+        case .api:
+          break
         }
       }
 
@@ -177,6 +186,20 @@ struct GlobalSettingsView: View {
           .foregroundColor(.secondary)
       }
     }
+  }
+
+  @ViewBuilder
+  private var apiConfigurationRow: some View {
+    // Endpoint-profile management (base URL, API key, model picker, capability
+    // toggles) lands in workstream E.
+    VStack(alignment: .leading, spacing: 6) {
+      Text("Connect local models (Ollama, LM Studio, on-device MLX) or OpenAI-compatible APIs (OpenRouter, Groq, DeepSeek, xAI).")
+        .font(.callout)
+      Text("Endpoint configuration is coming to this section.")
+        .font(.caption)
+        .foregroundColor(.secondary)
+    }
+    .padding(.vertical, 4)
   }
 
   @ViewBuilder

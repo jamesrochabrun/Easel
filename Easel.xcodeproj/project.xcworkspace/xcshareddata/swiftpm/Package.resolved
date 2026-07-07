@@ -380,6 +380,15 @@
       }
     },
     {
+      "identity" : "swiftopenai",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/jamesrochabrun/SwiftOpenAI",
+      "state" : {
+        "revision" : "bc6b84767c3a4eb9d48942b86e2417a229ef096c",
+        "version" : "4.4.9"
+      }
+    },
+    {
       "identity" : "swifttreesitter",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/ChimeHQ/SwiftTreeSitter.git",
