@@ -3,7 +3,7 @@ import XCTest
 
 final class PseudoToolCallParserTests: XCTestCase {
 
-  private let tools: Set<String> = ["LS", "Read", "Edit", "Bash"]
+  private let tools: Set<String> = ["LS", "Read", "Write", "Edit", "Bash"]
 
   func testBareJSONObjectWithArguments() throws {
     let result = try XCTUnwrap(
@@ -60,9 +60,43 @@ final class PseudoToolCallParserTests: XCTestCase {
     )
   }
 
-  func testProseMentioningJSONIsNotConverted() {
-    let text = #"You could call it like {"name": "LS"} if you wanted, but I cannot run tools."#
+  func testEmbeddedJSONInProseIsExtractedAndProseRemains() throws {
+    // The exact failure: qwen2.5-coder emits prose + a bare tool-call object.
+    let text = #"""
+    I will replace the content of the existing index.html with the "Hello World" page you requested.
+    {"name": "Write", "parameters": {"content": "<html><body><h1>Hello</h1></body></html>", "file_path": "index.html"}}
+    """#
+    let result = try XCTUnwrap(PseudoToolCallParser.parse(text: text, knownToolNames: tools))
+    XCTAssertEqual(result.calls.map(\.name), ["Write"])
+    let args = try JSONValue(parsing: result.calls[0].arguments)
+    XCTAssertEqual(args["file_path"]?.stringValue, "index.html")
+    let residual = try XCTUnwrap(result.residualText)
+    XCTAssertTrue(residual.hasPrefix("I will replace"))
+    XCTAssertFalse(residual.contains("\"name\""), "raw JSON must be stripped from the bubble")
+  }
+
+  func testBracesInsideStringValuesDoNotTerminateEarly() throws {
+    let text = #"{"name": "Write", "arguments": {"content": "func f() { return {} }", "file_path": "a.swift"}}"#
+    let result = try XCTUnwrap(PseudoToolCallParser.parse(text: text, knownToolNames: tools))
+    XCTAssertEqual(result.calls.count, 1)
+    XCTAssertEqual(try JSONValue(parsing: result.calls[0].arguments)["content"]?.stringValue, "func f() { return {} }")
+  }
+
+  func testProseMentioningToolNameWithoutJSONIsNotConverted() {
+    let text = "You could use the LS tool if you wanted, but I cannot run tools right now."
     XCTAssertNil(PseudoToolCallParser.parse(text: text, knownToolNames: tools))
+  }
+
+  func testBareNoArgObjectBuriedInProseIsNotConverted() {
+    // A no-argument object embedded in a sentence is ambiguous — don't fire.
+    let text = #"You could call it like {"name": "LS"} if you wanted, but I won't."#
+    XCTAssertNil(PseudoToolCallParser.parse(text: text, knownToolNames: tools))
+  }
+
+  func testWholeMessageNoArgObjectStillConverts() throws {
+    let result = try XCTUnwrap(PseudoToolCallParser.parse(text: #"{"name": "LS"}"#, knownToolNames: tools))
+    XCTAssertEqual(result.calls.map(\.name), ["LS"])
+    XCTAssertEqual(result.calls[0].arguments, "{}")
   }
 
   func testPlainProseIsNotConverted() {

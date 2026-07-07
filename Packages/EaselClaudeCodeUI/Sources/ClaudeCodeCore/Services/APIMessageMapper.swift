@@ -59,8 +59,18 @@ final class APIMessageMapper {
 
     case .assistantMessageCompleted(let text, _):
       finishThinkingMessage()
+      // `text` is the loop's cleaned assistant text: when a tool call was
+      // emitted as raw JSON in the stream, the JSON payload has been stripped
+      // out. Reconcile the streamed bubble with it so the raw call never
+      // lingers in the chat.
       if let id = streamingAssistantMessageId {
-        messageDisplay.updateMessage(id: id, content: assistantBuffer, isComplete: true, isError: false)
+        if let text, !text.isEmpty {
+          messageDisplay.updateMessage(id: id, content: text, isComplete: true, isError: false)
+        } else {
+          // The whole message was a tool call rendered as text — the tool
+          // card carries the meaning, so drop the raw bubble.
+          messageDisplay.removeMessage(id: id)
+        }
       } else if let text, !text.isEmpty {
         // Non-streamed turn (e.g. a backend without streamed tool calls):
         // the text arrives only here.

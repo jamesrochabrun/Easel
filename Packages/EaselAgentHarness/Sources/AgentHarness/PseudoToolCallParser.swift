@@ -1,51 +1,70 @@
 import Foundation
 
 /// Fallback for backends whose models emit tool calls as plain text instead
-/// of structured `tool_calls` (e.g. qwen2.5-coder on older Ollama template
-/// parsers, which prints `{"name": "LS", "arguments": {...}}` as content).
+/// of structured `tool_calls` (e.g. qwen2.5-coder on Ollama template parsers,
+/// which print `{"name": "Write", "parameters": {...}}` as content — bare,
+/// fenced, or mixed into prose).
 ///
-/// Only exact, whole-payload matches are recognized — either the entire
-/// assistant text or the entire body of a fenced code block must be a JSON
-/// object (or array of objects) whose `name` is a known tool. Prose that
-/// merely mentions JSON is never converted.
+/// Only balanced JSON objects (or arrays of them) whose `name` matches a known
+/// tool are recognized. Prose that merely mentions a tool name is never
+/// converted. Recognized payloads are removed from the residual text so the
+/// assistant bubble shows only the human-readable part.
 enum PseudoToolCallParser {
 
   struct Result {
     let calls: [AgentToolCall]
-    /// Assistant text minus the consumed payloads; nil when the whole text
-    /// was tool-call JSON (so the transcript doesn't echo it redundantly).
+    /// Assistant text with the consumed JSON payloads removed; nil when
+    /// nothing readable remains (so the transcript doesn't echo raw JSON).
     let residualText: String?
   }
 
   static func parse(text: String, knownToolNames: Set<String>) -> Result? {
+    guard !knownToolNames.isEmpty else { return nil }
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty, !knownToolNames.isEmpty else { return nil }
+    guard !trimmed.isEmpty else { return nil }
 
-    // Candidate 1: the entire message is the payload.
-    if let calls = calls(fromJSONCandidate: trimmed, knownToolNames: knownToolNames) {
-      return Result(calls: calls, residualText: nil)
-    }
-
-    // Candidate 2: fenced code blocks (```json / ```bash / bare fences).
-    var allCalls: [AgentToolCall] = []
+    var calls: [AgentToolCall] = []
     var residual = trimmed
-    for block in fencedBlocks(in: trimmed) {
-      if let calls = calls(fromJSONCandidate: block.body, knownToolNames: knownToolNames) {
-        allCalls.append(contentsOf: calls)
-        residual = residual.replacingOccurrences(of: block.fullMatch, with: "")
-      }
-    }
-    guard !allCalls.isEmpty else { return nil }
+    var index = 0
 
-    let cleaned = residual.trimmingCharacters(in: .whitespacesAndNewlines)
-    return Result(calls: allCalls, residualText: cleaned.isEmpty ? nil : cleaned)
+    for span in balancedJSONSpans(in: trimmed) {
+      let candidate = String(trimmed[span])
+      guard
+        let extracted = toolCalls(
+          fromJSONCandidate: candidate,
+          knownToolNames: knownToolNames,
+          startingAt: index,
+          // An object sitting inline inside a sentence must carry an
+          // arguments/parameters key to count — so a stray `{"name": "LS"}`
+          // mention isn't executed. A call standing on its own line (or
+          // fenced) is treated as intentional even with no arguments.
+          requireArgumentsKey: isInline(span: span, in: trimmed)
+        )
+      else { continue }
+      calls.append(contentsOf: extracted)
+      index += extracted.count
+      residual = residual.replacingOccurrences(of: candidate, with: "")
+    }
+
+    guard !calls.isEmpty else { return nil }
+
+    // Clean up leftover code fences / whitespace around the removed payloads.
+    residual = residual
+      .replacingOccurrences(of: "```json", with: "")
+      .replacingOccurrences(of: "```bash", with: "")
+      .replacingOccurrences(of: "```", with: "")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+
+    return Result(calls: calls, residualText: residual.isEmpty ? nil : residual)
   }
 
-  // MARK: - Private
+  // MARK: - JSON candidate → tool calls
 
-  private static func calls(
+  private static func toolCalls(
     fromJSONCandidate candidate: String,
-    knownToolNames: Set<String>
+    knownToolNames: Set<String>,
+    startingAt startIndex: Int,
+    requireArgumentsKey: Bool
   ) -> [AgentToolCall]? {
     guard let value = try? JSONValue(parsing: candidate) else { return nil }
 
@@ -61,16 +80,20 @@ enum PseudoToolCallParser {
     }
 
     var calls: [AgentToolCall] = []
-    for (index, object) in objects.enumerated() {
+    for (offset, object) in objects.enumerated() {
       guard let name = object["name"]?.stringValue, knownToolNames.contains(name) else {
-        // All entries must be recognizable tool calls, or none convert.
+        // Every entry must be a recognizable tool call, or none convert.
         return nil
       }
-      let arguments = object["arguments"] ?? object["parameters"] ?? .object([:])
+      let argumentsValue = object["arguments"] ?? object["parameters"]
+      if requireArgumentsKey, argumentsValue == nil {
+        return nil
+      }
+      let arguments = argumentsValue ?? .object([:])
       guard case .object = arguments else { return nil }
       calls.append(
         AgentToolCall(
-          id: "call_text_\(index)_\(UUID().uuidString.prefix(8).lowercased())",
+          id: "call_text_\(startIndex + offset)_\(UUID().uuidString.prefix(8).lowercased())",
           name: name,
           arguments: (try? arguments.encodedString()) ?? "{}"
         )
@@ -79,23 +102,80 @@ enum PseudoToolCallParser {
     return calls.isEmpty ? nil : calls
   }
 
-  private struct FencedBlock {
-    let fullMatch: String
-    let body: String
+  /// True when prose text hugs the JSON object on the same line (before or
+  /// after it), ignoring code-fence markers. Objects alone on their line —
+  /// including fenced ones — are not inline.
+  private static func isInline(span: Range<String.Index>, in text: String) -> Bool {
+    func isFillerLine(_ segment: Substring) -> Bool {
+      let stripped = segment.replacingOccurrences(of: "`", with: "")
+        .trimmingCharacters(in: .whitespaces)
+      return stripped.isEmpty
+    }
+    // Text on the same line before the object.
+    var before = text[text.startIndex..<span.lowerBound]
+    if let newline = before.lastIndex(of: "\n") {
+      before = before[before.index(after: newline)...]
+    }
+    // Text on the same line after the object.
+    var after = text[span.upperBound..<text.endIndex]
+    if let newline = after.firstIndex(of: "\n") {
+      after = after[..<newline]
+    }
+    return !isFillerLine(before) || !isFillerLine(after)
   }
 
-  private static func fencedBlocks(in text: String) -> [FencedBlock] {
-    var blocks: [FencedBlock] = []
-    // ``` optional-language \n body ``` — language tag (bash/json/…) ignored.
-    let pattern = /```[a-zA-Z0-9_-]*\n([\s\S]*?)```/
-    for match in text.matches(of: pattern) {
-      blocks.append(
-        FencedBlock(
-          fullMatch: String(match.0),
-          body: String(match.1).trimmingCharacters(in: .whitespacesAndNewlines)
-        )
-      )
+  // MARK: - Balanced-brace scanning
+
+  /// Ranges of top-level balanced `{…}` / `[…]` substrings, respecting quoted
+  /// strings and escapes so a brace inside a string value never terminates the
+  /// object early.
+  private static func balancedJSONSpans(in text: String) -> [Range<String.Index>] {
+    var spans: [Range<String.Index>] = []
+    var depth = 0
+    var start: String.Index?
+    var inString = false
+    var escaping = false
+    var opener: Character = "{"
+
+    var i = text.startIndex
+    while i < text.endIndex {
+      let character = text[i]
+      if inString {
+        if escaping {
+          escaping = false
+        } else if character == "\\" {
+          escaping = true
+        } else if character == "\"" {
+          inString = false
+        }
+      } else {
+        switch character {
+        case "\"":
+          inString = true
+        case "{", "[":
+          if depth == 0 {
+            start = i
+            opener = character
+          }
+          // Only count the bracket kind we opened with, so `{ "a": [1] }`
+          // is one span rather than closing early on `]`.
+          if (opener == "{" && character == "{") || (opener == "[" && character == "[") {
+            depth += 1
+          }
+        case "}", "]":
+          if (opener == "{" && character == "}") || (opener == "[" && character == "]") {
+            depth -= 1
+            if depth == 0, let openStart = start {
+              spans.append(openStart..<text.index(after: i))
+              start = nil
+            }
+          }
+        default:
+          break
+        }
+      }
+      i = text.index(after: i)
     }
-    return blocks
+    return spans
   }
 }
