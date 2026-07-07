@@ -286,11 +286,24 @@ extension ChatInputView {
         CodexModelBadge(modelIdentifier: globalPreferences.codexModel)
       } else if viewModel.activeProvider == .claude {
         ClaudeModelBadge(modelIdentifier: globalPreferences.claudeModel)
+      } else if viewModel.activeProvider == .api {
+        APIModelBadge(
+          profileName: selectedAPIProfileName,
+          modelIdentifier: globalPreferences.apiModel
+        )
       }
     }
     .font(.system(size: 10))
     .foregroundStyle(EaselChatRuntimeStyle.tertiaryText(for: colorScheme))
     .padding(.horizontal, 4)
+  }
+
+  /// Name of the endpoint profile currently selected for the Local / API
+  /// provider (e.g. "Ollama", "On-Device (MLX)").
+  private var selectedAPIProfileName: String {
+    let profiles = globalPreferences.apiEndpointProfiles
+    let selected = profiles.first { $0.id == globalPreferences.selectedAPIProfileId } ?? profiles.first
+    return selected?.name ?? ""
   }
 
   private var inputCornerRadius: CGFloat {
