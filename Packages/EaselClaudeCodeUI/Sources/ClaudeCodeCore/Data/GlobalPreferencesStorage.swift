@@ -5,6 +5,7 @@
 //  Created on 12/19/24.
 //
 
+import AgentHarness
 import Foundation
 import Observation
 import CCCustomPermissionServiceInterface
@@ -140,6 +141,37 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
     }
   }
 
+  // MARK: - Local / API Provider Settings
+
+  /// Named endpoint profiles for the Local / API provider. Never empty after
+  /// load — seeded with `EndpointProfile.builtInPresets()` when missing.
+  public var apiEndpointProfiles: [EndpointProfile] {
+    didSet {
+      saveToPersistentStorage()
+    }
+  }
+
+  /// Id of the endpoint profile used by the Local / API provider.
+  public var selectedAPIProfileId: String {
+    didSet {
+      saveToPersistentStorage()
+    }
+  }
+
+  /// Model identifier used by the Local / API provider.
+  public var apiModel: String {
+    didSet {
+      saveToPersistentStorage()
+    }
+  }
+
+  /// Maximum agent-loop turns per Local / API send.
+  public var apiMaxTurns: Int {
+    didSet {
+      saveToPersistentStorage()
+    }
+  }
+
   // MARK: - Custom Permission Settings
   
   public var autoApproveLowRisk: Bool {
@@ -230,6 +262,14 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
       self.maxConcurrentPermissionRequests = general.maxConcurrentPermissionRequests
       self.disallowedTools = general.disallowedTools
       self.isClaudeCommandFromConfig = general.isClaudeCommandFromConfig
+      let seededAPI = Self.seededAPIProfiles(
+        profiles: general.apiEndpointProfiles,
+        selectedId: general.selectedAPIProfileId
+      )
+      self.apiEndpointProfiles = seededAPI.profiles
+      self.selectedAPIProfileId = seededAPI.selectedId
+      self.apiModel = general.apiModel
+      self.apiMaxTurns = general.apiMaxTurns
 
       // MCP config path - default to Claude's standard location
       let homeURL = FileManager.default.homeDirectoryForCurrentUser
@@ -312,6 +352,11 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
       self.codexExtraArgs = ""
       self.codexEnvironmentVariables = [:]
       self.isClaudeCommandFromConfig = false
+      let seededAPI = Self.seededAPIProfiles(profiles: [], selectedId: "")
+      self.apiEndpointProfiles = seededAPI.profiles
+      self.selectedAPIProfileId = seededAPI.selectedId
+      self.apiModel = ""
+      self.apiMaxTurns = 20
 
       // Default permission settings
       self.autoApproveLowRisk = false
@@ -403,6 +448,14 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
       self.maxConcurrentPermissionRequests = general.maxConcurrentPermissionRequests
       self.disallowedTools = general.disallowedTools
       self.isClaudeCommandFromConfig = general.isClaudeCommandFromConfig
+      let seededAPI = Self.seededAPIProfiles(
+        profiles: general.apiEndpointProfiles,
+        selectedId: general.selectedAPIProfileId
+      )
+      self.apiEndpointProfiles = seededAPI.profiles
+      self.selectedAPIProfileId = seededAPI.selectedId
+      self.apiModel = general.apiModel
+      self.apiMaxTurns = general.apiMaxTurns
 
       // Restore tool preferences
       self.allowedTools = buildAllowedToolsList(from: restored.toolPreferences)
@@ -446,6 +499,11 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
     codexExtraArgs = ""
     codexEnvironmentVariables = [:]
     isClaudeCommandFromConfig = false
+    let seededAPI = Self.seededAPIProfiles(profiles: [], selectedId: "")
+    apiEndpointProfiles = seededAPI.profiles
+    selectedAPIProfileId = seededAPI.selectedId
+    apiModel = ""
+    apiMaxTurns = 20
 
     // Reset permission settings
     autoApproveLowRisk = false
@@ -539,7 +597,11 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
         isClaudeCommandFromConfig: isClaudeCommandFromConfig,
         codexCommand: codexCommand,
         codexExtraArgs: codexExtraArgs,
-        codexEnvironmentVariables: codexEnvironmentVariables
+        codexEnvironmentVariables: codexEnvironmentVariables,
+        apiEndpointProfiles: apiEndpointProfiles,
+        selectedAPIProfileId: selectedAPIProfileId,
+        apiModel: apiModel,
+        apiMaxTurns: apiMaxTurns
       )
     )
 
@@ -644,7 +706,11 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
         isClaudeCommandFromConfig: isClaudeCommandFromConfig,
         codexCommand: codexCommand,
         codexExtraArgs: codexExtraArgs,
-        codexEnvironmentVariables: codexEnvironmentVariables
+        codexEnvironmentVariables: codexEnvironmentVariables,
+        apiEndpointProfiles: apiEndpointProfiles,
+        selectedAPIProfileId: selectedAPIProfileId,
+        apiModel: apiModel,
+        apiMaxTurns: apiMaxTurns
       )
     )
 
@@ -653,6 +719,28 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
     logger.preferences("Created initial persistent preferences")
   }
   
+  /// Resolves stored Local / API profiles into a usable state: seeds the
+  /// built-in presets when no profiles exist, and repairs the selection when
+  /// it no longer matches a profile (preferring the first Ollama profile so
+  /// a fresh install points at a local, key-free endpoint).
+  nonisolated static func seededAPIProfiles(
+    profiles: [EndpointProfile],
+    selectedId: String
+  ) -> (profiles: [EndpointProfile], selectedId: String) {
+    var resolvedProfiles = profiles
+    if resolvedProfiles.isEmpty {
+      resolvedProfiles = EndpointProfile.builtInPresets()
+    }
+
+    var resolvedSelection = selectedId
+    if !resolvedProfiles.contains(where: { $0.id == resolvedSelection }) {
+      let ollamaProfile = resolvedProfiles.first { $0.kind == .ollamaNative }
+      resolvedSelection = (ollamaProfile ?? resolvedProfiles[0]).id
+    }
+
+    return (resolvedProfiles, resolvedSelection)
+  }
+
   /// Reconcile tools when new tools are discovered
   public func reconcileTools(with discoveryService: MCPToolsDiscoveryService) {
     logger.preferences("Starting tool reconciliation (triggered by hash change)")

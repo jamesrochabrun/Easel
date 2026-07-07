@@ -5,6 +5,7 @@
 //  Created on 12/19/24.
 //
 
+import AgentHarness
 import SwiftUI
 import AppKit
 
@@ -14,19 +15,25 @@ struct GlobalSettingsView: View {
   let mcpToolsDiscovery: MCPToolsDiscoveryService
   let codexModelCatalog: any CodexModelCatalogProviding
   let claudeModelCatalog: any ClaudeModelCatalogProviding
+  let credentialStore: any CredentialStore
+  let apiModelCatalog: any APIModelCatalogProviding
 
   init(
     uiConfiguration: UIConfiguration = .default,
     chatViewModel: ChatViewModel? = nil,
     mcpToolsDiscovery: MCPToolsDiscoveryService = MCPToolsDiscoveryService(),
     codexModelCatalog: any CodexModelCatalogProviding = CodexModelCacheCatalog(),
-    claudeModelCatalog: any ClaudeModelCatalogProviding = ClaudeModelCatalog()
+    claudeModelCatalog: any ClaudeModelCatalogProviding = ClaudeModelCatalog(),
+    credentialStore: any CredentialStore = KeychainCredentialStore(),
+    apiModelCatalog: any APIModelCatalogProviding = APIModelCatalog()
   ) {
     self.uiConfiguration = uiConfiguration
     self.chatViewModel = chatViewModel
     self.mcpToolsDiscovery = mcpToolsDiscovery
     self.codexModelCatalog = codexModelCatalog
     self.claudeModelCatalog = claudeModelCatalog
+    self.credentialStore = credentialStore
+    self.apiModelCatalog = apiModelCatalog
   }
   
   // MARK: - Constants
@@ -41,6 +48,10 @@ struct GlobalSettingsView: View {
   @Environment(GlobalPreferencesStorage.self) private var globalPreferences
   @State private var codexModels: [CodexModelDescriptor] = []
   @State private var claudeModels: [ClaudeModelDescriptor] = []
+  @State private var apiModels: [AgentModelInfo] = []
+  @State private var apiModelsStatus: String?
+  @State private var apiEditorContext: APIProfileEditorContext?
+  @State private var isConfirmingProfileDeletion = false
 
   // MARK: - Body
   var body: some View {
@@ -61,7 +72,16 @@ struct GlobalSettingsView: View {
       case .claude:
         refreshClaudeModels()
       case .api:
-        break
+        refreshAPIModels()
+      }
+    }
+    .sheet(item: $apiEditorContext) { context in
+      APIProfileEditorView(
+        context: context,
+        credentialStore: credentialStore,
+        modelCatalog: apiModelCatalog
+      ) { profile in
+        saveAPIProfile(profile, isNew: context.isNew)
       }
     }
   }
@@ -128,7 +148,7 @@ struct GlobalSettingsView: View {
         case .claude:
           refreshClaudeModels()
         case .api:
-          break
+          refreshAPIModels()
         }
       }
 
@@ -190,16 +210,158 @@ struct GlobalSettingsView: View {
 
   @ViewBuilder
   private var apiConfigurationRow: some View {
-    // Endpoint-profile management (base URL, API key, model picker, capability
-    // toggles) lands in workstream E.
-    VStack(alignment: .leading, spacing: 6) {
-      Text("Connect local models (Ollama, LM Studio, on-device MLX) or OpenAI-compatible APIs (OpenRouter, Groq, DeepSeek, xAI).")
-        .font(.callout)
-      Text("Endpoint configuration is coming to this section.")
+    @Bindable var preferences = globalPreferences
+    VStack(alignment: .leading, spacing: 16) {
+      // Endpoint profile selection + management
+      VStack(alignment: .leading, spacing: 6) {
+        HStack {
+          Picker("Endpoint", selection: $preferences.selectedAPIProfileId) {
+            ForEach(preferences.apiEndpointProfiles) { profile in
+              Text(profile.name).tag(profile.id)
+            }
+          }
+          .onChange(of: preferences.selectedAPIProfileId) { _, _ in
+            apiModels = []
+            refreshAPIModels()
+          }
+
+          Button("Edit Endpoint", systemImage: "pencil") {
+            if let profile = selectedAPIProfile {
+              apiEditorContext = APIProfileEditorContext(profile: profile, isNew: false)
+            }
+          }
+          .labelStyle(.iconOnly)
+
+          Button("Add Endpoint", systemImage: "plus") {
+            apiEditorContext = APIProfileEditorContext(
+              profile: EndpointProfile(
+                id: UUID().uuidString,
+                name: "",
+                kind: .openAICompatible,
+                baseURL: ""
+              ),
+              isNew: true
+            )
+          }
+          .labelStyle(.iconOnly)
+
+          Button("Delete Endpoint", systemImage: "trash", role: .destructive) {
+            isConfirmingProfileDeletion = true
+          }
+          .labelStyle(.iconOnly)
+          .disabled(preferences.apiEndpointProfiles.count <= 1)
+          .confirmationDialog(
+            "Delete “\(selectedAPIProfile?.name ?? "")”? Its stored API key is removed from the Keychain.",
+            isPresented: $isConfirmingProfileDeletion
+          ) {
+            Button("Delete", role: .destructive) {
+              deleteSelectedAPIProfile()
+            }
+          }
+        }
+
+        if let profile = selectedAPIProfile {
+          Text(profile.kind == .mlxLocal ? "Runs on this Mac via MLX." : profile.baseURL)
+            .font(.caption)
+            .foregroundColor(.secondary)
+        }
+      }
+
+      Divider()
+
+      // Model selection
+      VStack(alignment: .leading, spacing: 6) {
+        HStack {
+          if apiModels.isEmpty {
+            TextField("Model", text: $preferences.apiModel, prompt: Text("e.g. qwen3-coder:30b"))
+              .textFieldStyle(.roundedBorder)
+              .font(.system(.body, design: .monospaced))
+          } else {
+            Picker("Model", selection: $preferences.apiModel) {
+              if !preferences.apiModel.isEmpty,
+                 !apiModels.contains(where: { $0.id == preferences.apiModel }) {
+                Text(preferences.apiModel).tag(preferences.apiModel)
+              }
+              ForEach(apiModels) { model in
+                Text(model.id).tag(model.id)
+              }
+            }
+          }
+
+          Button("Refresh Models", systemImage: "arrow.clockwise") {
+            refreshAPIModels()
+          }
+          .labelStyle(.iconOnly)
+        }
+
+        if let apiModelsStatus {
+          Text(apiModelsStatus)
+            .font(.caption)
+            .foregroundColor(.secondary)
+        } else {
+          Text("Pick a model that handles tool calling well (Qwen coder models are a good local default).")
+            .font(.caption)
+            .foregroundColor(.secondary)
+        }
+      }
+
+      Divider()
+
+      Stepper(
+        "Max agent turns: \(preferences.apiMaxTurns)",
+        value: $preferences.apiMaxTurns,
+        in: 5...50
+      )
+      Text("How many tool-use rounds one message may take before stopping.")
         .font(.caption)
         .foregroundColor(.secondary)
     }
-    .padding(.vertical, 4)
+  }
+
+  private var selectedAPIProfile: EndpointProfile? {
+    globalPreferences.apiEndpointProfiles.first { $0.id == globalPreferences.selectedAPIProfileId }
+      ?? globalPreferences.apiEndpointProfiles.first
+  }
+
+  private func saveAPIProfile(_ profile: EndpointProfile, isNew: Bool) {
+    if isNew {
+      globalPreferences.apiEndpointProfiles.append(profile)
+    } else if let index = globalPreferences.apiEndpointProfiles.firstIndex(where: { $0.id == profile.id }) {
+      globalPreferences.apiEndpointProfiles[index] = profile
+    }
+    globalPreferences.selectedAPIProfileId = profile.id
+    apiModels = []
+    refreshAPIModels()
+  }
+
+  private func deleteSelectedAPIProfile() {
+    guard globalPreferences.apiEndpointProfiles.count > 1,
+          let profile = selectedAPIProfile
+    else { return }
+    try? credentialStore.setAPIKey(nil, for: profile.id)
+    globalPreferences.apiEndpointProfiles.removeAll { $0.id == profile.id }
+    globalPreferences.selectedAPIProfileId = globalPreferences.apiEndpointProfiles.first?.id ?? ""
+    apiModels = []
+    refreshAPIModels()
+  }
+
+  private func refreshAPIModels() {
+    guard let profile = selectedAPIProfile else { return }
+    apiModelsStatus = "Loading models…"
+    Task {
+      do {
+        let key = try? credentialStore.apiKey(for: profile.id)
+        let models = try await apiModelCatalog.availableModels(profile: profile, apiKey: key)
+        apiModels = models
+        apiModelsStatus = models.isEmpty ? "No models reported by the endpoint — type a model id." : nil
+        if globalPreferences.apiModel.isEmpty, let first = models.first {
+          globalPreferences.apiModel = first.id
+        }
+      } catch {
+        apiModels = []
+        apiModelsStatus = "Could not list models: \(error.localizedDescription)"
+      }
+    }
   }
 
   @ViewBuilder
