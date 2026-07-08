@@ -36,12 +36,16 @@ public enum CodeFileExtractor {
       let trimmedBody = block.body.trimmingCharacters(in: .whitespacesAndNewlines)
       guard !trimmedBody.isEmpty else { continue }
 
+      // Prefer an explicit filename (from the fence info string or a label
+      // line just above the fence, e.g. a bold "script.js" header); fall back
+      // to treating a complete HTML document as the entry point.
       let path: String?
-      if isCompleteHTMLDocument(trimmedBody) {
-        // A full document is the page that renders — always the entry point.
-        path = entryPoint
-      } else if let named = filename(fromInfoString: block.info) {
+      if let named = filename(fromInfoString: block.info) {
         path = named
+      } else if let labeled = filename(fromLabel: block.precedingLabel) {
+        path = labeled
+      } else if isCompleteHTMLDocument(trimmedBody) {
+        path = entryPoint
       } else {
         path = nil
       }
@@ -56,9 +60,12 @@ public enum CodeFileExtractor {
   }
 
   /// True when the extracted set represents an authored page (contains a
-  /// complete HTML document) rather than explanatory snippets.
+  /// complete HTML document, or an `index.html`) rather than a loose snippet.
   public static func containsEntryPoint(_ files: [ExtractedCodeFile]) -> Bool {
-    files.contains { $0.relativePath == entryPoint }
+    files.contains { file in
+      file.relativePath == entryPoint
+        || isCompleteHTMLDocument(file.content.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
   }
 
   // MARK: - Classification
@@ -76,6 +83,22 @@ public enum CodeFileExtractor {
       if looksLikeFilename(candidate) { return candidate }
     }
     return nil
+  }
+
+  /// Recovers a filename from a short label line directly above a fence, e.g.
+  /// `script.js`, `**styles.css**`, `styles.css:`, `### app.js`, or
+  /// `File: styles.css`. Deliberately only accepts short label lines (≤ 3
+  /// tokens) so a full sentence that merely mentions a filename is ignored.
+  static func filename(fromLabel label: String) -> String? {
+    let normalized = label
+      .replacingOccurrences(of: "*", with: "")
+      .replacingOccurrences(of: "`", with: "")
+      .replacingOccurrences(of: "#", with: "")
+      .replacingOccurrences(of: ":", with: " ")
+      .trimmingCharacters(in: .whitespaces)
+    let tokens = normalized.split(separator: " ").map(String.init)
+    guard tokens.count <= 3, let last = tokens.last, looksLikeFilename(last) else { return nil }
+    return last
   }
 
   private static let savableExtensions: Set<String> = [
@@ -97,6 +120,7 @@ public enum CodeFileExtractor {
 
   private struct Fence {
     let info: String
+    let precedingLabel: String
     let body: String
   }
 
@@ -104,13 +128,16 @@ public enum CodeFileExtractor {
     var blocks: [Fence] = []
     let lines = text.components(separatedBy: "\n")
     var index = 0
+    var lastNonEmptyLine = ""
     while index < lines.count {
       let trimmed = lines[index].trimmingCharacters(in: .whitespaces)
       guard trimmed.hasPrefix("```") else {
+        if !trimmed.isEmpty { lastNonEmptyLine = trimmed }
         index += 1
         continue
       }
       let info = String(trimmed.dropFirst(3)).trimmingCharacters(in: .whitespaces)
+      let label = lastNonEmptyLine
       var body: [String] = []
       index += 1
       var closed = false
@@ -125,8 +152,10 @@ public enum CodeFileExtractor {
       }
       // Ignore an unterminated fence (a stray ``` with no closer).
       if closed {
-        blocks.append(Fence(info: info, body: body.joined(separator: "\n")))
+        blocks.append(Fence(info: info, precedingLabel: label, body: body.joined(separator: "\n")))
       }
+      // The label only applies to the immediately-following fence.
+      lastNonEmptyLine = ""
     }
     return blocks
   }

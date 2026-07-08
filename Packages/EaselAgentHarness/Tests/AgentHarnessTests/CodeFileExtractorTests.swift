@@ -79,6 +79,57 @@ final class CodeFileExtractorTests: XCTestCase {
     XCTAssertFalse(files[0].content.contains("v1"))
   }
 
+  func testFilenameFromLabelLineAboveFence() {
+    // The real MLX failure: model labels blocks with a header line, not an
+    // info-string filename.
+    let text = """
+    Here's the page:
+
+    index.html
+    ```html
+    <!doctype html><html><head><link rel="stylesheet" href="styles.css"><script src="script.js"></script></head><body></body></html>
+    ```
+
+    **styles.css**
+    ```css
+    body { font-family: sans-serif; }
+    ```
+
+    script.js
+    ```javascript
+    console.log("ready")
+    ```
+    """
+    let files = CodeFileExtractor.extractFiles(from: text)
+    XCTAssertEqual(Set(files.map(\.relativePath)), ["index.html", "styles.css", "script.js"])
+    XCTAssertTrue(CodeFileExtractor.containsEntryPoint(files))
+    XCTAssertTrue(files.first { $0.relativePath == "styles.css" }!.content.contains("sans-serif"))
+    XCTAssertTrue(files.first { $0.relativePath == "script.js" }!.content.contains("ready"))
+  }
+
+  func testLabelVariants() {
+    XCTAssertEqual(CodeFileExtractor.filename(fromLabel: "script.js"), "script.js")
+    XCTAssertEqual(CodeFileExtractor.filename(fromLabel: "**styles.css**"), "styles.css")
+    XCTAssertEqual(CodeFileExtractor.filename(fromLabel: "`app.js`"), "app.js")
+    XCTAssertEqual(CodeFileExtractor.filename(fromLabel: "styles.css:"), "styles.css")
+    XCTAssertEqual(CodeFileExtractor.filename(fromLabel: "### script.js"), "script.js")
+    XCTAssertEqual(CodeFileExtractor.filename(fromLabel: "File: styles.css"), "styles.css")
+    // A full sentence that merely mentions a file must be ignored.
+    XCTAssertNil(CodeFileExtractor.filename(fromLabel: "This is a basic structure for the landing page."))
+    XCTAssertNil(CodeFileExtractor.filename(fromLabel: "The HTML links to styles.css for the layout and colors."))
+  }
+
+  func testSentenceLabelDoesNotMislabelSnippet() {
+    // A CSS snippet under an explanatory sentence must not become a file.
+    let text = """
+    To center the box you can use flexbox like this:
+    ```css
+    .box { display: flex; }
+    ```
+    """
+    XCTAssertFalse(CodeFileExtractor.containsEntryPoint(CodeFileExtractor.extractFiles(from: text)))
+  }
+
   func testRejectsUnsafeFilenames() {
     XCTAssertNil(CodeFileExtractor.filename(fromInfoString: "css ../../etc/passwd"))
     XCTAssertNil(CodeFileExtractor.filename(fromInfoString: "css /abs/path.css"))
