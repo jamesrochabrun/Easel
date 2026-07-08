@@ -58,6 +58,18 @@ struct GlobalSettingsView: View {
   @State private var apiModelsStatus: String?
   @State private var apiEditorContext: APIProfileEditorContext?
   @State private var isConfirmingProfileDeletion = false
+  // Editable drafts for the selected endpoint, loaded on selection change.
+  @State private var apiKeyDraft = ""
+  @State private var serverURLDraft = ""
+  @State private var draftProfileId = ""
+  @State private var connectionTest: ConnectionTestState = .idle
+
+  private enum ConnectionTestState: Equatable {
+    case idle
+    case testing
+    case success(Int)
+    case failure(String)
+  }
 
   // MARK: - Body
   var body: some View {
@@ -78,6 +90,7 @@ struct GlobalSettingsView: View {
       case .claude:
         refreshClaudeModels()
       case .api:
+        loadEndpointDrafts()
         refreshAPIModels()
       }
     }
@@ -105,10 +118,15 @@ struct GlobalSettingsView: View {
       Form {
         providerConfigurationSection
 
-        if globalPreferences.chatProvider == .api, let apiExtraContent {
-          Section("On-Device Models (MLX)") {
-            apiExtraContent()
+        if globalPreferences.chatProvider == .api {
+          apiEndpointSection
+          apiModelSection
+          if selectedAPIProfile?.kind == .mlxLocal, let apiExtraContent {
+            Section("On-Device Models") {
+              apiExtraContent()
+            }
           }
+          apiAdvancedSection
         }
       }
       .formStyle(.grouped)
@@ -139,7 +157,8 @@ struct GlobalSettingsView: View {
       case .claude:
         claudeConfigurationRow
       case .api:
-        apiConfigurationRow
+        // The Local / API provider renders its own dedicated sections below.
+        EmptyView()
       }
 
       if uiConfiguration.showSystemPromptFields {
@@ -227,115 +246,243 @@ struct GlobalSettingsView: View {
     }
   }
 
+  // MARK: - Local / API sections
+
   @ViewBuilder
-  private var apiConfigurationRow: some View {
+  private var apiEndpointSection: some View {
     @Bindable var preferences = globalPreferences
-    VStack(alignment: .leading, spacing: 16) {
-      // Endpoint profile selection + management
-      VStack(alignment: .leading, spacing: 6) {
-        HStack {
-          Picker("Endpoint", selection: $preferences.selectedAPIProfileId) {
-            ForEach(preferences.apiEndpointProfiles) { profile in
-              Text(profile.name).tag(profile.id)
-            }
-          }
-          .onChange(of: preferences.selectedAPIProfileId) { _, _ in
-            // Reflect the newly-selected endpoint's own model.
-            preferences.apiModel = selectedAPIProfile?.defaultModel ?? ""
-            apiModels = []
-            refreshAPIModels()
-          }
-
-          Button("Edit Endpoint", systemImage: "pencil") {
-            if let profile = selectedAPIProfile {
-              apiEditorContext = APIProfileEditorContext(profile: profile, isNew: false)
-            }
-          }
-          .labelStyle(.iconOnly)
-
-          Button("Add Endpoint", systemImage: "plus") {
-            apiEditorContext = APIProfileEditorContext(
-              profile: EndpointProfile(
-                id: UUID().uuidString,
-                name: "",
-                kind: .openAICompatible,
-                baseURL: ""
-              ),
-              isNew: true
-            )
-          }
-          .labelStyle(.iconOnly)
-
-          Button("Delete Endpoint", systemImage: "trash", role: .destructive) {
-            isConfirmingProfileDeletion = true
-          }
-          .labelStyle(.iconOnly)
-          .disabled(preferences.apiEndpointProfiles.count <= 1)
-          .confirmationDialog(
-            "Delete “\(selectedAPIProfile?.name ?? "")”? Its stored API key is removed from the Keychain.",
-            isPresented: $isConfirmingProfileDeletion
-          ) {
-            Button("Delete", role: .destructive) {
-              deleteSelectedAPIProfile()
-            }
+    Section("Provider") {
+      Picker("Provider", selection: $preferences.selectedAPIProfileId) {
+        let grouped = groupedAPIProfiles
+        if !grouped.local.isEmpty {
+          Section("On your Mac") {
+            ForEach(grouped.local) { Text($0.name).tag($0.id) }
           }
         }
+        if !grouped.hosted.isEmpty {
+          Section("Hosted API") {
+            ForEach(grouped.hosted) { Text($0.name).tag($0.id) }
+          }
+        }
+        if !grouped.custom.isEmpty {
+          Section("Custom") {
+            ForEach(grouped.custom) { Text($0.name).tag($0.id) }
+          }
+        }
+      }
+      .onChange(of: preferences.selectedAPIProfileId) { _, _ in
+        preferences.apiModel = selectedAPIProfile?.defaultModel ?? ""
+        apiModels = []
+        connectionTest = .idle
+        loadEndpointDrafts()
+        refreshAPIModels()
+      }
 
-        if let profile = selectedAPIProfile {
-          Text(profile.kind == .mlxLocal ? "Runs on this Mac via MLX." : profile.baseURL)
+      // Config that makes sense for the selected provider kind.
+      if let profile = selectedAPIProfile {
+        switch profile.category {
+        case .hosted:
+          hostedProviderConfig(for: profile)
+        case .localServer:
+          localServerConfig
+        case .onDevice:
+          Text("Runs on this Mac via MLX — no server or API key needed. Download and choose a model below.")
             .font(.caption)
-            .foregroundColor(.secondary)
+            .foregroundStyle(.secondary)
         }
       }
 
-      Divider()
+      endpointManagementRow
+    }
+  }
 
-      // Model selection (stored per endpoint profile)
-      VStack(alignment: .leading, spacing: 6) {
-        HStack {
-          if apiModels.isEmpty {
-            TextField("Model", text: selectedProfileModelBinding, prompt: Text("e.g. qwen3-coder:30b"))
-              .textFieldStyle(.roundedBorder)
-              .font(.system(.body, design: .monospaced))
-          } else {
-            Picker("Model", selection: selectedProfileModelBinding) {
-              let current = selectedProfileModelBinding.wrappedValue
-              if !current.isEmpty, !apiModels.contains(where: { $0.id == current }) {
-                Text(current).tag(current)
-              }
-              ForEach(apiModels) { model in
-                Text(model.displayName ?? model.id).tag(model.id)
-              }
-            }
-          }
+  @ViewBuilder
+  private func hostedProviderConfig(for profile: EndpointProfile) -> some View {
+    LabeledContent("Endpoint") {
+      Text(profile.baseURL)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .textSelection(.enabled)
+    }
+    SecureField("API Key", text: $apiKeyDraft, prompt: Text("Paste your \(profile.name) API key"))
+      .textFieldStyle(.roundedBorder)
+      .onChange(of: apiKeyDraft) { _, _ in persistKeyDraft() }
+    connectionTestRow
+    Text("Your key is stored in the macOS Keychain, never in plain text.")
+      .font(.caption)
+      .foregroundStyle(.secondary)
+  }
 
-          Button("Refresh Models", systemImage: "arrow.clockwise") {
-            refreshAPIModels()
-          }
-          .labelStyle(.iconOnly)
+  @ViewBuilder
+  private var localServerConfig: some View {
+    TextField("Server URL", text: $serverURLDraft, prompt: Text("http://localhost:11434"))
+      .textFieldStyle(.roundedBorder)
+      .font(.system(.body, design: .monospaced))
+      .onChange(of: serverURLDraft) { _, _ in persistURLDraft() }
+    connectionTestRow
+    Text("Make sure the server is running before you start a chat.")
+      .font(.caption)
+      .foregroundStyle(.secondary)
+  }
+
+  @ViewBuilder
+  private var connectionTestRow: some View {
+    HStack(spacing: 8) {
+      Button("Test Connection") { testConnection() }
+        .disabled(connectionTest == .testing)
+
+      switch connectionTest {
+      case .idle:
+        EmptyView()
+      case .testing:
+        ProgressView().controlSize(.small)
+      case .success(let count):
+        Label("\(count) model\(count == 1 ? "" : "s") available", systemImage: "checkmark.circle.fill")
+          .foregroundStyle(.green)
+          .font(.caption)
+      case .failure(let message):
+        Label(message, systemImage: "exclamationmark.triangle.fill")
+          .foregroundStyle(.orange)
+          .font(.caption)
+          .lineLimit(2)
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var endpointManagementRow: some View {
+    HStack {
+      Button("Add Custom Endpoint", systemImage: "plus") {
+        apiEditorContext = APIProfileEditorContext(
+          profile: EndpointProfile(
+            id: UUID().uuidString,
+            name: "",
+            kind: .openAICompatible,
+            baseURL: "",
+            requiresAPIKey: true
+          ),
+          isNew: true
+        )
+      }
+
+      Spacer()
+
+      if let profile = selectedAPIProfile, !profile.isPreset {
+        Button("Edit", systemImage: "pencil") {
+          apiEditorContext = APIProfileEditorContext(profile: profile, isNew: false)
         }
+        Button("Remove", systemImage: "trash", role: .destructive) {
+          isConfirmingProfileDeletion = true
+        }
+        .confirmationDialog(
+          "Remove “\(selectedAPIProfile?.name ?? "")”? Its stored API key is deleted from the Keychain.",
+          isPresented: $isConfirmingProfileDeletion
+        ) {
+          Button("Remove", role: .destructive) { deleteSelectedAPIProfile() }
+        }
+      }
+    }
+    .buttonStyle(.borderless)
+  }
 
-        if let apiModelsStatus {
-          Text(apiModelsStatus)
-            .font(.caption)
-            .foregroundColor(.secondary)
+  @ViewBuilder
+  private var apiModelSection: some View {
+    Section("Model") {
+      HStack {
+        if apiModels.isEmpty {
+          TextField("Model", text: selectedProfileModelBinding, prompt: Text("e.g. qwen2.5-coder:7b"))
+            .textFieldStyle(.roundedBorder)
+            .font(.system(.body, design: .monospaced))
         } else {
-          Text("Pick a model that handles tool calling well (Qwen coder models are a good local default).")
-            .font(.caption)
-            .foregroundColor(.secondary)
+          Picker("Model", selection: selectedProfileModelBinding) {
+            let current = selectedProfileModelBinding.wrappedValue
+            if !current.isEmpty, !apiModels.contains(where: { $0.id == current }) {
+              Text(current).tag(current)
+            }
+            ForEach(apiModels) { model in
+              Text(model.displayName ?? model.id).tag(model.id)
+            }
+          }
+          .labelsHidden()
         }
+
+        Button("Refresh Models", systemImage: "arrow.clockwise") { refreshAPIModels() }
+          .labelStyle(.iconOnly)
       }
 
-      Divider()
+      if let apiModelsStatus {
+        Text(apiModelsStatus)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      } else {
+        Text("Pick a model with strong tool-calling. Qwen coder models are a good default.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+    }
+  }
 
-      Stepper(
-        "Max agent turns: \(preferences.apiMaxTurns)",
-        value: $preferences.apiMaxTurns,
-        in: 5...50
-      )
+  @ViewBuilder
+  private var apiAdvancedSection: some View {
+    @Bindable var preferences = globalPreferences
+    Section("Advanced") {
+      Stepper("Maximum tool-use turns: \(preferences.apiMaxTurns)", value: $preferences.apiMaxTurns, in: 5...50)
       Text("How many tool-use rounds one message may take before stopping.")
         .font(.caption)
-        .foregroundColor(.secondary)
+        .foregroundStyle(.secondary)
+    }
+  }
+
+  // MARK: - Local / API helpers
+
+  private var groupedAPIProfiles: (local: [EndpointProfile], hosted: [EndpointProfile], custom: [EndpointProfile]) {
+    var local: [EndpointProfile] = []
+    var hosted: [EndpointProfile] = []
+    var custom: [EndpointProfile] = []
+    for profile in globalPreferences.apiEndpointProfiles {
+      if !profile.isPreset {
+        custom.append(profile)
+      } else if profile.category == .hosted {
+        hosted.append(profile)
+      } else {
+        local.append(profile)
+      }
+    }
+    return (local, hosted, custom)
+  }
+
+  private func loadEndpointDrafts() {
+    let id = globalPreferences.selectedAPIProfileId
+    draftProfileId = id
+    apiKeyDraft = (try? credentialStore.apiKey(for: id)) ?? ""
+    serverURLDraft = selectedAPIProfile?.baseURL ?? ""
+  }
+
+  private func persistKeyDraft() {
+    guard !draftProfileId.isEmpty else { return }
+    try? credentialStore.setAPIKey(apiKeyDraft.isEmpty ? nil : apiKeyDraft, for: draftProfileId)
+  }
+
+  private func persistURLDraft() {
+    guard !draftProfileId.isEmpty,
+          let index = globalPreferences.apiEndpointProfiles.firstIndex(where: { $0.id == draftProfileId })
+    else { return }
+    globalPreferences.apiEndpointProfiles[index].baseURL = serverURLDraft
+  }
+
+  private func testConnection() {
+    guard let profile = selectedAPIProfile else { return }
+    connectionTest = .testing
+    Task {
+      do {
+        let key = apiKeyDraft.isEmpty ? (try? credentialStore.apiKey(for: profile.id)) : apiKeyDraft
+        let models = try await apiModelCatalog.availableModels(profile: profile, apiKey: key)
+        connectionTest = .success(models.count)
+        apiModels = models
+        apiModelsStatus = models.isEmpty ? "No models reported by the endpoint — type a model id." : nil
+      } catch {
+        connectionTest = .failure(error.localizedDescription)
+      }
     }
   }
 
@@ -370,6 +517,8 @@ struct GlobalSettingsView: View {
     }
     globalPreferences.selectedAPIProfileId = profile.id
     apiModels = []
+    connectionTest = .idle
+    loadEndpointDrafts()
     refreshAPIModels()
   }
 
@@ -381,6 +530,8 @@ struct GlobalSettingsView: View {
     globalPreferences.apiEndpointProfiles.removeAll { $0.id == profile.id }
     globalPreferences.selectedAPIProfileId = globalPreferences.apiEndpointProfiles.first?.id ?? ""
     apiModels = []
+    connectionTest = .idle
+    loadEndpointDrafts()
     refreshAPIModels()
   }
 

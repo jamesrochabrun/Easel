@@ -26,6 +26,31 @@ public struct EndpointProfile: Sendable, Codable, Equatable, Identifiable {
   public var extraHeaders: [String: String]
   public var capabilities: ModelCapabilities
 
+  /// How the endpoint is grouped and configured in the UI.
+  public enum Category: Sendable {
+    /// A server running on this machine (Ollama, LM Studio, llama.cpp) —
+    /// configured with a base URL, no API key.
+    case localServer
+    /// In-process inference on this machine (MLX) — no URL or key.
+    case onDevice
+    /// A hosted provider (OpenRouter, Groq, …) — configured with an API key.
+    case hosted
+  }
+
+  public var category: Category {
+    switch kind {
+    case .mlxLocal: return .onDevice
+    case .ollamaNative: return .localServer
+    case .openAICompatible: return requiresAPIKey ? .hosted : .localServer
+    }
+  }
+
+  /// True for the built-in presets (fixed providers the user can't rename or
+  /// delete); false for user-added custom endpoints.
+  public var isPreset: Bool {
+    id.hasPrefix("preset-")
+  }
+
   public init(
     id: String,
     name: String,
