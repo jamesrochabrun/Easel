@@ -107,6 +107,41 @@ final class CodeFileExtractorTests: XCTestCase {
     XCTAssertTrue(files.first { $0.relativePath == "script.js" }!.content.contains("ready"))
   }
 
+  func testFilenameHeaderSeparatedFromFenceByProse() {
+    // The real MLX "Step N: Create `file`" pattern: the filename header is a
+    // line or two above the fence, with a description sentence in between.
+    let text = """
+    ### Step 1: Create `index.html`
+    Here is the page structure.
+    ```html
+    <!doctype html><html><head><link rel="stylesheet" href="styles.css"><script src="script.js"></script></head><body></body></html>
+    ```
+
+    ### Step 2: Create `styles.css`
+    Let's add some styling for the layout.
+    ```css
+    body { font-family: sans-serif; }
+    ```
+
+    ### Step 3: Create `script.js`
+    Let's add some basic JavaScript to handle the button click event.
+    ```javascript
+    document.querySelector('.cta').addEventListener('click', () => alert('hi'))
+    ```
+    """
+    let files = CodeFileExtractor.extractFiles(from: text)
+    XCTAssertEqual(Set(files.map(\.relativePath)), ["index.html", "styles.css", "script.js"])
+    XCTAssertTrue(files.first { $0.relativePath == "styles.css" }!.content.contains("sans-serif"))
+    XCTAssertTrue(files.first { $0.relativePath == "script.js" }!.content.contains("addEventListener"))
+  }
+
+  func testBacktickFilenameExtraction() {
+    XCTAssertEqual(CodeFileExtractor.filenameInBackticks("### Step 3: Create `script.js`"), "script.js")
+    XCTAssertEqual(CodeFileExtractor.filenameInBackticks("Now edit `styles.css` to add colors"), "styles.css")
+    XCTAssertNil(CodeFileExtractor.filenameInBackticks("Use `flexbox` for centering"))
+    XCTAssertNil(CodeFileExtractor.filenameInBackticks("no backticks here at all"))
+  }
+
   func testLabelVariants() {
     XCTAssertEqual(CodeFileExtractor.filename(fromLabel: "script.js"), "script.js")
     XCTAssertEqual(CodeFileExtractor.filename(fromLabel: "**styles.css**"), "styles.css")

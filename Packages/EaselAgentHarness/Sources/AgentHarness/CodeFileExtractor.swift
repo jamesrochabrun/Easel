@@ -36,13 +36,14 @@ public enum CodeFileExtractor {
       let trimmedBody = block.body.trimmingCharacters(in: .whitespacesAndNewlines)
       guard !trimmedBody.isEmpty else { continue }
 
-      // Prefer an explicit filename (from the fence info string or a label
-      // line just above the fence, e.g. a bold "script.js" header); fall back
-      // to treating a complete HTML document as the entry point.
+      // Prefer an explicit filename (from the fence info string, or a label
+      // among the lines just above the fence — e.g. a bold "script.js" header
+      // or "### Step 3: Create `script.js`"); fall back to treating a complete
+      // HTML document as the entry point.
       let path: String?
       if let named = filename(fromInfoString: block.info) {
         path = named
-      } else if let labeled = filename(fromLabel: block.precedingLabel) {
+      } else if let labeled = filename(fromPrecedingLines: block.precedingLines) {
         path = labeled
       } else if isCompleteHTMLDocument(trimmedBody) {
         path = entryPoint
@@ -85,10 +86,22 @@ public enum CodeFileExtractor {
     return nil
   }
 
-  /// Recovers a filename from a short label line directly above a fence, e.g.
-  /// `script.js`, `**styles.css**`, `styles.css:`, `### app.js`, or
-  /// `File: styles.css`. Deliberately only accepts short label lines (≤ 3
-  /// tokens) so a full sentence that merely mentions a filename is ignored.
+  /// Searches the lines between the previous fence and this one (nearest to
+  /// the fence first) for a filename. Handles the case where a filename header
+  /// (`### Step 3: Create \`script.js\``) is separated from its fence by a
+  /// description sentence.
+  static func filename(fromPrecedingLines lines: [String]) -> String? {
+    for line in lines.reversed() {
+      if let named = filename(fromLabel: line) { return named }
+      if let backticked = filenameInBackticks(line) { return backticked }
+    }
+    return nil
+  }
+
+  /// Recovers a filename from a short label line, e.g. `script.js`,
+  /// `**styles.css**`, `styles.css:`, `### app.js`, or `File: styles.css`.
+  /// Deliberately only accepts short lines (≤ 3 tokens) so a full sentence
+  /// that merely mentions a filename is ignored.
   static func filename(fromLabel label: String) -> String? {
     let normalized = label
       .replacingOccurrences(of: "*", with: "")
@@ -99,6 +112,18 @@ public enum CodeFileExtractor {
     let tokens = normalized.split(separator: " ").map(String.init)
     guard tokens.count <= 3, let last = tokens.last, looksLikeFilename(last) else { return nil }
     return last
+  }
+
+  /// A filename wrapped in backticks, e.g. the `script.js` in
+  /// "### Step 3: Create `script.js`". Backtick-wrapping is a strong, prose-safe
+  /// signal that the token is a filename.
+  static func filenameInBackticks(_ line: String) -> String? {
+    let parts = line.split(separator: "`", omittingEmptySubsequences: false)
+    for (offset, part) in parts.enumerated() where offset % 2 == 1 {
+      let candidate = part.trimmingCharacters(in: .whitespaces)
+      if looksLikeFilename(candidate) { return candidate }
+    }
+    return nil
   }
 
   private static let savableExtensions: Set<String> = [
@@ -120,7 +145,9 @@ public enum CodeFileExtractor {
 
   private struct Fence {
     let info: String
-    let precedingLabel: String
+    /// Non-empty lines since the previous fence (document order), used to
+    /// find a filename header that may be separated from the fence by prose.
+    let precedingLines: [String]
     let body: String
   }
 
@@ -128,16 +155,15 @@ public enum CodeFileExtractor {
     var blocks: [Fence] = []
     let lines = text.components(separatedBy: "\n")
     var index = 0
-    var lastNonEmptyLine = ""
+    var pending: [String] = []
     while index < lines.count {
       let trimmed = lines[index].trimmingCharacters(in: .whitespaces)
       guard trimmed.hasPrefix("```") else {
-        if !trimmed.isEmpty { lastNonEmptyLine = trimmed }
+        if !trimmed.isEmpty { pending.append(trimmed) }
         index += 1
         continue
       }
       let info = String(trimmed.dropFirst(3)).trimmingCharacters(in: .whitespaces)
-      let label = lastNonEmptyLine
       var body: [String] = []
       index += 1
       var closed = false
@@ -152,10 +178,10 @@ public enum CodeFileExtractor {
       }
       // Ignore an unterminated fence (a stray ``` with no closer).
       if closed {
-        blocks.append(Fence(info: info, precedingLabel: label, body: body.joined(separator: "\n")))
+        blocks.append(Fence(info: info, precedingLines: pending, body: body.joined(separator: "\n")))
       }
-      // The label only applies to the immediately-following fence.
-      lastNonEmptyLine = ""
+      // Labels only apply to the immediately-following fence.
+      pending = []
     }
     return blocks
   }
