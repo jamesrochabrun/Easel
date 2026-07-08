@@ -5,6 +5,7 @@
 //  Created by Assistant on 6/7/2025.
 //
 
+import AgentHarness
 import SwiftUI
 import ClaudeCodeSDK
 import UniformTypeIdentifiers
@@ -288,8 +289,8 @@ extension ChatInputView {
         ClaudeModelBadge(modelIdentifier: globalPreferences.claudeModel)
       } else if viewModel.activeProvider == .api {
         APIModelBadge(
-          profileName: selectedAPIProfileName,
-          modelIdentifier: globalPreferences.apiModel
+          profileName: selectedAPIProfile?.name ?? "",
+          modelIdentifier: selectedAPIProfileModel
         )
       }
     }
@@ -298,12 +299,17 @@ extension ChatInputView {
     .padding(.horizontal, 4)
   }
 
-  /// Name of the endpoint profile currently selected for the Local / API
-  /// provider (e.g. "Ollama", "On-Device (MLX)").
-  private var selectedAPIProfileName: String {
+  /// The endpoint profile currently selected for the Local / API provider.
+  private var selectedAPIProfile: EndpointProfile? {
     let profiles = globalPreferences.apiEndpointProfiles
-    let selected = profiles.first { $0.id == globalPreferences.selectedAPIProfileId } ?? profiles.first
-    return selected?.name ?? ""
+    return profiles.first { $0.id == globalPreferences.selectedAPIProfileId } ?? profiles.first
+  }
+
+  /// The model chosen for the selected endpoint (stored per profile; falls
+  /// back to the legacy global field for pre-migration state).
+  private var selectedAPIProfileModel: String {
+    let model = selectedAPIProfile?.defaultModel ?? ""
+    return model.isEmpty ? globalPreferences.apiModel : model
   }
 
   private var inputCornerRadius: CGFloat {

@@ -240,6 +240,8 @@ struct GlobalSettingsView: View {
             }
           }
           .onChange(of: preferences.selectedAPIProfileId) { _, _ in
+            // Reflect the newly-selected endpoint's own model.
+            preferences.apiModel = selectedAPIProfile?.defaultModel ?? ""
             apiModels = []
             refreshAPIModels()
           }
@@ -288,18 +290,18 @@ struct GlobalSettingsView: View {
 
       Divider()
 
-      // Model selection
+      // Model selection (stored per endpoint profile)
       VStack(alignment: .leading, spacing: 6) {
         HStack {
           if apiModels.isEmpty {
-            TextField("Model", text: $preferences.apiModel, prompt: Text("e.g. qwen3-coder:30b"))
+            TextField("Model", text: selectedProfileModelBinding, prompt: Text("e.g. qwen3-coder:30b"))
               .textFieldStyle(.roundedBorder)
               .font(.system(.body, design: .monospaced))
           } else {
-            Picker("Model", selection: $preferences.apiModel) {
-              if !preferences.apiModel.isEmpty,
-                 !apiModels.contains(where: { $0.id == preferences.apiModel }) {
-                Text(preferences.apiModel).tag(preferences.apiModel)
+            Picker("Model", selection: selectedProfileModelBinding) {
+              let current = selectedProfileModelBinding.wrappedValue
+              if !current.isEmpty, !apiModels.contains(where: { $0.id == current }) {
+                Text(current).tag(current)
               }
               ForEach(apiModels) { model in
                 Text(model.displayName ?? model.id).tag(model.id)
@@ -342,6 +344,24 @@ struct GlobalSettingsView: View {
       ?? globalPreferences.apiEndpointProfiles.first
   }
 
+  /// The model is stored on the selected endpoint profile so each endpoint
+  /// remembers its own model across relaunches and endpoint switches.
+  private var selectedProfileModelBinding: Binding<String> {
+    Binding(
+      get: { selectedAPIProfile?.defaultModel ?? "" },
+      set: { setSelectedProfileModel($0) }
+    )
+  }
+
+  private func setSelectedProfileModel(_ modelId: String) {
+    guard let profile = selectedAPIProfile,
+          let index = globalPreferences.apiEndpointProfiles.firstIndex(where: { $0.id == profile.id })
+    else { return }
+    globalPreferences.apiEndpointProfiles[index].defaultModel = modelId
+    // Mirror to the legacy field so existing readers stay in sync.
+    globalPreferences.apiModel = modelId
+  }
+
   private func saveAPIProfile(_ profile: EndpointProfile, isNew: Bool) {
     if isNew {
       globalPreferences.apiEndpointProfiles.append(profile)
@@ -373,8 +393,9 @@ struct GlobalSettingsView: View {
         let models = try await apiModelCatalog.availableModels(profile: profile, apiKey: key)
         apiModels = models
         apiModelsStatus = models.isEmpty ? "No models reported by the endpoint — type a model id." : nil
-        if globalPreferences.apiModel.isEmpty, let first = models.first {
-          globalPreferences.apiModel = first.id
+        // Default this endpoint to its first model only if it has none chosen.
+        if (selectedAPIProfile?.defaultModel ?? "").isEmpty, let first = models.first {
+          setSelectedProfileModel(first.id)
         }
       } catch {
         apiModels = []

@@ -1498,8 +1498,12 @@ EOF
 
     if let apiRuntime = runtime as? APIChatRuntime {
       let profiles = globalPreferences.apiEndpointProfiles
-      apiRuntime.profile = profiles.first { $0.id == globalPreferences.selectedAPIProfileId } ?? profiles.first
-      apiRuntime.modelIdentifier = globalPreferences.apiModel
+      let profile = profiles.first { $0.id == globalPreferences.selectedAPIProfileId } ?? profiles.first
+      apiRuntime.profile = profile
+      // The model is stored per endpoint profile; fall back to the legacy
+      // global field only if the profile has none.
+      let profileModel = profile?.defaultModel ?? ""
+      apiRuntime.modelIdentifier = profileModel.isEmpty ? globalPreferences.apiModel : profileModel
       apiRuntime.maxTurns = globalPreferences.apiMaxTurns
       apiRuntime.systemInstructions = combinedAPIInstructions()
     }

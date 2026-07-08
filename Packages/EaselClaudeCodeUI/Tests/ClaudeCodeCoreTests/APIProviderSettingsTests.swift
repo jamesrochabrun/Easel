@@ -41,6 +41,30 @@ final class APIProviderSettingsTests: XCTestCase {
     XCTAssertEqual(decoded.apiMaxTurns, 20)
   }
 
+  func testPerProfileModelSurvivesRoundTrip() throws {
+    // Each endpoint remembers its own model, independent of the others.
+    var profiles = EndpointProfile.builtInPresets()
+    let mlxIndex = profiles.firstIndex { $0.kind == .mlxLocal }!
+    let groqIndex = profiles.firstIndex { $0.id == "preset-groq" }!
+    profiles[mlxIndex].defaultModel = "mlx-community/Qwen2.5-Coder-7B-Instruct-4bit"
+    profiles[groqIndex].defaultModel = "llama-3.3-70b-versatile"
+
+    let preferences = GeneralPreferences(
+      apiEndpointProfiles: profiles,
+      selectedAPIProfileId: profiles[mlxIndex].id
+    )
+    let decoded = try JSONDecoder().decode(
+      GeneralPreferences.self,
+      from: JSONEncoder().encode(preferences)
+    )
+
+    let mlx = decoded.apiEndpointProfiles.first { $0.kind == .mlxLocal }
+    let groq = decoded.apiEndpointProfiles.first { $0.id == "preset-groq" }
+    XCTAssertEqual(mlx?.defaultModel, "mlx-community/Qwen2.5-Coder-7B-Instruct-4bit")
+    XCTAssertEqual(groq?.defaultModel, "llama-3.3-70b-versatile")
+    XCTAssertEqual(decoded.selectedAPIProfileId, mlx?.id, "the selected endpoint is remembered")
+  }
+
   // MARK: - Seeding
 
   func testSeedingEmptyProfilesInstallsPresetsAndSelectsOllama() {
