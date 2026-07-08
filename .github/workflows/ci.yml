@@ -29,6 +29,7 @@ jobs:
             -configuration Debug \
             -destination 'platform=macOS' \
             -skipPackagePluginValidation \
+            -skipMacroValidation \
             CODE_SIGNING_ALLOWED=NO \
             build
 
@@ -40,6 +41,7 @@ jobs:
             -configuration Debug \
             -destination 'generic/platform=macOS' \
             -skipPackagePluginValidation \
+            -skipMacroValidation \
             CODE_SIGNING_ALLOWED=NO \
             build-for-testing
 
@@ -50,4 +52,5 @@ jobs:
             -scheme EaselChat-Package \
             -destination 'platform=macOS' \
             -skipPackagePluginValidation \
+            -skipMacroValidation \
             test
