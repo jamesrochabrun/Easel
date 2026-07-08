@@ -102,6 +102,7 @@ public struct WebInspectorPreviewView: View {
   let projectPath: String?
   let projectFileProvider: (any ProjectFileProviding)?
   let recentActivityProvider: (any RecentActivityProviding)?
+  let backgroundJobCoordinator: (any BackgroundAgentJobCoordinating)?
 
   @State private var inspectState = ElementInspectState()
   @State private var inspectBehavior: WebPreviewInspectBehavior = .input
@@ -163,13 +164,15 @@ public struct WebInspectorPreviewView: View {
     inspectorBridge: InspectorBridgeProtocol,
     projectPath: String? = nil,
     projectFileProvider: (any ProjectFileProviding)? = nil,
-    recentActivityProvider: (any RecentActivityProviding)? = nil
+    recentActivityProvider: (any RecentActivityProviding)? = nil,
+    backgroundJobCoordinator: (any BackgroundAgentJobCoordinating)? = nil
   ) {
     self.previewURLProvider = previewURLProvider
     self.inspectorBridge = inspectorBridge
     self.projectPath = projectPath
     self.projectFileProvider = projectFileProvider
     self.recentActivityProvider = recentActivityProvider
+    self.backgroundJobCoordinator = backgroundJobCoordinator
 
     if let normalizedProjectPath = Self.normalizedProjectPath(projectPath),
        let projectFileProvider {
@@ -350,6 +353,15 @@ public struct WebInspectorPreviewView: View {
         }
         .webPreviewSecondaryButtonStyle()
         .controlSize(.small)
+        .overlay(alignment: .topTrailing) {
+          if activeTweaksJob?.status.isActive == true {
+            Circle()
+              .fill(EaselDesignSystem.Palette.accent)
+              .frame(width: 6, height: 6)
+              .offset(x: 2, y: -2)
+              .accessibilityLabel("Tweaks generating")
+          }
+        }
         .help("Tweak this design with live controls")
         .popover(isPresented: $isTweaksPopoverPresented, arrowEdge: .bottom) {
           tweaksPanel
@@ -397,6 +409,14 @@ public struct WebInspectorPreviewView: View {
     HStack(spacing: 0) {
       previewContent
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay(alignment: .bottom) {
+          if let job = activeTweaksJob {
+            backgroundJobPill(for: job)
+              .padding(.bottom, 12)
+              .transition(.move(edge: .bottom).combined(with: .opacity))
+          }
+        }
+        .animation(.easeInOut(duration: 0.2), value: activeTweaksJob?.status)
 
       if showsInspectorRail, let inspectorViewModel {
         WebPreviewInspectorRail(
@@ -829,24 +849,117 @@ public struct WebInspectorPreviewView: View {
 
   // MARK: - Tweaks
 
+  /// Newest background tweaks job for this project that should surface in
+  /// the UI. Cancelled/undone jobs stay hidden.
+  private var activeTweaksJob: BackgroundAgentJobSnapshot? {
+    guard let backgroundJobCoordinator, let normalizedProjectPath else { return nil }
+    return backgroundJobCoordinator.jobs.last { job in
+      guard job.request.projectPath == normalizedProjectPath else { return false }
+      switch job.status {
+      case .cancelled, .undone:
+        return false
+      default:
+        return true
+      }
+    }
+  }
+
+  /// Maps the job status into the panel's Canvas-side vocabulary.
+  private var tweaksGenerationStatus: TweaksGenerationStatus {
+    guard let job = activeTweaksJob else { return .idle }
+    switch job.status {
+    case .queued, .preparingWorkspace:
+      return .queued
+    case .generating:
+      return .running(activity: job.activityDescription)
+    case .validating:
+      return .running(activity: "Checking generated changes…")
+    case .applying:
+      return .running(activity: "Applying tweaks…")
+    case .waitingToApply:
+      return .waitingToApply
+    case .applied:
+      return .applied
+    case .conflict:
+      return .conflict
+    case .failed(let failure):
+      return .failed(message: failure.message)
+    case .cancelled, .undone:
+      return .idle
+    }
+  }
+
   private var tweaksPanel: some View {
     TweaksPanelView(
       state: tweaksState,
       onSubmitDescription: { instruction in
-        inspectorBridge.sendInspectorPrompt(
-          TweaksPromptBuilder.customPrompt(fileName: tweaksFileName, instruction: instruction)
-        )
+        submitTweaksInstruction(.custom(instruction))
         isTweaksPopoverPresented = false
       },
       onIdeas: {
-        inspectorBridge.sendInspectorPrompt(
-          TweaksPromptBuilder.ideasPrompt(fileName: tweaksFileName)
-        )
+        submitTweaksInstruction(.ideas)
         isTweaksPopoverPresented = false
       },
-      onValueChange: handleTweakValueChange
+      onValueChange: handleTweakValueChange,
+      generationStatus: tweaksGenerationStatus,
+      onCancelGeneration: cancelActiveTweaksJob
     )
     .frame(width: 320)
+  }
+
+  /// Runs the tweaks instruction as a background job when possible; falls
+  /// back to the interactive chat session when there's no coordinator or
+  /// the preview URL can't be mapped into the project.
+  private func submitTweaksInstruction(_ instruction: TweaksJobRequestFactory.TweaksJobInstruction) {
+    if let backgroundJobCoordinator,
+       let url = previewURLProvider.previewURL,
+       let projectPath = normalizedProjectPath,
+       let request = TweaksJobRequestFactory.makeRequest(
+        previewURL: url,
+        projectPath: projectPath,
+        instruction: instruction
+       ) {
+      backgroundJobCoordinator.submit(request)
+      return
+    }
+
+    switch instruction {
+    case .ideas:
+      inspectorBridge.sendInspectorPrompt(
+        TweaksPromptBuilder.ideasPrompt(fileName: tweaksFileName)
+      )
+    case .custom(let text):
+      inspectorBridge.sendInspectorPrompt(
+        TweaksPromptBuilder.customPrompt(fileName: tweaksFileName, instruction: text)
+      )
+    }
+  }
+
+  private func cancelActiveTweaksJob() {
+    guard let backgroundJobCoordinator, let job = activeTweaksJob else { return }
+    backgroundJobCoordinator.cancel(jobId: job.id)
+  }
+
+  private func backgroundJobPill(for job: BackgroundAgentJobSnapshot) -> some View {
+    BackgroundJobStatusPill(
+      job: job,
+      onCancel: { backgroundJobCoordinator?.cancel(jobId: job.id) },
+      onResolveConflict: { resolution in
+        backgroundJobCoordinator?.resolveConflict(jobId: job.id, resolution: resolution)
+      },
+      postApplyDriftedFiles: {
+        await backgroundJobCoordinator?.postApplyDriftedFiles(jobId: job.id) ?? []
+      },
+      onUndo: { force in
+        Task { await backgroundJobCoordinator?.undo(jobId: job.id, force: force) }
+      },
+      onRetry: { backgroundJobCoordinator?.retry(jobId: job.id) },
+      onSendToChat: {
+        inspectorBridge.sendInspectorPrompt(job.request.prompt)
+        backgroundJobCoordinator?.dismiss(jobId: job.id)
+      },
+      onDismiss: { backgroundJobCoordinator?.dismiss(jobId: job.id) }
+    )
   }
 
   /// Name of the previewed document for tweaks prompts.

@@ -17,6 +17,7 @@ struct CanvasContentView: View {
 
   @State private var serverManager = ProjectServerManager()
   @State private var projectFileService = DefaultProjectFileService()
+  @State private var backgroundJobService: BackgroundAgentJobService?
   @State private var sidebarViewModel: SidebarViewModel?
   @State private var designLibraryViewModel: DesignLibraryViewModel?
   @State private var resourcesViewModel = ProjectResourcesViewModel()
@@ -115,6 +116,11 @@ struct CanvasContentView: View {
     .task {
       if let appDelegate = NSApp.delegate as? AppDelegate {
         appDelegate.serverManager = serverManager
+      }
+      if backgroundJobService == nil {
+        backgroundJobService = chatService.makeBackgroundJobService(
+          validator: TweaksSchemaJobValidator()
+        )
       }
       let vm = SidebarViewModel(sessionStorage: chatService.sessionStorage)
       let libraryVM = DesignLibraryViewModel(sessionStorage: chatService.sessionStorage)
@@ -607,7 +613,8 @@ struct CanvasContentView: View {
                   previewURLProvider: chatService,
                   inspectorBridge: chatService,
                   projectPath: chatService.currentWorkingDirectory,
-                  projectFileProvider: projectFileService
+                  projectFileProvider: projectFileService,
+                  backgroundJobCoordinator: backgroundJobService
                 )
               }
             }

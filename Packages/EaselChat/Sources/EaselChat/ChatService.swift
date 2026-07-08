@@ -29,11 +29,14 @@ private struct ChatSessionContext {
 
 private enum ChatServiceError: LocalizedError {
   case missingGlobalPreferences
+  case backgroundJobsUnsupportedForProvider
 
   var errorDescription: String? {
     switch self {
     case .missingGlobalPreferences:
       return "Chat service preferences are not initialized."
+    case .backgroundJobsUnsupportedForProvider:
+      return "Background tweaks aren't supported for the Local / API provider yet — use Send to chat instead."
     }
   }
 }
@@ -377,6 +380,77 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
       codexExtraArgs: globalPreferences?.codexExtraArgs ?? "",
       codexEnvironmentVariables: globalPreferences?.codexEnvironmentVariables ?? [:]
     )
+  }
+
+  // MARK: - Background Jobs
+
+  /// True when any retained session context working in `workingDirectory`
+  /// has a turn in flight — including sessions the user switched away from.
+  public func isAnySessionBusy(workingDirectory: String) -> Bool {
+    let target = Self.normalizedPath(workingDirectory)
+    var viewModels: [ChatViewModel] = []
+    if let chatViewModel {
+      viewModels.append(chatViewModel)
+    }
+    viewModels.append(contentsOf: sessionContextsById.values.map(\.viewModel))
+    viewModels.append(contentsOf: pendingSessionContextsByViewModelId.values.map(\.viewModel))
+
+    return viewModels.contains { viewModel in
+      viewModel.isLoading && Self.normalizedPath(viewModel.projectPath) == target
+    }
+  }
+
+  /// Builds the background job service wired to the active provider's
+  /// preferences and this service's busy state.
+  public func makeBackgroundJobService(validator: any BackgroundJobValidating) -> BackgroundAgentJobService {
+    BackgroundAgentJobService(
+      runnerProvider: { [weak self] in
+        guard let self, let preferences = self.globalPreferences else {
+          throw ChatServiceError.missingGlobalPreferences
+        }
+        return try self.makeBackgroundRunner(preferences: preferences)
+      },
+      validator: validator,
+      isChatBusy: { [weak self] projectPath in
+        self?.isAnySessionBusy(workingDirectory: projectPath) ?? false
+      }
+    )
+  }
+
+  /// Resolved fresh at each job start so provider/model switches are honored.
+  private func makeBackgroundRunner(preferences: GlobalPreferencesStorage) throws -> any BackgroundAgentRunning {
+    switch preferences.chatProvider {
+    case .api:
+      // The Local / API provider runs an in-process harness, not a CLI —
+      // no headless runner yet. The failed pill offers "Send to chat",
+      // which works with this provider.
+      throw ChatServiceError.backgroundJobsUnsupportedForProvider
+
+    case .claude:
+      var configuration = ChatConfiguration.makeDefault()
+      if let claudePath = normalized(preferences.claudePath) {
+        configuration.command = claudePath
+      } else if let claudeCommand = normalized(preferences.claudeCommand) {
+        configuration.command = claudeCommand
+      }
+      return ClaudeBackgroundAgentRunner(
+        baseConfiguration: configuration,
+        model: normalized(preferences.claudeModel),
+        appendSystemPrompt: EaselAgentInstructions.systemPromptPrefix
+      )
+
+    case .codex:
+      return CodexBackgroundAgentRunner(
+        commandOverride: normalized(preferences.codexCommand),
+        environmentOverrides: preferences.codexEnvironmentVariables,
+        model: normalized(preferences.codexModel),
+        extraArguments: CodexClientFactory.parseArgumentString(preferences.codexExtraArgs)
+      )
+    }
+  }
+
+  private static func normalizedPath(_ path: String) -> String {
+    URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath().path
   }
 
   // MARK: - Private
