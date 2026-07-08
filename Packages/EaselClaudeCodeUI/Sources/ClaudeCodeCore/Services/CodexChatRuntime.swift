@@ -192,56 +192,14 @@ final class CodexChatRuntime: ChatRuntime {
   }
 
   private func makeClient() -> CodexExecClient {
-    var configuration = CodexExecConfiguration.withNvmSupport()
-    configuration.enableDebugLogging = true
-    configuration.useLoginShell = true
-    configuration.workingDirectory = workingDirectory
-
-    let homeDirectory = NSHomeDirectory()
-    let trimmedCommandOverride = commandOverride?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    if !trimmedCommandOverride.isEmpty {
-      // User-specified command takes precedence over auto-detection.
-      configuration.command = trimmedCommandOverride
-    } else {
-      let localCodexPath = "\(homeDirectory)/.codex/local/codex"
-      if FileManager.default.isExecutableFile(atPath: localCodexPath) {
-        configuration.command = localCodexPath
-      } else {
-        var commandFound = false
-        if let nvmPath = NvmPathDetector.detectNvmPath() {
-          let nvmCodexPath = "\(nvmPath)/codex"
-          if FileManager.default.isExecutableFile(atPath: nvmCodexPath) {
-            configuration.command = nvmCodexPath
-            commandFound = true
-          }
-        }
-        if !commandFound, let detected = CodexBinaryDetector.detect() {
-          configuration.command = detected.path
-        }
-      }
-    }
-
-    configuration.additionalPaths.append(contentsOf: [
-      "/usr/local/bin",
-      "/opt/homebrew/bin",
-      "/usr/bin",
-      "\(homeDirectory)/.bun/bin",
-      "\(homeDirectory)/.deno/bin",
-      "\(homeDirectory)/.cargo/bin",
-      "\(homeDirectory)/.local/bin",
-    ])
-
-    // Apply user-provided environment overrides last so they win.
-    for (key, value) in environmentOverrides {
-      let trimmedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
-      guard !trimmedKey.isEmpty else { continue }
-      configuration.environment[trimmedKey] = value
-    }
-
-    return CodexExecClient(configuration: configuration)
+    CodexClientFactory.makeClient(
+      commandOverride: commandOverride,
+      environmentOverrides: environmentOverrides,
+      workingDirectory: workingDirectory
+    )
   }
 
-  static func makeOptions(
+  nonisolated static func makeOptions(
     isFirstTurn: Bool,
     currentSessionId: String?,
     workingDirectory: String?,
@@ -345,7 +303,7 @@ final class CodexChatRuntime: ChatRuntime {
     return "[CodexChatRuntime] Executing: \(parts.joined(separator: " "))"
   }
 
-  private static func normalizedModelIdentifier(_ value: String?) -> String? {
+  private nonisolated static func normalizedModelIdentifier(_ value: String?) -> String? {
     let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
     return trimmed?.isEmpty == false ? trimmed : nil
   }
@@ -355,7 +313,7 @@ final class CodexChatRuntime: ChatRuntime {
     return "'\(escaped)'"
   }
 
-  private static func tomlString(_ value: String?) -> String? {
+  private nonisolated static func tomlString(_ value: String?) -> String? {
     guard let value else { return nil }
     let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return nil }

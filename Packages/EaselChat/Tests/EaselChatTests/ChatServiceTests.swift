@@ -7,6 +7,7 @@ import Foundation
 import Testing
 import ClaudeCodeCore
 import EaselDesignSystems
+import EaselKit
 @testable import EaselChat
 
 @MainActor
@@ -29,6 +30,31 @@ struct ChatServiceTests {
     service.sendInspectorPrompt("test")
     service.sendContextPrompt("test")
     service.sendCropPrompt("test")
+  }
+
+  @Test
+  func isAnySessionBusyIsFalseWithoutSessions() {
+    let service = ChatService()
+    #expect(!service.isAnySessionBusy(workingDirectory: "/tmp/some-project"))
+    #expect(!service.isAnySessionBusy(workingDirectory: "/tmp/some-project/"))
+  }
+
+  @Test
+  func makeBackgroundJobServiceFailsJobsUntilPreferencesExist() {
+    struct NoopValidator: BackgroundJobValidating {
+      func validate(
+        shadowRoot: String,
+        targetRelativePath: String,
+        changedFiles: [String]
+      ) async throws -> BackgroundJobValidationOutcome {
+        BackgroundJobValidationOutcome(schemaFileRelativePath: targetRelativePath, propNames: [])
+      }
+    }
+
+    let service = ChatService()
+    // Uninitialized service (no globalPreferences) still vends a job service;
+    // its runnerProvider throws, surfacing as a failed job instead of a crash.
+    _ = service.makeBackgroundJobService(validator: NoopValidator())
   }
 
   @Test

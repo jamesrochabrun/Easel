@@ -15,7 +15,9 @@ let package = Package(
   ],
   dependencies: [
     .package(path: "../EaselKit"),
-    .package(url: "https://github.com/jamesrochabrun/Canvas", exact: "1.3.0"),
+    // Revision pin onto Canvas's background-tweaks-status branch; swap to
+    // exact: "1.4.0" once that release is tagged.
+    .package(url: "https://github.com/jamesrochabrun/Canvas", revision: "62c3cce56fedda4e75f2f5c4d07a165b6eaeba33"),
   ],
   targets: [
     .target(

@@ -3,6 +3,7 @@
 //  EaselWebInspector
 //
 
+import EaselKit
 import Foundation
 
 actor WebPreviewProjectFileChangeObserver {
@@ -53,7 +54,7 @@ struct WebPreviewProjectFileSnapshot: Equatable {
       )
 
       if values?.isDirectory == true {
-        if ignoredDirectoryNames.contains(fileURL.lastPathComponent) {
+        if ProjectScanIgnoreList.directoryNames.contains(fileURL.lastPathComponent) {
           enumerator.skipDescendants()
         }
         continue
@@ -71,25 +72,6 @@ struct WebPreviewProjectFileSnapshot: Equatable {
 
     return WebPreviewProjectFileSnapshot(files: files)
   }
-
-  private static let ignoredDirectoryNames: Set<String> = [
-    ".git",
-    ".svn",
-    ".swiftpm",
-    ".build",
-    ".easel",
-    ".cache",
-    ".next",
-    ".nuxt",
-    ".turbo",
-    ".vercel",
-    "DerivedData",
-    "build",
-    "coverage",
-    "dist",
-    "node_modules",
-    "out",
-  ]
 
   private static func relativePath(for fileURL: URL, rootURL: URL) -> String? {
     let filePath = fileURL.standardizedFileURL.path
