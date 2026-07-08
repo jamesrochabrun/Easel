@@ -29,6 +29,29 @@ struct ClaudeModelBadge: View {
   }
 }
 
+struct APIModelBadge: View {
+  let profileName: String
+  let modelIdentifier: String
+
+  var body: some View {
+    ProviderModelBadge(
+      providerName: profileName.isEmpty ? "Local / API" : profileName,
+      defaultDisplayText: "No model selected",
+      modelIdentifier: shortModelIdentifier
+    )
+  }
+
+  /// On-device (MLX) model ids are long `org/name` hub paths — show just the
+  /// leaf so the badge stays readable.
+  private var shortModelIdentifier: String {
+    let trimmed = modelIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
+    if trimmed.contains("/"), let leaf = trimmed.split(separator: "/").last {
+      return String(leaf)
+    }
+    return trimmed
+  }
+}
+
 private struct ProviderModelBadge: View {
   let providerName: String
   let defaultDisplayText: String

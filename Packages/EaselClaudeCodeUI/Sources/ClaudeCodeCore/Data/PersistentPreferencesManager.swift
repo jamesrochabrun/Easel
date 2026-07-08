@@ -5,6 +5,7 @@
 //  Created on 1/18/25.
 //
 
+import AgentHarness
 import Foundation
 
 /// Manages persistent storage of user preferences in Application Support directory
@@ -335,6 +336,15 @@ public struct GeneralPreferences: Codable {
   public var codexExtraArgs: String
   /// Environment variable overrides injected into the Codex CLI process.
   public var codexEnvironmentVariables: [String: String]
+  /// Named endpoint profiles for the Local / API provider (secrets excluded —
+  /// API keys live in the credential store, keyed by profile id).
+  public var apiEndpointProfiles: [EndpointProfile]
+  /// Selected endpoint-profile id for the Local / API provider.
+  public var selectedAPIProfileId: String
+  /// Model identifier used by the Local / API provider.
+  public var apiModel: String
+  /// Maximum agent-loop turns per Local / API send.
+  public var apiMaxTurns: Int
 
   public init(
     autoApproveLowRisk: Bool = false,
@@ -357,7 +367,11 @@ public struct GeneralPreferences: Codable {
     isClaudeCommandFromConfig: Bool = false,
     codexCommand: String = "",
     codexExtraArgs: String = "",
-    codexEnvironmentVariables: [String: String] = [:]
+    codexEnvironmentVariables: [String: String] = [:],
+    apiEndpointProfiles: [EndpointProfile] = [],
+    selectedAPIProfileId: String = "",
+    apiModel: String = "",
+    apiMaxTurns: Int = 20
   ) {
     self.autoApproveLowRisk = autoApproveLowRisk
     self.claudeCommand = claudeCommand
@@ -380,6 +394,10 @@ public struct GeneralPreferences: Codable {
     self.codexCommand = codexCommand
     self.codexExtraArgs = codexExtraArgs
     self.codexEnvironmentVariables = codexEnvironmentVariables
+    self.apiEndpointProfiles = apiEndpointProfiles
+    self.selectedAPIProfileId = selectedAPIProfileId
+    self.apiModel = apiModel
+    self.apiMaxTurns = apiMaxTurns
   }
 
   // Custom decoding for backwards compatibility
@@ -407,5 +425,9 @@ public struct GeneralPreferences: Codable {
     codexCommand = try container.decodeIfPresent(String.self, forKey: .codexCommand) ?? ""
     codexExtraArgs = try container.decodeIfPresent(String.self, forKey: .codexExtraArgs) ?? ""
     codexEnvironmentVariables = try container.decodeIfPresent([String: String].self, forKey: .codexEnvironmentVariables) ?? [:]
+    apiEndpointProfiles = try container.decodeIfPresent([EndpointProfile].self, forKey: .apiEndpointProfiles) ?? []
+    selectedAPIProfileId = try container.decodeIfPresent(String.self, forKey: .selectedAPIProfileId) ?? ""
+    apiModel = try container.decodeIfPresent(String.self, forKey: .apiModel) ?? ""
+    apiMaxTurns = try container.decodeIfPresent(Int.self, forKey: .apiMaxTurns) ?? 20
   }
 }

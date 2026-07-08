@@ -74,10 +74,11 @@ public actor SimplifiedClaudeCodeSQLiteMigrationManager {
   /// Version 4: Add aggregate session token usage columns
   /// Version 5: Add reasoning output token usage column
   /// Version 6: Persist chat provider on sessions
+  /// Version 7: Add api_transcripts table for API-shaped agent transcripts
   ///
   /// WHEN ADDING MIGRATIONS: Update this to the new version number
   /// See MIGRATION_GUIDE.md for instructions
-  public static let CURRENT_SCHEMA_VERSION = 6
+  public static let CURRENT_SCHEMA_VERSION = 7
 
   private let database: Connection
   private let databasePath: String
@@ -167,6 +168,9 @@ public actor SimplifiedClaudeCodeSQLiteMigrationManager {
     }
     if currentVersion < 6 {
       migrations.append(MigrationV6_AddSessionProvider())
+    }
+    if currentVersion < 7 {
+      migrations.append(MigrationV7_AddAPITranscripts())
     }
 
     return migrations
@@ -358,6 +362,21 @@ struct MigrationV6_AddSessionProvider: DatabaseMigration {
     try database.execute("""
       ALTER TABLE sessions
       ADD COLUMN provider TEXT NOT NULL DEFAULT 'codex'
+    """)
+  }
+}
+
+struct MigrationV7_AddAPITranscripts: DatabaseMigration {
+  var version: Int { 7 }
+  var description: String { "Add api_transcripts table for API-shaped agent transcripts" }
+
+  func migrate(database: Connection) async throws {
+    try database.execute("""
+      CREATE TABLE IF NOT EXISTS api_transcripts (
+        session_id TEXT PRIMARY KEY NOT NULL,
+        transcript_json TEXT NOT NULL,
+        updated_at REAL NOT NULL
+      )
     """)
   }
 }

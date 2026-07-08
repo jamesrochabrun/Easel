@@ -3,6 +3,10 @@
 //  EaselChat
 //
 
+import AgentHarness
+import AgentProviderMLX
+import AgentProviderOllama
+import AgentProviderOpenAI
 import ClaudeCodeCore
 import ClaudeCodeSDK
 import EaselDesignSystems
@@ -55,6 +59,35 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
   public private(set) var currentWorkspaceUsageSummary: SessionUsageSummary = .zero
   public private(set) var sessionStorage: SessionStorageProtocol
   public var mcpToolsDiscoveryService: MCPToolsDiscoveryService { mcpToolsDiscovery }
+
+  /// On-device MLX model management, shared by the chat runtime and the
+  /// settings download UI. One instance app-wide — the loaded model is the
+  /// process's GPU tenant.
+  public let onDeviceModelManager = MLXModelManager()
+  @ObservationIgnored private lazy var onDeviceModelRuntime = MLXModelRuntime(manager: onDeviceModelManager)
+
+  /// A model catalog for the settings picker that knows about on-device MLX
+  /// models (dispatches `.mlxLocal` profiles to the installed-model list).
+  public var apiModelCatalog: any APIModelCatalogProviding {
+    APIModelCatalog(clientFactory: apiModelClientFactory)
+  }
+
+  /// Model-client factory for the Local / API provider: routes on-device
+  /// profiles to MLX and everything else to the HTTP adapters.
+  var apiModelClientFactory: @Sendable (EndpointProfile, String?) -> any AgentModelClient {
+    let manager = onDeviceModelManager
+    let runtime = onDeviceModelRuntime
+    return { profile, apiKey in
+      switch profile.kind {
+      case .mlxLocal:
+        return MLXModelClient(profile: profile, runtime: runtime, manager: manager)
+      case .ollamaNative:
+        return OllamaNativeModelClient(profile: profile)
+      case .openAICompatible:
+        return OpenAICompatibleModelClient(profile: profile, apiKey: apiKey)
+      }
+    }
+  }
 
   /// Called when a session changes (created or switched), so the sidebar can refresh
   public var onSessionChanged: (() -> Void)?
@@ -393,6 +426,8 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
       logger: logger,
       systemPromptPrefix: EaselAgentInstructions.systemPromptPrefix,
       codexDeveloperInstructionsPrefix: EaselAgentInstructions.codexDeveloperInstructionsPrefix,
+      apiInstructionsPrefix: EaselAgentInstructions.apiAgentInstructionsPrefix,
+      apiModelClientFactory: apiModelClientFactory,
       shouldManageSessions: true,
       onSessionChange: { [weak self, weak reference] newSessionId in
         Task { @MainActor in

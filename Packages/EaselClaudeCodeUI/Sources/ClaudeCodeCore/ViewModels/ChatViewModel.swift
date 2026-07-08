@@ -5,6 +5,7 @@
 //  Created by James Rochabrun on 5/25/25.
 //
 
+import AgentHarness
 import ClaudeCodeSDK
 import Foundation
 import os.log
@@ -67,6 +68,14 @@ public final class ChatViewModel {
   /// Optional Codex developer instructions prefix. Falls back to systemPromptPrefix when nil.
   private let codexDeveloperInstructionsPrefix: String?
 
+  /// Optional API-provider agent instructions prefix. Falls back to systemPromptPrefix when nil.
+  private let apiInstructionsPrefix: String?
+
+  /// Optional model-client factory for the `.api` provider. Lets the
+  /// embedding app supply backends ClaudeCodeCore doesn't link (on-device
+  /// MLX); nil uses the built-in OpenAI-compatible/Ollama factory.
+  private let apiModelClientFactory: (@Sendable (EndpointProfile, String?) -> any AgentModelClient)?
+
   @ObservationIgnored private lazy var streamProcessor: StreamProcessor = {
     let processor = StreamProcessor(
       messageStore: messageStore,
@@ -91,6 +100,7 @@ public final class ChatViewModel {
   private let messageStore = MessageStore()
   @ObservationIgnored private var codexRuntime: CodexChatRuntime?
   @ObservationIgnored private var claudeRuntime: ClaudeChatRuntime?
+  @ObservationIgnored private var apiRuntime: APIChatRuntime?
   @ObservationIgnored private var runtimeTask: Task<Void, Never>?
   private var firstMessageInSession: String?
   private var loadingSessionIdentity: LoadingSessionIdentity?
@@ -145,6 +155,8 @@ public final class ChatViewModel {
       return codexRuntime?.activeSessionId ?? sessionManager.currentSessionId
     case .claude:
       return claudeRuntime?.activeSessionId ?? streamProcessor.activeSessionId
+    case .api:
+      return apiRuntime?.activeSessionId ?? sessionManager.currentSessionId
     }
   }
 
@@ -422,6 +434,7 @@ EOF
       logger: logger,
       systemPromptPrefix: nil,
       codexDeveloperInstructionsPrefix: nil,
+      apiInstructionsPrefix: nil,
       shouldManageSessions: false,
       onSessionChange: nil,
       onSessionUsageChange: nil,
@@ -439,6 +452,8 @@ EOF
     logger: ClaudeCodeLogger = ClaudeCodeLogger(),
     systemPromptPrefix: String? = nil,
     codexDeveloperInstructionsPrefix: String? = nil,
+    apiInstructionsPrefix: String? = nil,
+    apiModelClientFactory: (@Sendable (EndpointProfile, String?) -> any AgentModelClient)? = nil,
     shouldManageSessions: Bool = true,
     onSessionChange: ((String) -> Void)? = nil,
     onSessionUsageChange: ((String) -> Void)? = nil,
@@ -453,6 +468,8 @@ EOF
     self.debugLogger = logger
     self.systemPromptPrefix = systemPromptPrefix
     self.codexDeveloperInstructionsPrefix = codexDeveloperInstructionsPrefix
+    self.apiInstructionsPrefix = apiInstructionsPrefix
+    self.apiModelClientFactory = apiModelClientFactory
     self.shouldManageSessions = shouldManageSessions
     self.onSessionChange = onSessionChange
     self.onSessionUsageChange = onSessionUsageChange
@@ -817,6 +834,7 @@ EOF
     endLoadingState()
     codexRuntime?.resetSession()
     claudeRuntime?.resetSession()
+    apiRuntime?.resetSession()
     runtimeTask = nil
     if resetProviderToDefault {
       setActiveProvider(globalPreferences.chatProvider)
@@ -863,12 +881,14 @@ EOF
         self.claudeClient.configuration.workingDirectory = nil
         self.codexRuntime?.workingDirectory = nil
         self.claudeRuntime?.workingDirectory = nil
+        self.apiRuntime?.workingDirectory = nil
         self.projectPath = ""
         
         // Clear the session manager's current session
         self.sessionManager.clearSession()
         self.codexRuntime?.resetSession()
         self.claudeRuntime?.resetSession()
+        self.apiRuntime?.resetSession()
         self.runtimeTask = nil
         self.setActiveProvider(self.globalPreferences.chatProvider)
         
@@ -1460,6 +1480,8 @@ EOF
       return getCodexRuntime()
     case .claude:
       return getClaudeRuntime()
+    case .api:
+      return getAPIRuntime()
     }
   }
 
@@ -1472,6 +1494,18 @@ EOF
       codexRuntime.commandOverride = globalPreferences.codexCommand
       codexRuntime.extraArguments = CodexChatRuntime.parseArgumentString(globalPreferences.codexExtraArgs)
       codexRuntime.environmentOverrides = globalPreferences.codexEnvironmentVariables
+    }
+
+    if let apiRuntime = runtime as? APIChatRuntime {
+      let profiles = globalPreferences.apiEndpointProfiles
+      let profile = profiles.first { $0.id == globalPreferences.selectedAPIProfileId } ?? profiles.first
+      apiRuntime.profile = profile
+      // The model is stored per endpoint profile; fall back to the legacy
+      // global field only if the profile has none.
+      let profileModel = profile?.defaultModel ?? ""
+      apiRuntime.modelIdentifier = profileModel.isEmpty ? globalPreferences.apiModel : profileModel
+      apiRuntime.maxTurns = globalPreferences.apiMaxTurns
+      apiRuntime.systemInstructions = combinedAPIInstructions()
     }
   }
 
@@ -1531,9 +1565,49 @@ EOF
     return runtime
   }
 
+  private func getAPIRuntime() -> APIChatRuntime {
+    if let apiRuntime {
+      return apiRuntime
+    }
+
+    let runtime = APIChatRuntime(
+      messageDisplay: messageStore,
+      sessionManager: sessionManager,
+      workingDirectory: claudeClient.configuration.workingDirectory,
+      transcriptStore: (sessionStorage as? AgentTranscriptStore) ?? NoOpAgentTranscriptStore(),
+      clientFactory: apiModelClientFactory ?? APIChatRuntime.defaultClientFactory,
+      onSessionChange: { [weak self] sessionId in
+        self?.handleRuntimeSessionChange(sessionId)
+      },
+      onUsageRecorded: { [weak self] record in
+        self?.recordCompletedTurnUsage(record)
+      }
+    )
+    apiRuntime = runtime
+    return runtime
+  }
+
   private func combinedCodexDeveloperInstructions() -> String? {
     let parts = [
       codexDeveloperInstructionsPrefix ?? systemPromptPrefix,
+      globalPreferences.systemPrompt,
+      globalPreferences.appendSystemPrompt,
+    ]
+      .compactMap { value -> String? in
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed?.isEmpty == false ? trimmed : nil
+      }
+
+    return parts.isEmpty ? nil : parts.joined(separator: "\n\n")
+  }
+
+  /// Combined system instructions for the `.api` provider runtime: the API
+  /// instructions prefix (falling back to `systemPromptPrefix`), then the
+  /// user's system prompt, then the append-system-prompt — mirroring
+  /// `combinedCodexDeveloperInstructions()`.
+  func combinedAPIInstructions() -> String? {
+    let parts = [
+      apiInstructionsPrefix ?? systemPromptPrefix,
       globalPreferences.systemPrompt,
       globalPreferences.appendSystemPrompt,
     ]
