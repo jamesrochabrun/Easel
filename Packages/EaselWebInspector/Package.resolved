@@ -1,13 +1,12 @@
 {
-  "originHash" : "c227c6c3da599e6cf55292eddd5202435245403fd0af70d9aa19c9c099fbbd24",
+  "originHash" : "65df384ad3c414a2f0cb996c14a3c79355e89da08ca1432a8f1ed6c58f3f0725",
   "pins" : [
     {
       "identity" : "canvas",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/jamesrochabrun/Canvas",
       "state" : {
-        "revision" : "1ec719b8ad3f79cd4a9128c999f36d2790fe5d49",
-        "version" : "1.3.0"
+        "revision" : "980e222ef5a42c6b54e202fe29f942cd784dc078"
       }
     }
   ],

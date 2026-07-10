@@ -557,6 +557,13 @@ EOF
     }
   }
 
+  /// Selects a provider for a sessionless, non-UI task without changing the
+  /// user's persisted default provider.
+  public func configureEphemeralProvider(_ provider: ChatProvider) {
+    guard !shouldManageSessions, !hasSessionStarted, !isLoading else { return }
+    setActiveProvider(provider)
+  }
+
   private func ensureProviderMatchesPreferencesForNewSession() {
     guard sessionManager.currentSessionId == nil else { return }
 

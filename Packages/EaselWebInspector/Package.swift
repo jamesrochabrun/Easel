@@ -15,7 +15,10 @@ let package = Package(
   ],
   dependencies: [
     .package(path: "../EaselKit"),
-    .package(url: "https://github.com/jamesrochabrun/Canvas", exact: "1.3.0"),
+    .package(
+      url: "https://github.com/jamesrochabrun/Canvas",
+      revision: "980e222ef5a42c6b54e202fe29f942cd784dc078"
+    ),
   ],
   targets: [
     .target(
