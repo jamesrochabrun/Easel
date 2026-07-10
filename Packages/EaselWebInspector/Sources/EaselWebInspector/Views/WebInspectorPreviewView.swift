@@ -535,7 +535,8 @@ public struct WebInspectorPreviewView: View {
           selectedElementId: inspectState.selectedElement?.id,
           selectorToRestore: activeSelectorToRestore,
           onWebViewReady: handleWebViewReady,
-          onTweakPropsChange: { tweaksState.updateSchema($0) }
+          onTweakPropsChange: { tweaksState.updateSchema($0) },
+          onTweakSchemaAvailabilityChange: handleTweakSchemaAvailabilityChange
         )
         .overlay(alignment: .top) {
           if inspectState.isActive {
@@ -619,7 +620,8 @@ public struct WebInspectorPreviewView: View {
           selectedElementId: inspectState.selectedElement?.id,
           selectorToRestore: activeSelectorToRestore,
           onWebViewReady: handleWebViewReady,
-          onTweakPropsChange: { tweaksState.updateSchema($0) }
+          onTweakPropsChange: { tweaksState.updateSchema($0) },
+          onTweakSchemaAvailabilityChange: handleTweakSchemaAvailabilityChange
         )
         .webInspectorOverlay(
           state: inspectState,
@@ -1087,14 +1089,15 @@ public struct WebInspectorPreviewView: View {
     isLoading = loading
     handleOverlayReloadingState(loading)
 
-    // The page re-declares its tweak schema via dc_set_props on every load.
-    if loading {
-      tweaksState.clear()
-    }
-
     guard !loading else { return }
     updateBuildPlaceholderVisibility()
     installConsoleHookIfReady()
+  }
+
+  private func handleTweakSchemaAvailabilityChange(_ hasDeclaredProps: Bool) {
+    if !hasDeclaredProps {
+      tweaksState.clear()
+    }
   }
 
   /// After a load settles, show the branded placeholder when the dev server returned a
