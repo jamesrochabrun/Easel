@@ -10,6 +10,7 @@ private actor MockProjectFileService: ProjectFileProviding {
   private(set) var files: [String: String]
   private(set) var writeCount = 0
   var failReads = false
+  var failWrites = false
 
   init(files: [String: String] = [:]) {
     self.files = files
@@ -17,6 +18,10 @@ private actor MockProjectFileService: ProjectFileProviding {
 
   func setFailReads(_ fail: Bool) {
     failReads = fail
+  }
+
+  func setFailWrites(_ fail: Bool) {
+    failWrites = fail
   }
 
   func setFile(_ content: String, at path: String) {
@@ -31,6 +36,9 @@ private actor MockProjectFileService: ProjectFileProviding {
   }
 
   func writeFile(at path: String, content: String, projectPath: String) async throws {
+    guard !failWrites else {
+      throw CocoaError(.fileWriteUnknown)
+    }
     files[path] = content
     writeCount += 1
   }
@@ -65,79 +73,128 @@ struct TweaksDefaultsWriteCoordinatorTests {
     TweaksDefaultsWriteCoordinator(
       projectPath: Self.projectPath,
       fileService: service,
-      debounceInterval: .milliseconds(20),
       suppressionInterval: 1.5
     )
   }
 
-  @Test func flushWritesLatestPendingValues() async throws {
+  private func makeProps(
+    warmth: TweakPropValue = .number(60),
+    night: TweakPropValue = .boolean(false)
+  ) -> [TweakProp] {
+    [
+      TweakProp(
+        name: "warmth",
+        label: "Warmth",
+        type: .slider,
+        minimum: 0,
+        maximum: 100,
+        value: warmth,
+        defaultValue: .number(60)
+      ),
+      TweakProp(
+        name: "night",
+        label: "Night",
+        type: .toggle,
+        value: night,
+        defaultValue: .boolean(false)
+      ),
+    ]
+  }
+
+  @Test func saveWritesChangedDefaults() async throws {
     let service = MockProjectFileService(files: [Self.filePath: Self.sampleHTML])
     let coordinator = makeCoordinator(service: service)
 
-    await coordinator.scheduleWrite(
-      propName: "warmth", value: .number(70),
-      filePath: Self.filePath, liveSchemaNames: ["warmth", "night"]
+    try await coordinator.saveDefaults(
+      props: makeProps(warmth: .number(85)),
+      filePath: Self.filePath
     )
-    await coordinator.scheduleWrite(
-      propName: "warmth", value: .number(85),
-      filePath: Self.filePath, liveSchemaNames: ["warmth", "night"]
-    )
-    await coordinator.flush()
 
     let content = try #require(await service.files[Self.filePath])
     #expect(content.contains("\"value\": 85"))
-    #expect(!content.contains("\"value\": 70"))
-    // Coalesced: two schedules, one write.
     #expect(await service.writeCount == 1)
     #expect(await coordinator.isInSuppressionWindow())
   }
 
-  @Test func debounceWritesWithoutExplicitFlush() async throws {
+  @Test func unchangedValuesDoNotWrite() async throws {
     let service = MockProjectFileService(files: [Self.filePath: Self.sampleHTML])
     let coordinator = makeCoordinator(service: service)
 
-    await coordinator.scheduleWrite(
-      propName: "night", value: .boolean(true),
-      filePath: Self.filePath, liveSchemaNames: ["warmth", "night"]
-    )
-    try await Task.sleep(for: .milliseconds(200))
+    try await coordinator.saveDefaults(props: makeProps(), filePath: Self.filePath)
 
-    let content = try #require(await service.files[Self.filePath])
-    #expect(content.contains("\"type\": \"toggle\", \"value\": true }"))
+    #expect(await service.writeCount == 0)
+    #expect(!(await coordinator.isInSuppressionWindow()))
   }
 
-  @Test func skipsWhenPropNamesMismatch() async {
+  @Test func rejectsWhenPropNamesMismatch() async throws {
     let service = MockProjectFileService(files: [Self.filePath: Self.sampleHTML])
     let coordinator = makeCoordinator(service: service)
+    var props = makeProps(warmth: .number(1))
+    props.append(TweakProp(name: "extra", label: "Extra", type: .toggle, value: .boolean(true)))
 
-    await coordinator.scheduleWrite(
-      propName: "warmth", value: .number(1),
-      filePath: Self.filePath, liveSchemaNames: ["warmth", "night", "extra"]
-    )
-    await coordinator.flush()
+    do {
+      try await coordinator.saveDefaults(props: props, filePath: Self.filePath)
+      Issue.record("Expected a source-changed error")
+    } catch let error as TweaksDefaultsWriteError {
+      #expect(error == .sourceChanged)
+    }
 
     #expect(await service.writeCount == 0)
     #expect(await service.files[Self.filePath] == Self.sampleHTML)
     #expect(!(await coordinator.isInSuppressionWindow()))
   }
 
-  @Test func skipsWhenFileUnreadable() async {
+  @Test func rejectsWhenDefaultsChangedOnDisk() async throws {
+    let changedHTML = Self.sampleHTML.replacing("\"value\": 60", with: "\"value\": 70")
+    let service = MockProjectFileService(files: [Self.filePath: changedHTML])
+    let coordinator = makeCoordinator(service: service)
+
+    do {
+      try await coordinator.saveDefaults(
+        props: makeProps(warmth: .number(85)),
+        filePath: Self.filePath
+      )
+      Issue.record("Expected a source-changed error")
+    } catch let error as TweaksDefaultsWriteError {
+      #expect(error == .sourceChanged)
+    }
+
+    #expect(await service.writeCount == 0)
+    #expect(await service.files[Self.filePath] == changedHTML)
+  }
+
+  @Test func reportsUnreadableFile() async throws {
     let service = MockProjectFileService()
     let coordinator = makeCoordinator(service: service)
 
-    await coordinator.scheduleWrite(
-      propName: "warmth", value: .number(1),
-      filePath: Self.filePath, liveSchemaNames: ["warmth"]
-    )
-    await coordinator.flush()
+    do {
+      try await coordinator.saveDefaults(
+        props: makeProps(warmth: .number(1)),
+        filePath: Self.filePath
+      )
+      Issue.record("Expected a read error")
+    } catch let error as TweaksDefaultsWriteError {
+      #expect(error == .cannotReadFile)
+    }
 
     #expect(await service.writeCount == 0)
   }
 
-  @Test func flushWithoutPendingChangesIsNoOp() async {
-    let service = MockProjectFileService(files: [Self.filePath: Self.sampleHTML])
+  @Test func rejectsComputedSourceDefaults() async throws {
+    let computedHTML = Self.sampleHTML.replacing("\"value\": 60", with: "\"value\": initialWarmth")
+    let service = MockProjectFileService(files: [Self.filePath: computedHTML])
     let coordinator = makeCoordinator(service: service)
-    await coordinator.flush()
+
+    do {
+      try await coordinator.saveDefaults(
+        props: makeProps(warmth: .number(85)),
+        filePath: Self.filePath
+      )
+      Issue.record("Expected an unsupported-value error")
+    } catch let error as TweaksDefaultsWriteError {
+      #expect(error == .unsupportedValue("warmth"))
+    }
+
     #expect(await service.writeCount == 0)
   }
 
@@ -145,21 +202,39 @@ struct TweaksDefaultsWriteCoordinatorTests {
     let service = MockProjectFileService(files: [Self.filePath: Self.sampleHTML])
     let coordinator = makeCoordinator(service: service)
 
-    await coordinator.scheduleWrite(
-      propName: "warmth", value: .number(30),
-      filePath: Self.filePath, liveSchemaNames: ["warmth", "night"]
+    try await coordinator.saveDefaults(
+      props: makeProps(warmth: .number(30), night: .boolean(true)),
+      filePath: Self.filePath
     )
-    await coordinator.scheduleWrite(
-      propName: "night", value: .boolean(true),
-      filePath: Self.filePath, liveSchemaNames: ["warmth", "night"]
-    )
-    await coordinator.flush()
 
     #expect(await service.writeCount == 1)
     let content = try #require(await service.files[Self.filePath])
     let props = try TweakPropsSourceEditor.parseProps(fromSource: content)
     #expect(props.first(where: { $0.name == "warmth" })?.value == .number(30))
     #expect(props.first(where: { $0.name == "night" })?.value == .boolean(true))
+  }
+
+  @Test func writeFailureLeavesSourceUnchanged() async throws {
+    let service = MockProjectFileService(files: [Self.filePath: Self.sampleHTML])
+    await service.setFailWrites(true)
+    let coordinator = makeCoordinator(service: service)
+
+    do {
+      try await coordinator.saveDefaults(
+        props: makeProps(warmth: .number(85)),
+        filePath: Self.filePath
+      )
+      Issue.record("Expected a write error")
+    } catch let error as TweaksDefaultsWriteError {
+      guard case .writeFailed = error else {
+        Issue.record("Expected writeFailed, got \(error)")
+        return
+      }
+    }
+
+    #expect(await service.writeCount == 0)
+    #expect(await service.files[Self.filePath] == Self.sampleHTML)
+    #expect(!(await coordinator.isInSuppressionWindow()))
   }
 }
 

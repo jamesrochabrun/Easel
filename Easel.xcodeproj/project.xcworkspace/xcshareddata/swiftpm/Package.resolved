@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/jamesrochabrun/Canvas",
       "state" : {
-        "revision" : "a8dc530140273493ce256108124122eb51b0b6d2",
-        "version" : "1.3.1"
+        "branch" : "agent/improve-tweaks-workflow",
+        "revision" : "7eba250dd3c570a7cf6b7a402c69d415a6aece51"
       }
     },
     {
