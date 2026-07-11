@@ -1,13 +1,13 @@
 {
-  "originHash" : "51f3e55c59d3a22caa0e4de0c897b97e366a667278ce1c8a66f4d4ab7f0bb719",
+  "originHash" : "eb2bd3d204abaa2b070143ab8de52a23a12f593a57197aef0e666a87b3cb5216",
   "pins" : [
     {
       "identity" : "canvas",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/jamesrochabrun/Canvas",
       "state" : {
-        "branch" : "agent/improve-tweaks-workflow",
-        "revision" : "7eba250dd3c570a7cf6b7a402c69d415a6aece51"
+        "revision" : "7c489d3ef4910c32a4cecb33a0c91cc5e20e58e9",
+        "version" : "1.3.2"
       }
     }
   ],

@@ -20,10 +20,7 @@ let package = Package(
   dependencies: [
     .package(path: "../EaselKit"),
     .package(path: "../EaselSlides"),
-    .package(
-      url: "https://github.com/jamesrochabrun/Canvas",
-      branch: "agent/improve-tweaks-workflow"
-    ),
+    .package(url: "https://github.com/jamesrochabrun/Canvas", exact: "1.3.2"),
     .package(url: "https://github.com/jamesrochabrun/ClaudeCodeSDK", exact: "1.2.4"),
     .package(path: "../EaselClaudeCodeUI"),
     .package(path: "../EaselAgentHarness"),

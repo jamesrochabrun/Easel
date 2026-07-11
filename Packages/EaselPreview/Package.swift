@@ -15,10 +15,7 @@ let package = Package(
   ],
   dependencies: [
     .package(path: "../EaselKit"),
-    .package(
-      url: "https://github.com/jamesrochabrun/Canvas",
-      branch: "agent/improve-tweaks-workflow"
-    ),
+    .package(url: "https://github.com/jamesrochabrun/Canvas", exact: "1.3.2"),
   ],
   targets: [
     .target(
