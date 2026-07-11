@@ -29,11 +29,17 @@ private struct ChatSessionContext {
 
 private enum ChatServiceError: LocalizedError {
   case missingGlobalPreferences
+  case tweakAgentFailed(String)
+  case tweakAgentTimedOut
 
   var errorDescription: String? {
     switch self {
     case .missingGlobalPreferences:
       return "Chat service preferences are not initialized."
+    case .tweakAgentFailed(let message):
+      return message
+    case .tweakAgentTimedOut:
+      return "The tweak agent did not finish within three minutes."
     }
   }
 }
@@ -98,6 +104,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
   private let persistentPreferencesManager: PersistentPreferencesManager
   private let mcpToolsDiscovery: MCPToolsDiscoveryService
   private let logger: ClaudeCodeLogger
+  private let tweakWorkspaceCoordinator: any TweakWorkspaceCoordinating
   private var previewURLSource: PreviewURLSource?
   private var currentProjectLookupTask: Task<Void, Never>?
   private var currentWorkspaceUsageTask: Task<Void, Never>?
@@ -130,6 +137,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
     self.projectManager = projectManager
     self.mcpToolsDiscovery = mcpToolsDiscovery
     self.logger = logger
+    self.tweakWorkspaceCoordinator = TweakWorkspaceCoordinator()
     self.persistentPreferencesManager = persistentPreferencesManager ?? PersistentPreferencesManager(logger: logger)
   }
 
@@ -198,6 +206,55 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
 
   public func sendCropPrompt(_ prompt: String) {
     sendMessageToViewModel(prompt)
+  }
+
+  public func runTweakAgent(
+    prompt: String,
+    targetFileURL: URL
+  ) async throws -> InspectorTweakResult {
+    let initialized = await ensureInitialized()
+    guard initialized, let globalPreferences else {
+      throw ChatServiceError.missingGlobalPreferences
+    }
+
+    let transaction = try await tweakWorkspaceCoordinator.prepare(targetFileURL: targetFileURL)
+    let viewModel: ChatViewModel
+    do {
+      viewModel = try makeTweakViewModel(
+        workingDirectory: transaction.rootURL.path,
+        preferences: globalPreferences
+      )
+    } catch {
+      await tweakWorkspaceCoordinator.discard(transaction)
+      throw error
+    }
+
+    viewModel.configureEphemeralProvider(chatViewModel?.activeProvider ?? globalPreferences.chatProvider)
+    viewModel.permissionMode = .acceptEdits
+    viewModel.sendMessage(prompt)
+
+    do {
+      let deadline = ContinuousClock.now + .seconds(180)
+      while viewModel.isLoading {
+        guard ContinuousClock.now < deadline else {
+          viewModel.cancelRequest()
+          throw ChatServiceError.tweakAgentTimedOut
+        }
+        try await Task.sleep(for: .milliseconds(100))
+      }
+
+      if let errorInfo = viewModel.errorInfo {
+        throw ChatServiceError.tweakAgentFailed(errorInfo.displayMessage)
+      }
+
+      let result = try await tweakWorkspaceCoordinator.finish(transaction)
+      viewModel.clearConversation()
+      return result
+    } catch {
+      viewModel.cancelRequest()
+      await tweakWorkspaceCoordinator.discard(transaction)
+      throw error
+    }
   }
 
   // MARK: - Session Management
@@ -455,6 +512,39 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
     }
 
     return ChatSessionContext(viewModel: viewModel, deps: container, reference: reference)
+  }
+
+  private func makeTweakViewModel(
+    workingDirectory: String,
+    preferences: GlobalPreferencesStorage
+  ) throws -> ChatViewModel {
+    let container = DependencyContainer(
+      globalPreferences: preferences,
+      customSessionStorage: NoOpSessionStorage(),
+      mcpToolsDiscovery: mcpToolsDiscovery,
+      logger: logger
+    )
+    container.settingsStorage.setProjectPath(workingDirectory)
+
+    var config = ChatConfiguration.makeDefault()
+    config.command = preferences.claudeCommand
+    config.workingDirectory = workingDirectory
+    let client = try ClaudeCodeClient(configuration: config)
+
+    return ChatViewModel(
+      claudeClient: client,
+      sessionStorage: container.sessionStorage,
+      settingsStorage: container.settingsStorage,
+      globalPreferences: preferences,
+      customPermissionService: container.customPermissionService,
+      mcpToolsDiscovery: mcpToolsDiscovery,
+      logger: logger,
+      systemPromptPrefix: TweakAgentInstructions.systemPrompt,
+      codexDeveloperInstructionsPrefix: TweakAgentInstructions.systemPrompt,
+      apiInstructionsPrefix: TweakAgentInstructions.systemPrompt,
+      apiModelClientFactory: apiModelClientFactory,
+      shouldManageSessions: false
+    )
   }
 
   private func retainCurrentSessionContext() {

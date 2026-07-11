@@ -114,6 +114,7 @@ public struct WebInspectorPreviewView: View {
   @State private var manualReloadToken = UUID()
   @State private var autoReloadToken = UUID()
   @State private var tweaksState = TweaksState()
+  @State private var tweaksAgentState: TweaksAgentState = .idle
   @State private var isTweaksPopoverPresented = false
   @State private var tweaksWriteCoordinator: TweaksDefaultsWriteCoordinator?
   @State private var queueSendFailureMessage: String?
@@ -534,7 +535,8 @@ public struct WebInspectorPreviewView: View {
           selectedElementId: inspectState.selectedElement?.id,
           selectorToRestore: activeSelectorToRestore,
           onWebViewReady: handleWebViewReady,
-          onTweakPropsChange: { tweaksState.updateSchema($0) }
+          onTweakPropsChange: { tweaksState.updateSchema($0) },
+          onTweakSchemaAvailabilityChange: handleTweakSchemaAvailabilityChange
         )
         .overlay(alignment: .top) {
           if inspectState.isActive {
@@ -618,7 +620,8 @@ public struct WebInspectorPreviewView: View {
           selectedElementId: inspectState.selectedElement?.id,
           selectorToRestore: activeSelectorToRestore,
           onWebViewReady: handleWebViewReady,
-          onTweakPropsChange: { tweaksState.updateSchema($0) }
+          onTweakPropsChange: { tweaksState.updateSchema($0) },
+          onTweakSchemaAvailabilityChange: handleTweakSchemaAvailabilityChange
         )
         .webInspectorOverlay(
           state: inspectState,
@@ -832,17 +835,16 @@ public struct WebInspectorPreviewView: View {
   private var tweaksPanel: some View {
     TweaksPanelView(
       state: tweaksState,
+      agentState: tweaksAgentState,
       onSubmitDescription: { instruction in
-        inspectorBridge.sendInspectorPrompt(
+        runTweakAgent(
           TweaksPromptBuilder.customPrompt(fileName: tweaksFileName, instruction: instruction)
         )
-        isTweaksPopoverPresented = false
       },
       onIdeas: {
-        inspectorBridge.sendInspectorPrompt(
+        runTweakAgent(
           TweaksPromptBuilder.ideasPrompt(fileName: tweaksFileName)
         )
-        isTweaksPopoverPresented = false
       },
       onValueChange: handleTweakValueChange
     )
@@ -855,6 +857,39 @@ public struct WebInspectorPreviewView: View {
     let name = url.lastPathComponent
     guard !name.isEmpty, name != "/" else { return "index.html" }
     return name
+  }
+
+  private func runTweakAgent(_ prompt: String) {
+    guard tweaksAgentState != .working,
+          let projectPath = normalizedProjectPath,
+          let previewURL = previewURLProvider.previewURL,
+          let filePath = TweaksDefaultsWriteCoordinator.resolveFilePath(
+            previewURL: previewURL,
+            projectPath: projectPath
+          ) else {
+      tweaksAgentState = .failed("The preview file could not be resolved.")
+      return
+    }
+
+    tweaksAgentState = .working
+    Task {
+      do {
+        let result = try await inspectorBridge.runTweakAgent(
+          prompt: prompt,
+          targetFileURL: URL(fileURLWithPath: filePath)
+        )
+        switch result {
+        case .applied:
+          tweaksAgentState = .idle
+        case .noChanges:
+          tweaksAgentState = .failed("The agent finished without changing the design file.")
+        case .conflict:
+          tweaksAgentState = .conflict
+        }
+      } catch {
+        tweaksAgentState = .failed(error.localizedDescription)
+      }
+    }
   }
 
   /// Live-applies a tweak into the running page and schedules a debounced
@@ -1054,14 +1089,15 @@ public struct WebInspectorPreviewView: View {
     isLoading = loading
     handleOverlayReloadingState(loading)
 
-    // The page re-declares its tweak schema via dc_set_props on every load.
-    if loading {
-      tweaksState.clear()
-    }
-
     guard !loading else { return }
     updateBuildPlaceholderVisibility()
     installConsoleHookIfReady()
+  }
+
+  private func handleTweakSchemaAvailabilityChange(_ hasDeclaredProps: Bool) {
+    if !hasDeclaredProps {
+      tweaksState.clear()
+    }
   }
 
   /// After a load settles, show the branded placeholder when the dev server returned a

@@ -38,6 +38,25 @@ final class ClaudeCodeCoreTests: XCTestCase {
   }
 
   @MainActor
+  func testEphemeralProviderDoesNotChangePersistedDefault() {
+    let preferences = GlobalPreferencesStorage()
+    preferences.chatProvider = .codex
+    let viewModel = ChatViewModel(
+      claudeClient: HangingClaudeCodeClient(),
+      sessionStorage: NoOpSessionStorage(),
+      settingsStorage: SettingsStorageManager(),
+      globalPreferences: preferences,
+      customPermissionService: MockCustomPermissionService(),
+      shouldManageSessions: false
+    )
+
+    viewModel.configureEphemeralProvider(.claude)
+
+    XCTAssertEqual(viewModel.activeProvider, .claude)
+    XCTAssertEqual(preferences.chatProvider, .codex)
+  }
+
+  @MainActor
   func testRuntimeHiddenContextCanBeExcludedFromAPIContent() {
     let viewModel = ChatViewModel(
       claudeClient: HangingClaudeCodeClient(),

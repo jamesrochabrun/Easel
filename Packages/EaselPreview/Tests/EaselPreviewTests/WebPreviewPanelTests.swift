@@ -24,6 +24,10 @@ final class MockInspectorBridge: InspectorBridgeProtocol {
   func sendCropPrompt(_ prompt: String) {
     lastCropPrompt = prompt
   }
+
+  func runTweakAgent(prompt: String, targetFileURL: URL) async throws -> InspectorTweakResult {
+    .noChanges
+  }
 }
 
 @MainActor
