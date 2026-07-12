@@ -210,7 +210,8 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
 
   public func runTweakAgent(
     prompt: String,
-    targetFileURL: URL
+    targetFileURL: URL,
+    policy: InspectorTweakPolicy
   ) async throws -> InspectorTweakResult {
     let initialized = await ensureInitialized()
     guard initialized, let globalPreferences else {
@@ -247,7 +248,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
         throw ChatServiceError.tweakAgentFailed(errorInfo.displayMessage)
       }
 
-      let result = try await tweakWorkspaceCoordinator.finish(transaction)
+      let result = try await tweakWorkspaceCoordinator.finish(transaction, policy: policy)
       viewModel.clearConversation()
       return result
     } catch {

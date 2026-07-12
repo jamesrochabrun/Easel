@@ -115,6 +115,7 @@ public struct WebInspectorPreviewView: View {
   @State private var autoReloadToken = UUID()
   @State private var tweaksState = TweaksState()
   @State private var tweaksAgentState: TweaksAgentState = .idle
+  @State private var tweaksDefaultsSaveState: TweaksDefaultsSaveState = .idle
   @State private var isTweaksPopoverPresented = false
   @State private var tweaksWriteCoordinator: TweaksDefaultsWriteCoordinator?
   @State private var queueSendFailureMessage: String?
@@ -205,14 +206,6 @@ public struct WebInspectorPreviewView: View {
     }
     .task(id: autoReloadTaskID) {
       await observeProjectFileChangesForAutoReload()
-    }
-    .onChange(of: isTweaksPopoverPresented) { _, presented in
-      if !presented {
-        flushTweakWrites()
-      }
-    }
-    .onDisappear {
-      flushTweakWrites()
     }
     .onChange(of: inspectBehavior) { _, newBehavior in
       guard inspectState.isActive else { return }
@@ -343,14 +336,24 @@ public struct WebInspectorPreviewView: View {
       }
 
       if previewURLProvider.previewURL != nil, previewWebView != nil {
+        let tweaksButtonPresentation = TweaksButtonPresentation.resolve(agentState: tweaksAgentState)
         Button {
           isTweaksPopoverPresented.toggle()
         } label: {
-          Label("Tweaks", systemImage: "slider.horizontal.3")
-            .font(.caption)
+          HStack(spacing: 6) {
+            if tweaksButtonPresentation.isLoading {
+              ProgressView()
+                .controlSize(.mini)
+                .accessibilityHidden(true)
+            }
+
+            Text("Tweaks")
+          }
+          .font(.caption)
         }
         .webPreviewSecondaryButtonStyle()
         .controlSize(.small)
+        .accessibilityLabel(tweaksButtonPresentation.accessibilityLabel)
         .help("Tweak this design with live controls")
         .popover(isPresented: $isTweaksPopoverPresented, arrowEdge: .bottom) {
           tweaksPanel
@@ -535,7 +538,7 @@ public struct WebInspectorPreviewView: View {
           selectedElementId: inspectState.selectedElement?.id,
           selectorToRestore: activeSelectorToRestore,
           onWebViewReady: handleWebViewReady,
-          onTweakPropsChange: { tweaksState.updateSchema($0) },
+          onTweakPropsChange: handleTweakPropsChange,
           onTweakSchemaAvailabilityChange: handleTweakSchemaAvailabilityChange
         )
         .overlay(alignment: .top) {
@@ -620,7 +623,7 @@ public struct WebInspectorPreviewView: View {
           selectedElementId: inspectState.selectedElement?.id,
           selectorToRestore: activeSelectorToRestore,
           onWebViewReady: handleWebViewReady,
-          onTweakPropsChange: { tweaksState.updateSchema($0) },
+          onTweakPropsChange: handleTweakPropsChange,
           onTweakSchemaAvailabilityChange: handleTweakSchemaAvailabilityChange
         )
         .webInspectorOverlay(
@@ -836,17 +839,25 @@ public struct WebInspectorPreviewView: View {
     TweaksPanelView(
       state: tweaksState,
       agentState: tweaksAgentState,
+      defaultsSaveState: tweaksDefaultsSaveState,
       onSubmitDescription: { instruction in
         runTweakAgent(
-          TweaksPromptBuilder.customPrompt(fileName: tweaksFileName, instruction: instruction)
+          TweaksPromptBuilder.customPrompt(fileName: tweaksFileName, instruction: instruction),
+          policy: .flexible
         )
       },
       onIdeas: {
         runTweakAgent(
-          TweaksPromptBuilder.ideasPrompt(fileName: tweaksFileName)
+          TweaksPromptBuilder.ideasPrompt(
+            fileName: tweaksFileName,
+            existingProps: tweaksState.props
+          ),
+          policy: .additive
         )
       },
-      onValueChange: handleTweakValueChange
+      onValueChange: handleTweakValueChange,
+      onReset: resetTweakValues,
+      onSaveDefaults: saveTweakDefaults
     )
     .frame(width: 320)
   }
@@ -859,7 +870,10 @@ public struct WebInspectorPreviewView: View {
     return name
   }
 
-  private func runTweakAgent(_ prompt: String) {
+  private func runTweakAgent(
+    _ prompt: String,
+    policy: InspectorTweakPolicy
+  ) {
     guard tweaksAgentState != .working,
           let projectPath = normalizedProjectPath,
           let previewURL = previewURLProvider.previewURL,
@@ -876,7 +890,8 @@ public struct WebInspectorPreviewView: View {
       do {
         let result = try await inspectorBridge.runTweakAgent(
           prompt: prompt,
-          targetFileURL: URL(fileURLWithPath: filePath)
+          targetFileURL: URL(fileURLWithPath: filePath),
+          policy: policy
         )
         switch result {
         case .applied:
@@ -892,39 +907,65 @@ public struct WebInspectorPreviewView: View {
     }
   }
 
-  /// Live-applies a tweak into the running page and schedules a debounced
-  /// write of the new default back into the previewed file.
+  /// Applies a temporary tweak to the running page. The value remains in
+  /// memory until reload unless the user explicitly saves it as a default.
   private func handleTweakValueChange(_ prop: TweakProp, _ value: TweakPropValue) {
     tweaksState.updateValue(name: prop.name, value)
+    if case .failed = tweaksDefaultsSaveState {
+      tweaksDefaultsSaveState = .idle
+    }
     if let previewWebView {
       TweaksBridge.setProp(name: prop.name, value: value, in: previewWebView)
     }
+  }
 
-    guard let tweaksWriteCoordinator,
+  private func resetTweakValues() {
+    let resetProps = tweaksState.resetToDefaults()
+    tweaksDefaultsSaveState = .idle
+    guard let previewWebView else { return }
+    for prop in resetProps {
+      TweaksBridge.setProp(name: prop.name, value: prop.value, in: previewWebView)
+    }
+  }
+
+  private func saveTweakDefaults() {
+    guard tweaksState.hasUnsavedChanges,
+          tweaksDefaultsSaveState != .saving,
+          tweaksAgentState != .working,
+          let tweaksWriteCoordinator,
           let projectPath = normalizedProjectPath,
           let url = previewURLProvider.previewURL,
           let filePath = TweaksDefaultsWriteCoordinator.resolveFilePath(
             previewURL: url,
             projectPath: projectPath
           ) else {
+      if tweaksState.hasUnsavedChanges {
+        tweaksDefaultsSaveState = .failed("The preview file could not be resolved.")
+      }
       return
     }
-    let liveSchemaNames = tweaksState.props.map(\.name)
+
+    let propsSnapshot = tweaksState.props
+    tweaksDefaultsSaveState = .saving
     Task {
-      await tweaksWriteCoordinator.scheduleWrite(
-        propName: prop.name,
-        value: value,
-        filePath: filePath,
-        liveSchemaNames: liveSchemaNames
-      )
+      do {
+        try await tweaksWriteCoordinator.saveDefaults(props: propsSnapshot, filePath: filePath)
+        guard tweaksState.props == propsSnapshot else {
+          tweaksDefaultsSaveState = .idle
+          autoReloadPreview()
+          return
+        }
+        tweaksState.commitCurrentValuesAsDefaults()
+        tweaksDefaultsSaveState = .idle
+      } catch {
+        tweaksDefaultsSaveState = .failed(error.localizedDescription)
+      }
     }
   }
 
-  private func flushTweakWrites() {
-    guard let tweaksWriteCoordinator else { return }
-    Task {
-      await tweaksWriteCoordinator.flush()
-    }
+  private func handleTweakPropsChange(_ props: [TweakProp]) {
+    tweaksState.updateSchema(props)
+    tweaksDefaultsSaveState = .idle
   }
 
   /// Sends the pending design-edit batch to the session's agent immediately.
@@ -1097,6 +1138,7 @@ public struct WebInspectorPreviewView: View {
   private func handleTweakSchemaAvailabilityChange(_ hasDeclaredProps: Bool) {
     if !hasDeclaredProps {
       tweaksState.clear()
+      tweaksDefaultsSaveState = .idle
     }
   }
 
@@ -1223,8 +1265,8 @@ public struct WebInspectorPreviewView: View {
       guard !Task.isCancelled else { return }
 
       if await observer.hasChangedSinceLastSnapshot() {
-        // Tweaks persistence writes the previewed file itself; the live page
-        // already shows the new value, so reloading would only cause flicker.
+        // An explicit Save as defaults writes the previewed file itself; the
+        // live page already shows those values, so reloading would only flicker.
         // hasChangedSinceLastSnapshot() already advanced its snapshot, which
         // consumes the change.
         if let tweaksWriteCoordinator, await tweaksWriteCoordinator.isInSuppressionWindow() {
@@ -1247,8 +1289,9 @@ public struct WebInspectorPreviewView: View {
         await inspectorViewModel.flushPendingWriteIfNeeded()
       }
       inspectorViewModel = nil
-      await tweaksWriteCoordinator?.flush()
       tweaksWriteCoordinator = nil
+      tweaksState.clear()
+      tweaksDefaultsSaveState = .idle
       return
     }
 
@@ -1257,8 +1300,6 @@ public struct WebInspectorPreviewView: View {
     if let inspectorViewModel {
       await inspectorViewModel.flushPendingWriteIfNeeded()
     }
-    await tweaksWriteCoordinator?.flush()
-
     inspectorViewModel = WebPreviewInspectorViewModel(
       projectPath: normalizedProjectPath,
       sourceResolver: WebPreviewSourceResolver(fileService: projectFileProvider),
@@ -1269,6 +1310,8 @@ public struct WebInspectorPreviewView: View {
       projectPath: normalizedProjectPath,
       fileService: projectFileProvider
     )
+    tweaksState.clear()
+    tweaksDefaultsSaveState = .idle
 
     if let previewWebView {
       attachInspectorViewModel(to: previewWebView)

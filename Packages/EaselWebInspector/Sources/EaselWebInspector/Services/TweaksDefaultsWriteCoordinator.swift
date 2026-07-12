@@ -2,9 +2,8 @@
 //  TweaksDefaultsWriteCoordinator.swift
 //  EaselWebInspector
 //
-//  Persists updated tweak default values into the previewed HTML file.
-//  Live pushes into the running page are undebounced; disk writes are
-//  debounced per burst of changes and verified before landing.
+//  Explicitly persists live tweak values into the previewed HTML file after
+//  verifying that its declared defaults still match the loaded panel state.
 //
 
 import Canvas
@@ -18,16 +17,8 @@ private let tweaksLog = Logger(subsystem: "com.easel.webinspector", category: "T
 
 /// Persists tweak value changes back into the previewed document's source.
 public protocol TweaksDefaultsWriting: Sendable {
-  /// Records a value change and schedules a debounced write.
-  func scheduleWrite(
-    propName: String,
-    value: TweakPropValue,
-    filePath: String,
-    liveSchemaNames: [String]
-  ) async
-
-  /// Writes any pending changes immediately (popover dismissal, view teardown).
-  func flush() async
+  /// Atomically promotes the changed live values to source-declared defaults.
+  func saveDefaults(props: [TweakProp], filePath: String) async throws
 
   /// True while a recent write should keep the auto-reload poller from
   /// hard-reloading the preview over our own file change.
@@ -37,30 +28,19 @@ public protocol TweaksDefaultsWriting: Sendable {
 // MARK: - TweaksDefaultsWriteCoordinator
 
 public actor TweaksDefaultsWriteCoordinator: TweaksDefaultsWriting {
-  private struct WriteContext {
-    var filePath: String
-    var liveSchemaNames: [String]
-  }
-
   private let projectPath: String
   private let fileService: any ProjectFileProviding
-  private let debounceInterval: Duration
   private let suppressionInterval: TimeInterval
 
-  private var pendingValues: [String: TweakPropValue] = [:]
-  private var pendingContext: WriteContext?
-  private var debounceTask: Task<Void, Never>?
   private var suppressAutoReloadUntil: Date = .distantPast
 
   public init(
     projectPath: String,
     fileService: any ProjectFileProviding,
-    debounceInterval: Duration = .milliseconds(400),
     suppressionInterval: TimeInterval = 1.5
   ) {
     self.projectPath = projectPath
     self.fileService = fileService
-    self.debounceInterval = debounceInterval
     self.suppressionInterval = suppressionInterval
   }
 
@@ -85,78 +65,79 @@ public actor TweaksDefaultsWriteCoordinator: TweaksDefaultsWriting {
     return (projectPath as NSString).appendingPathComponent(relativePath)
   }
 
-  public func scheduleWrite(
-    propName: String,
-    value: TweakPropValue,
-    filePath: String,
-    liveSchemaNames: [String]
-  ) {
-    pendingValues[propName] = value
-    pendingContext = WriteContext(filePath: filePath, liveSchemaNames: liveSchemaNames)
-
-    debounceTask?.cancel()
-    debounceTask = Task { [debounceInterval] in
-      try? await Task.sleep(for: debounceInterval)
-      guard !Task.isCancelled else { return }
-      await self.flush()
-    }
-  }
-
-  public func flush() async {
-    debounceTask?.cancel()
-    debounceTask = nil
-    guard let context = pendingContext, !pendingValues.isEmpty else { return }
-    let values = pendingValues
-    pendingValues = [:]
-    await write(values: values, context: context)
-  }
-
   public func isInSuppressionWindow() -> Bool {
     Date() < suppressAutoReloadUntil
   }
 
   // MARK: - Write path
 
-  private func write(values: [String: TweakPropValue], context: WriteContext) async {
-    guard let source = try? await fileService.readFile(at: context.filePath, projectPath: projectPath) else {
-      tweaksLog.debug("Tweaks persist skipped: cannot read \(context.filePath)")
-      return
+  public func saveDefaults(props: [TweakProp], filePath: String) async throws {
+    let changedProps = props.filter { $0.value != $0.defaultValue }
+    guard !changedProps.isEmpty else { return }
+
+    let source: String
+    do {
+      source = try await fileService.readFile(at: filePath, projectPath: projectPath)
+    } catch {
+      tweaksLog.error("Tweaks defaults read failed for \(filePath): \(error.localizedDescription)")
+      throw TweaksDefaultsWriteError.cannotReadFile
     }
 
-    // The file must declare exactly the props the live page reported;
-    // otherwise the preview URL maps to the wrong document (or the agent
-    // rewrote it) and persisting would corrupt an unrelated declaration.
     guard let diskNames = try? TweakPropsSourceEditor.parsePropNames(fromSource: source),
-          Set(diskNames) == Set(context.liveSchemaNames) else {
-      tweaksLog.debug("Tweaks persist skipped: prop names on disk don't match live schema")
-      return
+          diskNames == props.map(\.name) else {
+      throw TweaksDefaultsWriteError.sourceChanged
+    }
+
+    guard let diskProps = try? TweakPropsSourceEditor.parseProps(fromSource: source) else {
+      throw TweaksDefaultsWriteError.sourceChanged
+    }
+    let diskPropsByName = Dictionary(uniqueKeysWithValues: diskProps.map { ($0.name, $0) })
+    for prop in props {
+      guard let diskProp = diskPropsByName[prop.name] else {
+        throw TweaksDefaultsWriteError.unsupportedValue(prop.name)
+      }
+      guard diskProp == sourceBaseline(for: prop) else {
+        throw TweaksDefaultsWriteError.sourceChanged
+      }
     }
 
     var edited = source
-    var appliedAny = false
-    for (name, value) in values {
+    for prop in changedProps {
       do {
         edited = try TweakPropsSourceEditor.applyingValueEdit(
-          propName: name,
-          newValue: value,
+          propName: prop.name,
+          newValue: prop.value,
           toSource: edited
         )
-        appliedAny = true
       } catch {
-        tweaksLog.debug("Tweaks persist skipped for \(name): \(error)")
+        throw TweaksDefaultsWriteError.unsupportedValue(prop.name)
       }
     }
-    guard appliedAny, edited != source else { return }
+    guard edited != source else { return }
 
     do {
-      // Extend the window before the write lands so the poller can never
-      // observe the change outside it.
       suppressAutoReloadUntil = Date().addingTimeInterval(suppressionInterval)
-      try await fileService.writeFile(at: context.filePath, content: edited, projectPath: projectPath)
+      try await fileService.writeFile(at: filePath, content: edited, projectPath: projectPath)
       suppressAutoReloadUntil = Date().addingTimeInterval(suppressionInterval)
-      tweaksLog.debug("Tweaks persisted \(values.count) value(s) to \(context.filePath)")
+      tweaksLog.debug("Tweaks saved \(changedProps.count) default value(s) to \(filePath)")
     } catch {
-      tweaksLog.error("Tweaks persist failed for \(context.filePath): \(error.localizedDescription)")
+      suppressAutoReloadUntil = .distantPast
+      tweaksLog.error("Tweaks defaults write failed for \(filePath): \(error.localizedDescription)")
+      throw TweaksDefaultsWriteError.writeFailed(error.localizedDescription)
     }
+  }
+
+  private func sourceBaseline(for prop: TweakProp) -> TweakProp {
+    TweakProp(
+      name: prop.name,
+      label: prop.label,
+      type: prop.type,
+      minimum: prop.minimum,
+      maximum: prop.maximum,
+      step: prop.step,
+      options: prop.options,
+      value: prop.defaultValue,
+      defaultValue: prop.defaultValue
+    )
   }
 }

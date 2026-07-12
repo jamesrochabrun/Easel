@@ -1,3 +1,4 @@
+import Canvas
 import EaselKit
 import Foundation
 
@@ -38,12 +39,22 @@ actor TweakWorkspaceCoordinator: TweakWorkspaceCoordinating {
     )
   }
 
-  func finish(_ transaction: TweakWorkspaceTransaction) async throws -> InspectorTweakResult {
+  func finish(
+    _ transaction: TweakWorkspaceTransaction,
+    policy: InspectorTweakPolicy = .flexible
+  ) async throws -> InspectorTweakResult {
     defer { try? fileManager.removeItem(at: transaction.rootURL) }
 
     let generatedContents = try Data(contentsOf: transaction.workingFileURL)
     guard generatedContents != transaction.baseContents else {
       return .noChanges
+    }
+
+    if policy == .additive {
+      try validateCumulativeTweaks(
+        baseContents: transaction.baseContents,
+        generatedContents: generatedContents
+      )
     }
 
     guard fileManager.fileExists(atPath: transaction.targetFileURL.path) else {
@@ -60,5 +71,30 @@ actor TweakWorkspaceCoordinator: TweakWorkspaceCoordinating {
 
   func discard(_ transaction: TweakWorkspaceTransaction) async {
     try? fileManager.removeItem(at: transaction.rootURL)
+  }
+
+  private func validateCumulativeTweaks(
+    baseContents: Data,
+    generatedContents: Data
+  ) throws {
+    let baseSource = String(decoding: baseContents, as: UTF8.self)
+    guard let baseNames = try? TweakPropsSourceEditor.parsePropNames(fromSource: baseSource),
+          !baseNames.isEmpty else {
+      return
+    }
+
+    let generatedSource = String(decoding: generatedContents, as: UTF8.self)
+    guard let generatedNames = try? TweakPropsSourceEditor.parsePropNames(fromSource: generatedSource),
+          generatedNames.count == Set(generatedNames).count,
+          Set(baseNames).isSubset(of: Set(generatedNames)),
+          let baseProps = try? TweakPropsSourceEditor.parseProps(fromSource: baseSource),
+          let generatedProps = try? TweakPropsSourceEditor.parseProps(fromSource: generatedSource) else {
+      throw TweakWorkspaceError.invalidGeneratedTweaks
+    }
+
+    let generatedPropsByName = Dictionary(uniqueKeysWithValues: generatedProps.map { ($0.name, $0) })
+    guard baseProps.allSatisfy({ generatedPropsByName[$0.name] == $0 }) else {
+      throw TweakWorkspaceError.invalidGeneratedTweaks
+    }
   }
 }

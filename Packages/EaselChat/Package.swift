@@ -20,6 +20,7 @@ let package = Package(
   dependencies: [
     .package(path: "../EaselKit"),
     .package(path: "../EaselSlides"),
+    .package(url: "https://github.com/jamesrochabrun/Canvas", exact: "1.3.2"),
     .package(url: "https://github.com/jamesrochabrun/ClaudeCodeSDK", exact: "1.2.4"),
     .package(path: "../EaselClaudeCodeUI"),
     .package(path: "../EaselAgentHarness"),
@@ -44,6 +45,7 @@ let package = Package(
         "EaselDesignSystems",
         "EaselKit",
         "EaselSlides",
+        .product(name: "Canvas", package: "Canvas"),
         .product(name: "ClaudeCodeSDK", package: "ClaudeCodeSDK"),
         .product(name: "ClaudeCodeCore", package: "EaselClaudeCodeUI"),
         .product(name: "EaselAgentHarness", package: "EaselAgentHarness"),
