@@ -21,6 +21,15 @@ private struct ResourceManifestCacheKey: Hashable {
   let workingDirectory: String
 }
 
+private struct TweakAgentActivity: Equatable {
+  let messageCount: Int
+  let lastMessageID: UUID?
+  let lastMessageContent: String?
+  let lastMessageIsComplete: Bool?
+  let inputTokens: Int
+  let outputTokens: Int
+}
+
 private struct ChatSessionContext {
   let viewModel: ChatViewModel
   let deps: DependencyContainer
@@ -39,7 +48,7 @@ private enum ChatServiceError: LocalizedError {
     case .tweakAgentFailed(let message):
       return message
     case .tweakAgentTimedOut:
-      return "The tweak agent did not finish within three minutes."
+      return "The tweak agent stopped making progress for five minutes."
     }
   }
 }
@@ -235,9 +244,12 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
     viewModel.sendMessage(prompt)
 
     do {
-      let deadline = ContinuousClock.now + .seconds(180)
+      var progressTimeout = TweakAgentProgressTimeout(
+        interval: .seconds(300),
+        initialActivity: tweakAgentActivity(for: viewModel)
+      )
       while viewModel.isLoading {
-        guard ContinuousClock.now < deadline else {
+        guard !progressTimeout.hasTimedOut(activity: tweakAgentActivity(for: viewModel)) else {
           viewModel.cancelRequest()
           throw ChatServiceError.tweakAgentTimedOut
         }
@@ -256,6 +268,19 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
       await tweakWorkspaceCoordinator.discard(transaction)
       throw error
     }
+  }
+
+  private func tweakAgentActivity(for viewModel: ChatViewModel) -> TweakAgentActivity {
+    let messages = viewModel.getCurrentMessages()
+    let lastMessage = messages.last
+    return TweakAgentActivity(
+      messageCount: messages.count,
+      lastMessageID: lastMessage?.id,
+      lastMessageContent: lastMessage?.content,
+      lastMessageIsComplete: lastMessage?.isComplete,
+      inputTokens: viewModel.currentInputTokens,
+      outputTokens: viewModel.currentOutputTokens
+    )
   }
 
   // MARK: - Session Management

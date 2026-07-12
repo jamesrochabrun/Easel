@@ -115,6 +115,7 @@ public struct WebInspectorPreviewView: View {
   @State private var autoReloadToken = UUID()
   @State private var tweaksState = TweaksState()
   @State private var tweaksAgentState: TweaksAgentState = .idle
+  @State private var tweakGenerationTimer = TweakGenerationTimer()
   @State private var tweaksDefaultsSaveState: TweaksDefaultsSaveState = .idle
   @State private var isTweaksPopoverPresented = false
   @State private var tweaksWriteCoordinator: TweaksDefaultsWriteCoordinator?
@@ -836,29 +837,45 @@ public struct WebInspectorPreviewView: View {
   // MARK: - Tweaks
 
   private var tweaksPanel: some View {
-    TweaksPanelView(
-      state: tweaksState,
-      agentState: tweaksAgentState,
-      defaultsSaveState: tweaksDefaultsSaveState,
-      onSubmitDescription: { instruction in
-        runTweakAgent(
-          TweaksPromptBuilder.customPrompt(fileName: tweaksFileName, instruction: instruction),
-          policy: .flexible
+    VStack(spacing: 0) {
+      TweaksPanelView(
+        state: tweaksState,
+        agentState: TweakPanelStatusRouting.canvasAgentState(for: tweaksAgentState),
+        defaultsSaveState: TweakPanelStatusRouting.canvasDefaultsState(for: tweaksDefaultsSaveState),
+        onSubmitDescription: { instruction in
+          runTweakAgent(
+            TweaksPromptBuilder.customPrompt(fileName: tweaksFileName, instruction: instruction),
+            policy: .flexible
+          )
+        },
+        onIdeas: {
+          runTweakAgent(
+            TweaksPromptBuilder.ideasPrompt(
+              fileName: tweaksFileName,
+              existingProps: tweaksState.props
+            ),
+            policy: .additive
+          )
+        },
+        onValueChange: handleTweakValueChange,
+        onReset: resetTweakValues,
+        onSaveDefaults: saveTweakDefaults
+      )
+      .disabled(tweaksAgentState == .working)
+
+      if TweakPanelStatusRouting.showsHostStatus(
+        agentState: tweaksAgentState,
+        defaultsState: tweaksDefaultsSaveState
+      ) {
+        TweakPanelStatusArea(
+          agentState: $tweaksAgentState,
+          defaultsSaveState: $tweaksDefaultsSaveState,
+          generationStartedAt: tweakGenerationTimer.startedAt
         )
-      },
-      onIdeas: {
-        runTweakAgent(
-          TweaksPromptBuilder.ideasPrompt(
-            fileName: tweaksFileName,
-            existingProps: tweaksState.props
-          ),
-          policy: .additive
-        )
-      },
-      onValueChange: handleTweakValueChange,
-      onReset: resetTweakValues,
-      onSaveDefaults: saveTweakDefaults
-    )
+        .padding(.horizontal, 14)
+        .padding(.bottom, 14)
+      }
+    }
     .frame(width: 320)
   }
 
@@ -885,8 +902,10 @@ public struct WebInspectorPreviewView: View {
       return
     }
 
+    tweakGenerationTimer.start()
     tweaksAgentState = .working
     Task {
+      defer { tweakGenerationTimer.stop() }
       do {
         let result = try await inspectorBridge.runTweakAgent(
           prompt: prompt,
