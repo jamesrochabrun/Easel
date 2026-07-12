@@ -13,8 +13,11 @@ struct TweakAgentProgressTimeoutTests {
       now: start
     )
 
-    #expect(!timeout.hasTimedOut(activity: 1, now: start.advanced(by: .seconds(299))))
-    #expect(timeout.hasTimedOut(activity: 1, now: start.advanced(by: .seconds(300))))
+    let beforeInterval = timeout.hasTimedOut(activity: 1, now: start.advanced(by: .seconds(299)))
+    let atInterval = timeout.hasTimedOut(activity: 1, now: start.advanced(by: .seconds(300)))
+
+    #expect(!beforeInterval)
+    #expect(atInterval)
   }
 
   @Test("Progress resets the inactivity interval")
@@ -26,8 +29,12 @@ struct TweakAgentProgressTimeoutTests {
       now: start
     )
 
-    #expect(!timeout.hasTimedOut(activity: 2, now: start.advanced(by: .seconds(290))))
-    #expect(!timeout.hasTimedOut(activity: 2, now: start.advanced(by: .seconds(589))))
-    #expect(timeout.hasTimedOut(activity: 2, now: start.advanced(by: .seconds(590))))
+    let afterProgress = timeout.hasTimedOut(activity: 2, now: start.advanced(by: .seconds(290)))
+    let beforeResetInterval = timeout.hasTimedOut(activity: 2, now: start.advanced(by: .seconds(589)))
+    let atResetInterval = timeout.hasTimedOut(activity: 2, now: start.advanced(by: .seconds(590)))
+
+    #expect(!afterProgress)
+    #expect(!beforeResetInterval)
+    #expect(atResetInterval)
   }
 }
