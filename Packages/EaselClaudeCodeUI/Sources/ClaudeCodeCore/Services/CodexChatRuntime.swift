@@ -197,39 +197,12 @@ final class CodexChatRuntime: ChatRuntime {
     configuration.useLoginShell = true
     configuration.workingDirectory = workingDirectory
 
-    let homeDirectory = NSHomeDirectory()
-    let trimmedCommandOverride = commandOverride?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    if !trimmedCommandOverride.isEmpty {
-      // User-specified command takes precedence over auto-detection.
-      configuration.command = trimmedCommandOverride
-    } else {
-      let localCodexPath = "\(homeDirectory)/.codex/local/codex"
-      if FileManager.default.isExecutableFile(atPath: localCodexPath) {
-        configuration.command = localCodexPath
-      } else {
-        var commandFound = false
-        if let nvmPath = NvmPathDetector.detectNvmPath() {
-          let nvmCodexPath = "\(nvmPath)/codex"
-          if FileManager.default.isExecutableFile(atPath: nvmCodexPath) {
-            configuration.command = nvmCodexPath
-            commandFound = true
-          }
-        }
-        if !commandFound, let detected = CodexBinaryDetector.detect() {
-          configuration.command = detected.path
-        }
-      }
+    let resolver = CodexCommandResolver()
+    if let resolvedCommand = resolver.resolve(commandOverride: commandOverride) {
+      configuration.command = resolvedCommand.path
     }
 
-    configuration.additionalPaths.append(contentsOf: [
-      "/usr/local/bin",
-      "/opt/homebrew/bin",
-      "/usr/bin",
-      "\(homeDirectory)/.bun/bin",
-      "\(homeDirectory)/.deno/bin",
-      "\(homeDirectory)/.cargo/bin",
-      "\(homeDirectory)/.local/bin",
-    ])
+    configuration.additionalPaths.append(contentsOf: resolver.searchPathDirectories())
 
     // Apply user-provided environment overrides last so they win.
     for (key, value) in environmentOverrides {

@@ -33,13 +33,9 @@ struct CodexDebugModelsCommandRunner: CodexDebugModelsCommandRunning {
   }
 
   private static func codexInvocation(homeDirectory: String) -> (executablePath: String, arguments: [String]) {
-    let localCodexPath = "\(homeDirectory)/.codex/local/codex"
-    if FileManager.default.isExecutableFile(atPath: localCodexPath) {
-      return (localCodexPath, ["debug", "models"])
-    }
-
-    if let detected = CodexBinaryDetector.detect() {
-      return (detected.path, ["debug", "models"])
+    let resolver = CodexCommandResolver(homeDirectory: homeDirectory)
+    if let resolvedCommand = resolver.resolve() {
+      return (resolvedCommand.path, ["debug", "models"])
     }
 
     return ("/usr/bin/env", ["codex", "debug", "models"])
@@ -52,15 +48,8 @@ struct CodexDebugModelsCommandRunner: CodexDebugModelsCommandRunning {
       .appendingPathComponent(".codex")
       .path
 
-    let paths = [
-      "/usr/local/bin",
-      "/opt/homebrew/bin",
-      "/usr/bin",
-      "\(homeDirectory)/.bun/bin",
-      "\(homeDirectory)/.deno/bin",
-      "\(homeDirectory)/.cargo/bin",
-      "\(homeDirectory)/.local/bin",
-    ]
+    let paths = CodexCommandResolver(homeDirectory: homeDirectory)
+      .searchPathDirectories()
 
     if let currentPath = environment["PATH"], !currentPath.isEmpty {
       environment["PATH"] = (paths + [currentPath]).joined(separator: ":")
