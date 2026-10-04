@@ -39,6 +39,37 @@ final class LocalAgentTerminalLauncherTests: XCTestCase {
     )
   }
 
+  func testArnesArgumentsIncludeModelExtraArgumentsAndPrompt() {
+    let request = LocalAgentLaunchRequest(
+      provider: .arnes,
+      workingDirectory: "/tmp/easel",
+      prompt: "Implement the design",
+      command: "echo",
+      arnesModel: "anthropic/claude-sonnet-4.5",
+      extraArguments: ["--effort", "high"]
+    )
+
+    XCTAssertEqual(
+      TerminalLauncher.localAgentArguments(for: request),
+      ["-m", "anthropic/claude-sonnet-4.5", "--effort", "high", "Implement the design"]
+    )
+  }
+
+  func testArnesAutoModelOmitsModelFlag() {
+    let request = LocalAgentLaunchRequest(
+      provider: .arnes,
+      workingDirectory: "/tmp/easel",
+      prompt: "Implement the design",
+      command: "echo",
+      arnesModel: "openrouter/auto"
+    )
+
+    XCTAssertEqual(
+      TerminalLauncher.localAgentArguments(for: request),
+      ["Implement the design"]
+    )
+  }
+
   func testShellCommandEscapesProjectPathAndPrompt() throws {
     let request = LocalAgentLaunchRequest(
       provider: .claude,

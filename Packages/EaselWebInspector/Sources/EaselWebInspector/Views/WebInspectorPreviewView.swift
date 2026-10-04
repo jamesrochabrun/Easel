@@ -122,6 +122,7 @@ public struct WebInspectorPreviewView: View {
   @State private var isLoading = false
   @State private var isShowingBuildPlaceholder = false
   @Environment(\.colorScheme) private var colorScheme
+  @Environment(\.undoManager) private var undoManager
 
   private static let consoleMessageName = "easelConsole"
 
@@ -779,6 +780,10 @@ public struct WebInspectorPreviewView: View {
   }
 
   private func handleElementSelected(_ element: ElementInspectorData) {
+    // Selecting an element repopulates every inspector text field; typing
+    // undo recorded against the previous element's values would pop stale
+    // ranges. Clear the stack before the fields are rewritten.
+    undoManager?.removeAllActions()
     inspectState.selectElement(element)
     lastSelectedSelector = element.cssSelector
 
@@ -841,6 +846,10 @@ public struct WebInspectorPreviewView: View {
       agentState: tweaksAgentState,
       defaultsSaveState: tweaksDefaultsSaveState,
       onSubmitDescription: { instruction in
+        // Submitting clears the describe-field programmatically; drop the
+        // typing undo registered for it or a later Cmd+Z pops a stale
+        // range against empty storage and crashes (NSRangeException).
+        undoManager?.removeAllActions()
         runTweakAgent(
           TweaksPromptBuilder.customPrompt(fileName: tweaksFileName, instruction: instruction),
           policy: .flexible
@@ -856,6 +865,12 @@ public struct WebInspectorPreviewView: View {
         )
       },
       onValueChange: handleTweakValueChange,
+      onDeleteAll: {
+        runTweakAgent(
+          TweaksPromptBuilder.deleteAllPrompt(fileName: tweaksFileName),
+          policy: .flexible
+        )
+      },
       onReset: resetTweakValues,
       onSaveDefaults: saveTweakDefaults
     )
@@ -966,6 +981,9 @@ public struct WebInspectorPreviewView: View {
   private func handleTweakPropsChange(_ props: [TweakProp]) {
     tweaksState.updateSchema(props)
     tweaksDefaultsSaveState = .idle
+    // The tweak controls' text fields are rebound to the new values; any
+    // typing undo recorded against the old text is now out of range.
+    undoManager?.removeAllActions()
   }
 
   /// Sends the pending design-edit batch to the session's agent immediately.

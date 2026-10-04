@@ -51,6 +51,7 @@ final class StreamProcessor {
     var hasProcessedToolUse = false  // Track if we've seen a tool use
     var currentTaskGroupId: UUID?    // Track the current task group
     var isInTaskExecution = false    // Track if we're currently in a Task execution
+    var resolvedModelIdentifier: String?  // Concrete model id reported by the stream
   }
   
   init(
@@ -100,7 +101,8 @@ final class StreamProcessor {
     onTokenUsageUpdate: ((Int, Int) -> Void)? = nil,
     onCostUpdate: ((Double) -> Void)? = nil,
     onUsageRecord: ((SessionUsageRecord) -> Void)? = nil,
-    onResultReceived: (() -> Void)? = nil
+    onResultReceived: (() -> Void)? = nil,
+    onModelResolved: ((String) -> Void)? = nil
   ) async {
     // Reset the continuation resumed flag for this new stream
     continuationResumed = false
@@ -239,7 +241,7 @@ final class StreamProcessor {
             hasReceivedData = true // Mark that we received data
             timeoutTask?.cancel() // Cancel timeout when data arrives
             guard let self = self else { return }
-            self.processChunk(chunk, messageId: messageId, state: state, firstMessageInSession: firstMessageInSession, onTokenUsageUpdate: onTokenUsageUpdate, onCostUpdate: onCostUpdate, onUsageRecord: onUsageRecord, onResultReceived: onResultReceived)
+            self.processChunk(chunk, messageId: messageId, state: state, firstMessageInSession: firstMessageInSession, onTokenUsageUpdate: onTokenUsageUpdate, onCostUpdate: onCostUpdate, onUsageRecord: onUsageRecord, onResultReceived: onResultReceived, onModelResolved: onModelResolved)
           }
         )
       
@@ -249,19 +251,19 @@ final class StreamProcessor {
     }
   }
   
-  private func processChunk(_ chunk: ResponseChunk, messageId: UUID, state: StreamState, firstMessageInSession: String?, onTokenUsageUpdate: ((Int, Int) -> Void)?, onCostUpdate: ((Double) -> Void)?, onUsageRecord: ((SessionUsageRecord) -> Void)?, onResultReceived: (() -> Void)?) {
+  private func processChunk(_ chunk: ResponseChunk, messageId: UUID, state: StreamState, firstMessageInSession: String?, onTokenUsageUpdate: ((Int, Int) -> Void)?, onCostUpdate: ((Double) -> Void)?, onUsageRecord: ((SessionUsageRecord) -> Void)?, onResultReceived: (() -> Void)?, onModelResolved: ((String) -> Void)?) {
     switch chunk {
     case .initSystem(let initMessage):
       handleInitSystem(initMessage, firstMessageInSession: firstMessageInSession)
 
     case .assistant(let message):
-      handleAssistantMessage(message, messageId: messageId, state: state, onTokenUsageUpdate: onTokenUsageUpdate)
+      handleAssistantMessage(message, messageId: messageId, state: state, onTokenUsageUpdate: onTokenUsageUpdate, onModelResolved: onModelResolved)
 
     case .user(let userMessage):
       handleUserMessage(userMessage, state: state)
 
     case .result(let resultMessage):
-      handleResult(resultMessage, firstMessageInSession: firstMessageInSession, onTokenUsageUpdate: onTokenUsageUpdate, onCostUpdate: onCostUpdate, onUsageRecord: onUsageRecord, onResultReceived: onResultReceived)
+      handleResult(resultMessage, firstMessageInSession: firstMessageInSession, state: state, onTokenUsageUpdate: onTokenUsageUpdate, onCostUpdate: onCostUpdate, onUsageRecord: onUsageRecord, onResultReceived: onResultReceived)
     }
   }
   
@@ -342,11 +344,18 @@ final class StreamProcessor {
     }
   }
   
-  private func handleAssistantMessage(_ message: AssistantMessage, messageId: UUID, state: StreamState, onTokenUsageUpdate: ((Int, Int) -> Void)?) {
+  private func handleAssistantMessage(_ message: AssistantMessage, messageId: UUID, state: StreamState, onTokenUsageUpdate: ((Int, Int) -> Void)?, onModelResolved: ((String) -> Void)?) {
     // Process all content in the message - no need to skip based on message ID
     // since different content types (thinking, text, tools) can share the same message ID
     // in the streaming response. Each content type should be processed independently.
-    
+
+    // The CLI reports the concrete model serving this turn — meaningful when
+    // the configured model is an alias or left to the CLI default.
+    if let model = message.message.model, !model.isEmpty, model != state.resolvedModelIdentifier {
+      state.resolvedModelIdentifier = model
+      onModelResolved?(model)
+    }
+
     // Check if usage data is available in the message
     let usage = message.message.usage
     // Log usage data if needed for debugging
@@ -605,7 +614,7 @@ final class StreamProcessor {
     }
   }
   
-  private func handleResult(_ resultMessage: ResultMessage, firstMessageInSession: String?, onTokenUsageUpdate: ((Int, Int) -> Void)?, onCostUpdate: ((Double) -> Void)?, onUsageRecord: ((SessionUsageRecord) -> Void)?, onResultReceived: (() -> Void)?) {
+  private func handleResult(_ resultMessage: ResultMessage, firstMessageInSession: String?, state: StreamState, onTokenUsageUpdate: ((Int, Int) -> Void)?, onCostUpdate: ((Double) -> Void)?, onUsageRecord: ((SessionUsageRecord) -> Void)?, onResultReceived: (() -> Void)?) {
     if sessionManager.currentSessionId == nil {
       debugLogger.stream("handleResult - No current session, starting new with ID: \(resultMessage.sessionId)")
       let firstMessage = firstMessageInSession ?? "New conversation"
@@ -635,7 +644,7 @@ final class StreamProcessor {
     if let usage = resultMessage.usage {
       let usageRecord = SessionUsageRecord(
         provider: .claude,
-        modelIdentifier: nil,
+        modelIdentifier: state.resolvedModelIdentifier,
         inputTokens: usage.inputTokens,
         outputTokens: usage.outputTokens,
         cachedInputTokens: usage.cacheCreationInputTokens + usage.cacheReadInputTokens

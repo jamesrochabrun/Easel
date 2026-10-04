@@ -277,6 +277,17 @@ extension ChatInputView {
     HStack(spacing: 8) {
       Spacer(minLength: 12)
 
+      if let routedModel = resolvedModelLabel {
+        Text(routedModel)
+          .font(.system(size: 10, weight: .medium))
+          .foregroundStyle(EaselChatRuntimeStyle.tertiaryText(for: colorScheme))
+          .lineLimit(1)
+          .truncationMode(.middle)
+          .help("Model serving this chat: \(viewModel.resolvedModelIdentifier ?? routedModel)")
+          .accessibilityLabel("Model serving this chat")
+          .accessibilityValue(routedModel)
+      }
+
       #if DEBUG
         if viewModel.activeSessionId != nil || viewModel.currentSessionUsageSummary.hasUsage {
           SessionTokenBadge(summary: viewModel.currentSessionUsageSummary)
@@ -287,6 +298,9 @@ extension ChatInputView {
         CodexModelBadge(modelIdentifier: globalPreferences.codexModel)
       } else if viewModel.activeProvider == .claude {
         ClaudeModelBadge(modelIdentifier: globalPreferences.claudeModel)
+      } else if viewModel.activeProvider == .arnes {
+        // Interactive: the OpenRouter model is picked inline, not in Settings.
+        ArnesModelPickerBadge()
       } else if viewModel.activeProvider == .api {
         APIModelBadge(
           profileName: selectedAPIProfile?.name ?? "",
@@ -297,6 +311,21 @@ extension ChatInputView {
     .font(.system(size: 10))
     .foregroundStyle(EaselChatRuntimeStyle.tertiaryText(for: colorScheme))
     .padding(.horizontal, 4)
+  }
+
+  /// Leaf of the concrete model the harness reported serving this chat —
+  /// what "Auto" (or a CLI default) actually routed to. Shown outside the
+  /// model pill, and only against the provider that reported it.
+  private var resolvedModelLabel: String? {
+    guard viewModel.resolvedModelProvider == viewModel.activeProvider,
+          let resolved = viewModel.resolvedModelIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines),
+          !resolved.isEmpty else {
+      return nil
+    }
+    if resolved.contains("/"), let leaf = resolved.split(separator: "/").last {
+      return String(leaf)
+    }
+    return resolved
   }
 
   /// The endpoint profile currently selected for the Local / API provider.

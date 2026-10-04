@@ -78,16 +78,26 @@ public struct DesignSystemSetupView: View {
                 .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
                 .padding(.top, 4)
 
-              TextField(
-                "Paste the contents of a DESIGN.md here (YAML front matter + markdown sections)…",
-                text: $viewModel.designMarkdownText,
-                axis: .vertical
-              )
-              .textFieldStyle(.plain)
-              .font(.system(.callout, design: .monospaced))
-              .lineLimit(8...)
-              .padding(18)
-              .frame(minHeight: 180, alignment: .topLeading)
+              // A fixed-height TextEditor scrolls a large pasted DESIGN.md
+              // internally. A vertical-axis TextField here grew to the full
+              // content height inside the outer ScrollView, so every edit
+              // re-laid-out the whole document and hung the app on big pastes.
+              ZStack(alignment: .topLeading) {
+                TextEditor(text: $viewModel.designMarkdownText)
+                  .font(.system(.callout, design: .monospaced))
+                  .scrollContentBackground(.hidden)
+                  .padding(12)
+
+                if viewModel.designMarkdownText.isEmpty {
+                  Text("Paste the contents of a DESIGN.md here (YAML front matter + markdown sections)…")
+                    .font(.system(.callout, design: .monospaced))
+                    .foregroundStyle(EaselDesignSystem.Palette.secondaryText(for: colorScheme))
+                    .padding(17)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                }
+              }
+              .frame(height: 220)
               .background(EaselDesignSystem.Palette.surface(for: colorScheme), in: RoundedRectangle(cornerRadius: 8))
               .overlay {
                 RoundedRectangle(cornerRadius: 8)

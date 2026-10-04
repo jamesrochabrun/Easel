@@ -135,6 +135,36 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
     }
   }
 
+  /// OpenRouter model slug used by the Arnes provider. Selected inline from
+  /// the chat composer; `openrouter/auto` means provider-side routing.
+  public var arnesModel: String {
+    didSet {
+      saveToPersistentStorage()
+    }
+  }
+
+  /// User-overridden Arnes CLI command. Empty means auto-detect.
+  public var arnesCommand: String {
+    didSet {
+      saveToPersistentStorage()
+    }
+  }
+
+  /// Extra arguments appended to each Arnes CLI launch (raw, shell-style string).
+  public var arnesExtraArgs: String {
+    didSet {
+      saveToPersistentStorage()
+    }
+  }
+
+  /// Environment variable overrides injected into the Arnes CLI process
+  /// (e.g. OPENROUTER_API_KEY).
+  public var arnesEnvironmentVariables: [String: String] {
+    didSet {
+      saveToPersistentStorage()
+    }
+  }
+
   public var isClaudeCommandFromConfig: Bool {
     didSet {
       saveToPersistentStorage()
@@ -254,6 +284,11 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
       self.codexCommand = general.codexCommand
       self.codexExtraArgs = general.codexExtraArgs
       self.codexEnvironmentVariables = general.codexEnvironmentVariables
+      let loadedArnesModel = general.arnesModel.trimmingCharacters(in: .whitespacesAndNewlines)
+      self.arnesModel = loadedArnesModel.isEmpty ? ArnesModelDescriptor.autoIdentifier : loadedArnesModel
+      self.arnesCommand = general.arnesCommand
+      self.arnesExtraArgs = general.arnesExtraArgs
+      self.arnesEnvironmentVariables = general.arnesEnvironmentVariables
       self.defaultWorkingDirectory = general.defaultWorkingDirectory
       self.autoApproveLowRisk = general.autoApproveLowRisk
       self.showDetailedPermissionInfo = general.showDetailedPermissionInfo
@@ -351,6 +386,10 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
       self.codexCommand = ""
       self.codexExtraArgs = ""
       self.codexEnvironmentVariables = [:]
+      self.arnesModel = ArnesModelDescriptor.autoIdentifier
+      self.arnesCommand = ""
+      self.arnesExtraArgs = ""
+      self.arnesEnvironmentVariables = [:]
       self.isClaudeCommandFromConfig = false
       let seededAPI = Self.seededAPIProfiles(profiles: [], selectedId: "")
       self.apiEndpointProfiles = seededAPI.profiles
@@ -440,6 +479,11 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
       self.codexCommand = general.codexCommand
       self.codexExtraArgs = general.codexExtraArgs
       self.codexEnvironmentVariables = general.codexEnvironmentVariables
+      let restoredArnesModel = general.arnesModel.trimmingCharacters(in: .whitespacesAndNewlines)
+      self.arnesModel = restoredArnesModel.isEmpty ? ArnesModelDescriptor.autoIdentifier : restoredArnesModel
+      self.arnesCommand = general.arnesCommand
+      self.arnesExtraArgs = general.arnesExtraArgs
+      self.arnesEnvironmentVariables = general.arnesEnvironmentVariables
       self.defaultWorkingDirectory = general.defaultWorkingDirectory
       self.autoApproveLowRisk = general.autoApproveLowRisk
       self.showDetailedPermissionInfo = general.showDetailedPermissionInfo
@@ -498,6 +542,10 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
     codexCommand = ""
     codexExtraArgs = ""
     codexEnvironmentVariables = [:]
+    arnesModel = ArnesModelDescriptor.autoIdentifier
+    arnesCommand = ""
+    arnesExtraArgs = ""
+    arnesEnvironmentVariables = [:]
     isClaudeCommandFromConfig = false
     let seededAPI = Self.seededAPIProfiles(profiles: [], selectedId: "")
     apiEndpointProfiles = seededAPI.profiles
@@ -598,6 +646,10 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
         codexCommand: codexCommand,
         codexExtraArgs: codexExtraArgs,
         codexEnvironmentVariables: codexEnvironmentVariables,
+        arnesModel: arnesModel,
+        arnesCommand: arnesCommand,
+        arnesExtraArgs: arnesExtraArgs,
+        arnesEnvironmentVariables: arnesEnvironmentVariables,
         apiEndpointProfiles: apiEndpointProfiles,
         selectedAPIProfileId: selectedAPIProfileId,
         apiModel: apiModel,
@@ -707,6 +759,10 @@ public final class GlobalPreferencesStorage: MCPConfigStorage {
         codexCommand: codexCommand,
         codexExtraArgs: codexExtraArgs,
         codexEnvironmentVariables: codexEnvironmentVariables,
+        arnesModel: arnesModel,
+        arnesCommand: arnesCommand,
+        arnesExtraArgs: arnesExtraArgs,
+        arnesEnvironmentVariables: arnesEnvironmentVariables,
         apiEndpointProfiles: apiEndpointProfiles,
         selectedAPIProfileId: selectedAPIProfileId,
         apiModel: apiModel,

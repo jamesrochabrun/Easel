@@ -16,6 +16,10 @@ public struct LocalAgentHandoffContext: Equatable, Sendable {
   public let codexModel: String
   public let codexExtraArgs: String
   public let codexEnvironmentVariables: [String: String]
+  public let arnesCommand: String
+  public let arnesModel: String
+  public let arnesExtraArgs: String
+  public let arnesEnvironmentVariables: [String: String]
 
   public init(
     easelProjectPath: String,
@@ -27,7 +31,11 @@ public struct LocalAgentHandoffContext: Equatable, Sendable {
     codexCommand: String,
     codexModel: String,
     codexExtraArgs: String,
-    codexEnvironmentVariables: [String: String]
+    codexEnvironmentVariables: [String: String],
+    arnesCommand: String = "",
+    arnesModel: String = "",
+    arnesExtraArgs: String = "",
+    arnesEnvironmentVariables: [String: String] = [:]
   ) {
     self.easelProjectPath = easelProjectPath
     self.codebasePath = codebasePath
@@ -39,5 +47,9 @@ public struct LocalAgentHandoffContext: Equatable, Sendable {
     self.codexModel = codexModel
     self.codexExtraArgs = codexExtraArgs
     self.codexEnvironmentVariables = codexEnvironmentVariables
+    self.arnesCommand = arnesCommand
+    self.arnesModel = arnesModel
+    self.arnesExtraArgs = arnesExtraArgs
+    self.arnesEnvironmentVariables = arnesEnvironmentVariables
   }
 }

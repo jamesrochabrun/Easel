@@ -35,6 +35,7 @@ final class ClaudeChatRuntime: ChatRuntime {
   private let onCostUpdate: (Double) -> Void
   private let onUsageRecord: (SessionUsageRecord) -> Void
   private let onResultReceived: () -> Void
+  private let onModelResolved: (String) -> Void
 
   init(
     claudeClient: ClaudeCode,
@@ -46,7 +47,8 @@ final class ClaudeChatRuntime: ChatRuntime {
     onTokenUsageUpdate: @escaping (Int, Int) -> Void,
     onCostUpdate: @escaping (Double) -> Void,
     onUsageRecord: @escaping (SessionUsageRecord) -> Void,
-    onResultReceived: @escaping () -> Void
+    onResultReceived: @escaping () -> Void,
+    onModelResolved: @escaping (String) -> Void = { _ in }
   ) {
     self.claudeClient = claudeClient
     self.sessionManager = sessionManager
@@ -58,6 +60,7 @@ final class ClaudeChatRuntime: ChatRuntime {
     self.onCostUpdate = onCostUpdate
     self.onUsageRecord = onUsageRecord
     self.onResultReceived = onResultReceived
+    self.onModelResolved = onModelResolved
   }
 
   func markSessionRestored() {}
@@ -160,7 +163,8 @@ final class ClaudeChatRuntime: ChatRuntime {
         onTokenUsageUpdate: onTokenUsageUpdate,
         onCostUpdate: onCostUpdate,
         onUsageRecord: onUsageRecord,
-        onResultReceived: onResultReceived
+        onResultReceived: onResultReceived,
+        onModelResolved: onModelResolved
       )
 
     default:

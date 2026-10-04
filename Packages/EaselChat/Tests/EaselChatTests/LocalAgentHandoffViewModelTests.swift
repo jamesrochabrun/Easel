@@ -105,6 +105,30 @@ final class LocalAgentHandoffViewModelTests: XCTestCase {
     XCTAssertEqual(requests.first?.workingDirectory, "/tmp/new-project")
   }
 
+  func testArnesLaunchBuildsRequestFromContext() async {
+    let launcher = RecordingLocalAgentLauncher()
+    let viewModel = LocalAgentHandoffViewModel(
+      launcher: launcher,
+      workspaceCreator: FixedLocalAgentWorkspaceCreator(path: "/tmp/new-project")
+    )
+    viewModel.selectedProvider = .arnes
+    viewModel.selectedTarget = .codebase
+    viewModel.details = "implement the selected screen"
+
+    await viewModel.launch(context: context())
+
+    let requests = await launcher.recordedRequests()
+    XCTAssertEqual(requests.count, 1)
+    XCTAssertEqual(requests[0].provider, .arnes)
+    XCTAssertEqual(requests[0].workingDirectory, "/tmp/private-codebase")
+    XCTAssertEqual(requests[0].command, "arnes-custom")
+    XCTAssertEqual(requests[0].arnesModel, "anthropic/claude-sonnet-4.5")
+    XCTAssertEqual(requests[0].extraArguments, ["--effort", "high"])
+    XCTAssertEqual(requests[0].environment, ["OPENROUTER_API_KEY": "test-key"])
+    XCTAssertEqual(viewModel.successMessage, "Started OpenRouter in Terminal.")
+    XCTAssertNil(viewModel.errorMessage)
+  }
+
   private func context() -> LocalAgentHandoffContext {
     LocalAgentHandoffContext(
       easelProjectPath: "/tmp/easel-project",
@@ -116,7 +140,11 @@ final class LocalAgentHandoffViewModelTests: XCTestCase {
       codexCommand: "codex-custom",
       codexModel: "gpt-5.5",
       codexExtraArgs: "--api-mode enterprise",
-      codexEnvironmentVariables: ["EASEL_ENV": "1"]
+      codexEnvironmentVariables: ["EASEL_ENV": "1"],
+      arnesCommand: "arnes-custom",
+      arnesModel: "anthropic/claude-sonnet-4.5",
+      arnesExtraArgs: "--effort high",
+      arnesEnvironmentVariables: ["OPENROUTER_API_KEY": "test-key"]
     )
   }
 }

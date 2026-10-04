@@ -140,6 +140,51 @@ final class PersistentPreferencesTests: XCTestCase {
     XCTAssertFalse(preferences.codexModel.isEmpty)
   }
 
+  func testGeneralPreferencesDecodeDefaultsArnesFields() throws {
+    // Preferences written before the Arnes provider existed must decode
+    // with Auto routing and empty overrides.
+    let json = """
+    {
+      "autoApproveLowRisk": false,
+      "claudeCommand": "claude",
+      "claudePath": "",
+      "defaultWorkingDirectory": "",
+      "appendSystemPrompt": "",
+      "systemPrompt": "",
+      "showDetailedPermissionInfo": true,
+      "permissionRequestTimeout": 3600,
+      "permissionTimeoutEnabled": false,
+      "maxConcurrentPermissionRequests": 5,
+      "disallowedTools": []
+    }
+    """
+
+    let data = try XCTUnwrap(json.data(using: .utf8))
+    let preferences = try JSONDecoder().decode(GeneralPreferences.self, from: data)
+
+    XCTAssertEqual(preferences.arnesModel, "openrouter/auto")
+    XCTAssertEqual(preferences.arnesCommand, "")
+    XCTAssertEqual(preferences.arnesExtraArgs, "")
+    XCTAssertEqual(preferences.arnesEnvironmentVariables, [:])
+  }
+
+  func testGeneralPreferencesRoundTripsArnesFields() throws {
+    let original = GeneralPreferences(
+      arnesModel: "anthropic/claude-sonnet-4.5",
+      arnesCommand: "/opt/homebrew/bin/arnes",
+      arnesExtraArgs: "--effort high",
+      arnesEnvironmentVariables: ["OPENROUTER_API_KEY": "test-key"]
+    )
+
+    let data = try JSONEncoder().encode(original)
+    let decoded = try JSONDecoder().decode(GeneralPreferences.self, from: data)
+
+    XCTAssertEqual(decoded.arnesModel, "anthropic/claude-sonnet-4.5")
+    XCTAssertEqual(decoded.arnesCommand, "/opt/homebrew/bin/arnes")
+    XCTAssertEqual(decoded.arnesExtraArgs, "--effort high")
+    XCTAssertEqual(decoded.arnesEnvironmentVariables, ["OPENROUTER_API_KEY": "test-key"])
+  }
+
   func testGeneralPreferencesInitializerPreservesClaudeProvider() {
     let preferences = GeneralPreferences(chatProvider: .claude)
 

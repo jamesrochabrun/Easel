@@ -89,6 +89,8 @@ struct GlobalSettingsView: View {
         refreshCodexModels()
       case .claude:
         refreshClaudeModels()
+      case .arnes:
+        break // Model selection happens inline in the chat composer.
       case .api:
         loadEndpointDrafts()
         refreshAPIModels()
@@ -156,6 +158,8 @@ struct GlobalSettingsView: View {
         codexConfigurationRow
       case .claude:
         claudeConfigurationRow
+      case .arnes:
+        arnesConfigurationRow
       case .api:
         // The Local / API provider renders its own dedicated sections below.
         EmptyView()
@@ -185,6 +189,8 @@ struct GlobalSettingsView: View {
           refreshCodexModels()
         case .claude:
           refreshClaudeModels()
+        case .arnes:
+          break // Model selection happens inline in the chat composer.
         case .api:
           refreshAPIModels()
         }
@@ -244,6 +250,69 @@ struct GlobalSettingsView: View {
           .foregroundColor(.secondary)
       }
     }
+  }
+
+  @ViewBuilder
+  private var arnesConfigurationRow: some View {
+    @Bindable var preferences = globalPreferences
+    VStack(alignment: .leading, spacing: 16) {
+      // Model
+      VStack(alignment: .leading, spacing: 6) {
+        Text("Model")
+          .font(.caption)
+          .foregroundColor(.secondary)
+        Text("Pick the OpenRouter model inline from the badge in the chat composer — including Auto routing. The current choice is \(arnesSelectedModelDescription).")
+          .font(.caption)
+          .foregroundColor(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      Divider()
+
+      // Command
+      VStack(alignment: .leading, spacing: 6) {
+        Text("Command")
+          .font(.caption)
+          .foregroundColor(.secondary)
+        TextField("arnes", text: $preferences.arnesCommand)
+          .textFieldStyle(.roundedBorder)
+          .font(.system(.body, design: .monospaced))
+        Text("Leave empty to auto-detect from Homebrew, /usr/local/bin, ~/.local/bin, or PATH.")
+          .font(.caption)
+          .foregroundColor(.secondary)
+      }
+
+      // Extra arguments
+      VStack(alignment: .leading, spacing: 6) {
+        Text("Extra arguments")
+          .font(.caption)
+          .foregroundColor(.secondary)
+        TextField("e.g. --effort high --budget 0.50", text: $preferences.arnesExtraArgs)
+          .textFieldStyle(.roundedBorder)
+        Text("Arguments applied to each CLI launch.")
+          .font(.caption)
+          .foregroundColor(.secondary)
+      }
+
+      // Environment variables
+      VStack(alignment: .leading, spacing: 6) {
+        Text("Environment variables")
+          .font(.caption)
+          .foregroundColor(.secondary)
+        CodexEnvironmentVariablesEditor(variables: $preferences.arnesEnvironmentVariables)
+        Text("Injected into the arnes process on each launch. The OpenRouter key resolves from OPENROUTER_API_KEY here, or from ~/.arnes/credentials.")
+          .font(.caption)
+          .foregroundColor(.secondary)
+      }
+    }
+  }
+
+  private var arnesSelectedModelDescription: String {
+    let selected = globalPreferences.arnesModel.trimmingCharacters(in: .whitespacesAndNewlines)
+    if selected.isEmpty || selected == ArnesModelDescriptor.autoIdentifier {
+      return "Auto (openrouter/auto)"
+    }
+    return selected
   }
 
   // MARK: - Local / API sections

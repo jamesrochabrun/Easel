@@ -15,7 +15,8 @@ struct LoadingIndicator: View {
   let showPrice: Bool
   let showTokenCount: Bool
   let activityText: String
-  
+  let modelIdentifier: String?
+
   @State private var elapsedTime: TimeInterval = 0
   @State private var dots = ""
   @Environment(\.colorScheme) private var colorScheme
@@ -30,7 +31,8 @@ struct LoadingIndicator: View {
     costUSD: Double = 0.0,
     showPrice: Bool? = nil,
     showTokenCount: Bool = true,
-    activityText: String = "Easel is working"
+    activityText: String = "Easel is working",
+    modelIdentifier: String? = nil
   ) {
     self.startTime = startTime
     self.inputTokens = inputTokens
@@ -38,6 +40,7 @@ struct LoadingIndicator: View {
     self.costUSD = costUSD
     self.showTokenCount = showTokenCount
     self.activityText = activityText
+    self.modelIdentifier = modelIdentifier
     
     // Show price only in debug builds by default
     #if DEBUG
@@ -59,9 +62,25 @@ struct LoadingIndicator: View {
     inputTokens > 0 || outputTokens > 0
   }
   
+  /// Model ids are often long `org/name` slugs — show just the leaf.
+  private var shortModelName: String? {
+    guard let trimmed = modelIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines),
+          !trimmed.isEmpty else {
+      return nil
+    }
+    if trimmed.contains("/"), let leaf = trimmed.split(separator: "/").last {
+      return String(leaf)
+    }
+    return trimmed
+  }
+
   private var metadataText: String {
     var values = [formattedTime]
-    
+
+    if let shortModelName {
+      values.append(shortModelName)
+    }
+
     if showTokenCount && hasTokenData {
       values.append("\(totalTokens) tokens")
     }

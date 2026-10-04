@@ -8,6 +8,7 @@ import Foundation
 public enum LocalAgentProvider: String, CaseIterable, Codable, Identifiable, Sendable {
   case codex
   case claude
+  case arnes
 
   public var id: String { rawValue }
 
@@ -17,6 +18,8 @@ public enum LocalAgentProvider: String, CaseIterable, Codable, Identifiable, Sen
       return "Codex"
     case .claude:
       return "Claude"
+    case .arnes:
+      return "OpenRouter"
     }
   }
 
@@ -26,6 +29,8 @@ public enum LocalAgentProvider: String, CaseIterable, Codable, Identifiable, Sen
       return "codex"
     case .claude:
       return "claude"
+    case .arnes:
+      return "arnes"
     }
   }
 }

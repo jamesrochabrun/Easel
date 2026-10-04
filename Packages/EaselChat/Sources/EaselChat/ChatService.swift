@@ -433,7 +433,11 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
       codexCommand: normalized(globalPreferences?.codexCommand) ?? "",
       codexModel: normalized(globalPreferences?.codexModel) ?? "",
       codexExtraArgs: globalPreferences?.codexExtraArgs ?? "",
-      codexEnvironmentVariables: globalPreferences?.codexEnvironmentVariables ?? [:]
+      codexEnvironmentVariables: globalPreferences?.codexEnvironmentVariables ?? [:],
+      arnesCommand: normalized(globalPreferences?.arnesCommand) ?? "",
+      arnesModel: normalized(globalPreferences?.arnesModel) ?? "",
+      arnesExtraArgs: globalPreferences?.arnesExtraArgs ?? "",
+      arnesEnvironmentVariables: globalPreferences?.arnesEnvironmentVariables ?? [:]
     )
   }
 

@@ -8,13 +8,17 @@ import Foundation
 public enum ChatProvider: String, CaseIterable, Codable, Identifiable, Sendable {
   case claude
   case codex
+  /// The Arnes CLI harness over OpenRouter: any OpenRouter model (or
+  /// `openrouter/auto` routing) driving the same local agent loop. The model
+  /// is selected inline from the chat composer.
+  case arnes
   /// Raw LLM APIs driven by the in-app agentic harness: local model servers
   /// (Ollama, LM Studio, llama.cpp), on-device MLX, and hosted
   /// OpenAI-compatible endpoints. Configured via endpoint profiles.
   case api
 
   public static var allCases: [ChatProvider] {
-    [.codex, .claude, .api]
+    [.codex, .claude, .arnes, .api]
   }
 
   public var supportedProvider: ChatProvider {
@@ -29,6 +33,8 @@ public enum ChatProvider: String, CaseIterable, Codable, Identifiable, Sendable 
       return "Claude"
     case .codex:
       return "Codex"
+    case .arnes:
+      return "OpenRouter"
     case .api:
       return "Local / API"
     }

@@ -12,6 +12,8 @@ public struct LocalAgentLaunchRequest: Equatable, Sendable {
   public let command: String
   public let additionalPaths: [String]
   public let codexModel: String?
+  /// OpenRouter model slug passed as `-m` for the arnes provider.
+  public let arnesModel: String?
   public let extraArguments: [String]
   public let environment: [String: String]
 
@@ -22,6 +24,7 @@ public struct LocalAgentLaunchRequest: Equatable, Sendable {
     command: String? = nil,
     additionalPaths: [String] = [],
     codexModel: String? = nil,
+    arnesModel: String? = nil,
     extraArguments: [String] = [],
     environment: [String: String] = [:]
   ) {
@@ -31,6 +34,7 @@ public struct LocalAgentLaunchRequest: Equatable, Sendable {
     self.command = command ?? provider.defaultCommand
     self.additionalPaths = additionalPaths
     self.codexModel = codexModel
+    self.arnesModel = arnesModel
     self.extraArguments = extraArguments
     self.environment = environment
   }

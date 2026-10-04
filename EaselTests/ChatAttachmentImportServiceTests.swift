@@ -28,7 +28,11 @@ struct ChatAttachmentImportServiceTests {
       return nil
     }
 
-    let service = DefaultChatAttachmentImportService(temporaryDirectory: temporaryDirectory)
+    let storeRoot = temporaryDirectory.appendingPathComponent("Store", isDirectory: true)
+    let service = DefaultChatAttachmentImportService(
+      temporaryDirectory: temporaryDirectory,
+      attachmentStore: ChatAttachmentStore(rootDirectory: storeRoot)
+    )
     let attachments = await service.attachments(from: [provider])
     let attachment = try #require(attachments.first)
 
@@ -36,6 +40,7 @@ struct ChatAttachmentImportServiceTests {
     #expect(attachment.type == .image)
     #expect(attachment.isTemporary)
     #expect(attachment.url.pathExtension == "png")
+    #expect(attachment.url.path.hasPrefix(storeRoot.path))
     #expect(FileManager.default.fileExists(atPath: attachment.url.path))
   }
 

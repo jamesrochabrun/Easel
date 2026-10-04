@@ -23,6 +23,7 @@ public final class DefaultChatAttachmentImportService: ChatAttachmentImportServi
 
   private let fileManager: FileManager
   private let temporaryDirectory: URL
+  private let attachmentStore: ChatAttachmentStore
   private let systemFileNames: Set<String> = [
     ".DS_Store",
     ".localized",
@@ -34,10 +35,12 @@ public final class DefaultChatAttachmentImportService: ChatAttachmentImportServi
 
   public init(
     fileManager: FileManager = .default,
-    temporaryDirectory: URL = FileManager.default.temporaryDirectory
+    temporaryDirectory: URL = FileManager.default.temporaryDirectory,
+    attachmentStore: ChatAttachmentStore? = nil
   ) {
     self.fileManager = fileManager
     self.temporaryDirectory = temporaryDirectory
+    self.attachmentStore = attachmentStore ?? ChatAttachmentStore(fileManager: fileManager)
   }
 
   public func attachments(from urls: [URL]) async -> [FileAttachment] {
@@ -55,17 +58,34 @@ public final class DefaultChatAttachmentImportService: ChatAttachmentImportServi
   }
 
   private func attachments(from provider: NSItemProvider) async -> [FileAttachment] {
+    // A concrete file URL first (files and folders). This can resolve to a
+    // path that no longer exists — e.g. a screenshot HUD thumbnail whose
+    // backing file screencaptureui already reaped — so an empty result
+    // falls through to the data and file-representation routes instead of
+    // silently dropping the drag.
     if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier),
        let url = await loadFileURL(from: provider) {
-      return attachments(from: url)
+      let resolved = attachments(from: url)
+      if !resolved.isEmpty {
+        return resolved
+      }
     }
 
-    guard let imagePayload = await loadImageData(from: provider),
-          let temporaryURL = writeTemporaryImage(payload: imagePayload, provider: provider) else {
-      return []
+    // Raw image bytes (screenshots and browser drags that carry no usable
+    // URL). Written straight into the durable store.
+    if let imagePayload = await loadImageData(from: provider),
+       let storedURL = writeDroppedImage(payload: imagePayload, provider: provider) {
+      return [FileAttachment(url: storedURL, isTemporary: true)]
     }
 
-    return [FileAttachment(url: temporaryURL, isTemporary: true)]
+    // Last resort: ask the provider to materialize a file representation.
+    // This is the route that services file promises — the vended URL is
+    // only valid inside the callback, so it is copied out immediately.
+    if let copiedURL = await loadFileRepresentationCopy(from: provider) {
+      return [FileAttachment(url: copiedURL, isTemporary: true)]
+    }
+
+    return []
   }
 
   private func attachments(from url: URL) -> [FileAttachment] {
@@ -79,7 +99,15 @@ public final class DefaultChatAttachmentImportService: ChatAttachmentImportServi
       return collectFiles(from: url).map { FileAttachment(url: $0) }
     }
 
-    return [FileAttachment(url: url, isTemporary: isTemporaryFile(url))]
+    // Files in purgeable locations (screenshots, clipboard temp files) are
+    // copied into the app-owned store right now — the original can vanish
+    // seconds later, long before the message is sent or the CLI reads it.
+    if isTemporaryFile(url) {
+      let stableURL = attachmentStore.importCopy(of: url) ?? url
+      return [FileAttachment(url: stableURL, isTemporary: true)]
+    }
+
+    return [FileAttachment(url: url, isTemporary: false)]
   }
 
   private func collectFiles(from folderURL: URL) -> [URL] {
@@ -211,17 +239,43 @@ public final class DefaultChatAttachmentImportService: ChatAttachmentImportServi
     }
   }
 
-  private func writeTemporaryImage(payload: ImageDropPayload, provider: NSItemProvider) -> URL? {
+  private func writeDroppedImage(payload: ImageDropPayload, provider: NSItemProvider) -> URL? {
     let fileName = temporaryImageFileName(type: payload.type, provider: provider)
-    let url = temporaryDirectory.appendingPathComponent(fileName)
+    return attachmentStore.write(data: payload.data, fileName: fileName)
+  }
 
-    do {
-      try fileManager.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
-      try payload.data.write(to: url, options: .atomic)
-      return url
-    } catch {
-      return nil
+  /// Materializes the provider's file representation (servicing a file
+  /// promise if that's what the drag carries) and copies it into the
+  /// durable store before the system-vended URL is invalidated.
+  private func loadFileRepresentationCopy(from provider: NSItemProvider) async -> URL? {
+    // Only representations that are really file-shaped: a dragged string or
+    // link must not be materialized into a file by this fallback.
+    let candidateTypes = provider.registeredTypeIdentifiers.filter { identifier in
+      guard identifier != UTType.fileURL.identifier,
+            let type = UTType(identifier) else {
+        return false
+      }
+      return !type.conforms(to: .text) && !type.conforms(to: .url)
     }
+
+    for typeIdentifier in candidateTypes {
+      let copied: URL? = await withCheckedContinuation { continuation in
+        _ = provider.loadFileRepresentation(forTypeIdentifier: typeIdentifier) { [attachmentStore] url, _ in
+          guard let url else {
+            continuation.resume(returning: nil)
+            return
+          }
+          // The URL is deleted when this handler returns — copy synchronously.
+          continuation.resume(returning: attachmentStore.importCopy(of: url))
+        }
+      }
+
+      if let copied {
+        return copied
+      }
+    }
+
+    return nil
   }
 
   private func temporaryImageFileName(type: UTType, provider: NSItemProvider) -> String {

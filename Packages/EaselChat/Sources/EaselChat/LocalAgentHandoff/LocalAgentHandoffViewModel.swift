@@ -145,6 +145,18 @@ public final class LocalAgentHandoffViewModel {
         command: normalizedCommand(context.claudeCommand),
         additionalPaths: context.claudeAdditionalPaths
       )
+
+    case .arnes:
+      return LocalAgentLaunchRequest(
+        provider: .arnes,
+        workingDirectory: workingDirectory,
+        prompt: prompt,
+        command: normalizedCommand(context.arnesCommand),
+        additionalPaths: [],
+        arnesModel: normalizedCommand(context.arnesModel),
+        extraArguments: LocalAgentArgumentParser.parse(context.arnesExtraArgs),
+        environment: context.arnesEnvironmentVariables
+      )
     }
   }
 

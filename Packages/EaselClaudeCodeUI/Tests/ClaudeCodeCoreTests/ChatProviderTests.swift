@@ -4,12 +4,13 @@ import XCTest
 final class ChatProviderTests: XCTestCase {
 
   func testAdvertisedProviders() {
-    XCTAssertEqual(ChatProvider.allCases, [.codex, .claude, .api])
+    XCTAssertEqual(ChatProvider.allCases, [.codex, .claude, .arnes, .api])
   }
 
   func testSupportedProviderPreservesSelection() {
     XCTAssertEqual(ChatProvider.claude.supportedProvider, .claude)
     XCTAssertEqual(ChatProvider.codex.supportedProvider, .codex)
+    XCTAssertEqual(ChatProvider.arnes.supportedProvider, .arnes)
     XCTAssertEqual(ChatProvider.api.supportedProvider, .api)
   }
 
@@ -17,6 +18,7 @@ final class ChatProviderTests: XCTestCase {
     let decoder = JSONDecoder()
     XCTAssertEqual(try decoder.decode(ChatProvider.self, from: Data("\"claude\"".utf8)), .claude)
     XCTAssertEqual(try decoder.decode(ChatProvider.self, from: Data("\"codex\"".utf8)), .codex)
+    XCTAssertEqual(try decoder.decode(ChatProvider.self, from: Data("\"arnes\"".utf8)), .arnes)
     XCTAssertEqual(try decoder.decode(ChatProvider.self, from: Data("\"api\"".utf8)), .api)
   }
 

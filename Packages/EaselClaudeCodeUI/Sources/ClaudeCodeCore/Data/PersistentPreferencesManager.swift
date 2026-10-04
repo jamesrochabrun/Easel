@@ -336,6 +336,16 @@ public struct GeneralPreferences: Codable {
   public var codexExtraArgs: String
   /// Environment variable overrides injected into the Codex CLI process.
   public var codexEnvironmentVariables: [String: String]
+  /// OpenRouter model slug used by the Arnes provider (`openrouter/auto`
+  /// lets OpenRouter route each request).
+  public var arnesModel: String
+  /// User-overridden Arnes CLI command. Empty means auto-detect.
+  public var arnesCommand: String
+  /// Extra arguments appended to each Arnes CLI launch (raw, shell-style string).
+  public var arnesExtraArgs: String
+  /// Environment variable overrides injected into the Arnes CLI process
+  /// (e.g. OPENROUTER_API_KEY).
+  public var arnesEnvironmentVariables: [String: String]
   /// Named endpoint profiles for the Local / API provider (secrets excluded —
   /// API keys live in the credential store, keyed by profile id).
   public var apiEndpointProfiles: [EndpointProfile]
@@ -368,6 +378,10 @@ public struct GeneralPreferences: Codable {
     codexCommand: String = "",
     codexExtraArgs: String = "",
     codexEnvironmentVariables: [String: String] = [:],
+    arnesModel: String = ArnesModelDescriptor.autoIdentifier,
+    arnesCommand: String = "",
+    arnesExtraArgs: String = "",
+    arnesEnvironmentVariables: [String: String] = [:],
     apiEndpointProfiles: [EndpointProfile] = [],
     selectedAPIProfileId: String = "",
     apiModel: String = "",
@@ -394,6 +408,10 @@ public struct GeneralPreferences: Codable {
     self.codexCommand = codexCommand
     self.codexExtraArgs = codexExtraArgs
     self.codexEnvironmentVariables = codexEnvironmentVariables
+    self.arnesModel = arnesModel
+    self.arnesCommand = arnesCommand
+    self.arnesExtraArgs = arnesExtraArgs
+    self.arnesEnvironmentVariables = arnesEnvironmentVariables
     self.apiEndpointProfiles = apiEndpointProfiles
     self.selectedAPIProfileId = selectedAPIProfileId
     self.apiModel = apiModel
@@ -425,6 +443,10 @@ public struct GeneralPreferences: Codable {
     codexCommand = try container.decodeIfPresent(String.self, forKey: .codexCommand) ?? ""
     codexExtraArgs = try container.decodeIfPresent(String.self, forKey: .codexExtraArgs) ?? ""
     codexEnvironmentVariables = try container.decodeIfPresent([String: String].self, forKey: .codexEnvironmentVariables) ?? [:]
+    arnesModel = try container.decodeIfPresent(String.self, forKey: .arnesModel) ?? ArnesModelDescriptor.autoIdentifier
+    arnesCommand = try container.decodeIfPresent(String.self, forKey: .arnesCommand) ?? ""
+    arnesExtraArgs = try container.decodeIfPresent(String.self, forKey: .arnesExtraArgs) ?? ""
+    arnesEnvironmentVariables = try container.decodeIfPresent([String: String].self, forKey: .arnesEnvironmentVariables) ?? [:]
     apiEndpointProfiles = try container.decodeIfPresent([EndpointProfile].self, forKey: .apiEndpointProfiles) ?? []
     selectedAPIProfileId = try container.decodeIfPresent(String.self, forKey: .selectedAPIProfileId) ?? ""
     apiModel = try container.decodeIfPresent(String.self, forKey: .apiModel) ?? ""

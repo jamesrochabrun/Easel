@@ -24,3 +24,6 @@ Packages/EaselChat/.swiftpm/xcode/xcshareddata/xcschemes/*
 
 # Local agent/editor settings
 .claude/settings.local.json
+
+# Local ori app state (logs + sqlite)
+.ori/

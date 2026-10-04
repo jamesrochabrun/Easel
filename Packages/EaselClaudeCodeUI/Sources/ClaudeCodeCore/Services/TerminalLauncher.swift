@@ -66,6 +66,11 @@ public struct TerminalLauncher {
         command: commandName,
         additionalPaths: request.additionalPaths
       )
+    case .arnes:
+      executablePath = findExecutable(
+        command: commandName,
+        additionalPaths: request.additionalPaths + ["/opt/homebrew/bin", "\(NSHomeDirectory())/.local/bin"]
+      )
     }
 
     guard let executablePath else {
@@ -104,6 +109,20 @@ public struct TerminalLauncher {
         return [prompt]
       }
       return []
+
+    case .arnes:
+      // `arnes [interactive] [prompt]` starts the REPL and sends the prompt
+      // as the first message; `-m` picks the OpenRouter model.
+      var arguments: [String] = []
+      if let model = normalizedOptionalArgument(request.arnesModel),
+         model != "openrouter/auto" {
+        arguments += ["-m", model]
+      }
+      arguments.append(contentsOf: request.extraArguments)
+      if let prompt = normalizedOptionalArgument(request.prompt) {
+        arguments.append(prompt)
+      }
+      return arguments
     }
   }
   
@@ -187,6 +206,72 @@ public struct TerminalLauncher {
     }
   }
   
+  /// Launches Terminal resuming an Arnes session (`arnes resume <id>`).
+  /// - Parameters:
+  ///   - sessionId: The Arnes session id to resume
+  ///   - projectPath: The project path to change to before resuming
+  ///   - command: The arnes command or path (empty means auto-detect)
+  ///   - environment: Environment variable exports for the process
+  /// - Returns: An error if launching fails, nil on success
+  public static func launchTerminalWithArnesSession(
+    _ sessionId: String,
+    projectPath: String,
+    command: String = "",
+    environment: [String: String] = [:]
+  ) -> Error? {
+    let commandName = command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      ? "arnes"
+      : command.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    guard let executablePath = findExecutable(
+      command: commandName,
+      additionalPaths: ["/opt/homebrew/bin", "\(NSHomeDirectory())/.local/bin"]
+    ) else {
+      return NSError(
+        domain: "TerminalLauncher",
+        code: 1,
+        userInfo: [NSLocalizedDescriptionKey: "Could not find '\(commandName)' command. Please ensure the Arnes CLI is installed."]
+      )
+    }
+
+    guard let escapedExecutablePath = shellEscapeSingleQuoted(executablePath),
+          let escapedSessionId = shellEscapeSingleQuoted(sessionId) else {
+      return NSError(
+        domain: "TerminalLauncher",
+        code: 3,
+        userInfo: [NSLocalizedDescriptionKey: "Invalid characters in the Arnes launch command."]
+      )
+    }
+
+    var shellCommand = "\(escapedExecutablePath) resume \(escapedSessionId)"
+    if !projectPath.isEmpty, let escapedPath = shellEscapeSingleQuoted(projectPath) {
+      shellCommand = "cd \(escapedPath) && \(shellCommand)"
+    }
+
+    let exports = environmentExports(for: environment)
+    let scriptContent = [
+      "#!/bin/bash",
+      exports.isEmpty ? nil : exports,
+      shellCommand,
+    ].compactMap { $0 }.joined(separator: "\n") + "\n"
+
+    do {
+      let scriptURL = try writeLaunchScript(content: scriptContent, prefix: "arnes_resume")
+      NSWorkspace.shared.open(scriptURL)
+      Task {
+        try? await Task.sleep(for: .seconds(5))
+        try? FileManager.default.removeItem(at: scriptURL)
+      }
+      return nil
+    } catch {
+      return NSError(
+        domain: "TerminalLauncher",
+        code: 2,
+        userInfo: [NSLocalizedDescriptionKey: "Failed to launch Terminal: \(error.localizedDescription)"]
+      )
+    }
+  }
+
   /// Finds the full path to the Claude executable
   /// - Parameters:
   ///   - command: The command name to search for (e.g., "claude")

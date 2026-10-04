@@ -100,6 +100,7 @@ public final class ChatViewModel {
   private let messageStore = MessageStore()
   @ObservationIgnored private var codexRuntime: CodexChatRuntime?
   @ObservationIgnored private var claudeRuntime: ClaudeChatRuntime?
+  @ObservationIgnored private var arnesRuntime: ArnesChatRuntime?
   @ObservationIgnored private var apiRuntime: APIChatRuntime?
   @ObservationIgnored private var runtimeTask: Task<Void, Never>?
   private var firstMessageInSession: String?
@@ -155,6 +156,8 @@ public final class ChatViewModel {
       return codexRuntime?.activeSessionId ?? sessionManager.currentSessionId
     case .claude:
       return claudeRuntime?.activeSessionId ?? streamProcessor.activeSessionId
+    case .arnes:
+      return arnesRuntime?.activeSessionId ?? sessionManager.currentSessionId
     case .api:
       return apiRuntime?.activeSessionId ?? sessionManager.currentSessionId
     }
@@ -196,6 +199,14 @@ public final class ChatViewModel {
   public private(set) var currentOutputTokens: Int = 0
   public private(set) var currentCostUSD: Double = 0.0
   public private(set) var currentSessionUsageSummary: SessionUsageSummary = .zero
+  /// Concrete model the active provider reported serving the last turn —
+  /// what "Auto" (or a CLI default) actually routed to. Kept after the turn
+  /// so the composer can show the last routing decision; reset when a new
+  /// turn starts.
+  public private(set) var resolvedModelIdentifier: String?
+  /// Provider that reported `resolvedModelIdentifier`, so the UI only shows
+  /// it against the provider it belongs to.
+  public private(set) var resolvedModelProvider: ChatProvider?
   
   /// Tracks whether a session has started (first message sent)
   public private(set) var hasSessionStarted: Bool = false
@@ -603,6 +614,8 @@ EOF
     currentInputTokens = 0
     currentOutputTokens = 0
     currentCostUSD = 0.0
+    resolvedModelIdentifier = nil
+    resolvedModelProvider = nil
   }
 
   private func endLoadingState() {
@@ -650,8 +663,14 @@ EOF
       // Create FileAttachment from the stored file path
       let fileURL = URL(fileURLWithPath: stored.filePath)
       let attachment = FileAttachment(url: fileURL)
-      // Set the state to ready since we're just referencing the file path
-      attachment.state = .ready(content: .image(path: stored.filePath, base64URL: "", thumbnailBase64: nil))
+      // Mark ready referencing the file path, with content matching the
+      // stored type — an image marker for images, a plain path reference
+      // for everything else (not every stored attachment is an image).
+      if stored.type == AttachmentType.image.rawValue {
+        attachment.state = .ready(content: .image(path: stored.filePath, base64URL: "", thumbnailBase64: nil))
+      } else {
+        attachment.state = .ready(content: .data(path: stored.filePath, base64: ""))
+      }
       return attachment
     }
 
@@ -814,7 +833,9 @@ EOF
   }
 
   private func shouldIncludeRuntimeHiddenContextForNewMessage() -> Bool {
-    guard activeProvider == .codex else {
+    // Codex and Arnes resume CLI-side sessions that keep the conversation
+    // context, so the runtime hidden context is only sent on the first turn.
+    guard activeProvider == .codex || activeProvider == .arnes else {
       return true
     }
 
@@ -841,6 +862,7 @@ EOF
     endLoadingState()
     codexRuntime?.resetSession()
     claudeRuntime?.resetSession()
+    arnesRuntime?.resetSession()
     apiRuntime?.resetSession()
     runtimeTask = nil
     if resetProviderToDefault {
@@ -888,6 +910,7 @@ EOF
         self.claudeClient.configuration.workingDirectory = nil
         self.codexRuntime?.workingDirectory = nil
         self.claudeRuntime?.workingDirectory = nil
+        self.arnesRuntime?.workingDirectory = nil
         self.apiRuntime?.workingDirectory = nil
         self.projectPath = ""
         
@@ -895,6 +918,7 @@ EOF
         self.sessionManager.clearSession()
         self.codexRuntime?.resetSession()
         self.claudeRuntime?.resetSession()
+        self.arnesRuntime?.resetSession()
         self.apiRuntime?.resetSession()
         self.runtimeTask = nil
         self.setActiveProvider(self.globalPreferences.chatProvider)
@@ -943,6 +967,7 @@ EOF
   private func stopActiveGeneration() {
     codexRuntime?.cancel()
     claudeRuntime?.cancel()
+    arnesRuntime?.cancel()
     runtimeTask?.cancel()
     runtimeTask = nil
   }
@@ -1044,8 +1069,20 @@ EOF
     currentCostUSD = costUSD
   }
 
+  /// Records the concrete model a provider reported serving the current turn.
+  public func updateResolvedModel(_ identifier: String, provider: ChatProvider) {
+    let trimmed = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
+    // The auto slug is a routing request, not a resolution.
+    guard !trimmed.isEmpty, trimmed != ArnesModelDescriptor.autoIdentifier else { return }
+    resolvedModelIdentifier = trimmed
+    resolvedModelProvider = provider
+  }
+
   private func recordCompletedTurnUsage(_ record: SessionUsageRecord) {
     updateTokenUsage(inputTokens: record.inputTokens, outputTokens: record.outputTokens)
+    if let model = record.modelIdentifier {
+      updateResolvedModel(model, provider: record.provider)
+    }
 
     guard let sessionId = currentSessionId else {
       return
@@ -1128,6 +1165,7 @@ EOF
       claudeClient.configuration.workingDirectory = nil
       codexRuntime?.workingDirectory = nil
       claudeRuntime?.workingDirectory = nil
+      arnesRuntime?.workingDirectory = nil
       projectPath = ""
       if isDebugEnabled {
         let log = "No stored path for selected session '\(sessionId)'"
@@ -1193,6 +1231,7 @@ EOF
     claudeClient.configuration.workingDirectory = normalizedDirectory
     codexRuntime?.workingDirectory = normalizedDirectory
     claudeRuntime?.workingDirectory = normalizedDirectory
+    arnesRuntime?.workingDirectory = normalizedDirectory
     projectPath = normalizedDirectory ?? ""
     settingsStorage.setProjectPath(projectPath)
   }
@@ -1219,6 +1258,7 @@ EOF
       claudeClient.configuration.workingDirectory = dir
       codexRuntime?.workingDirectory = dir
       claudeRuntime?.workingDirectory = dir
+      arnesRuntime?.workingDirectory = dir
       projectPath = dir
       settingsStorage.setProjectPath(dir)
     }
@@ -1249,6 +1289,7 @@ EOF
         claudeClient.configuration.workingDirectory = defaultDirectory
         codexRuntime?.workingDirectory = defaultDirectory
         claudeRuntime?.workingDirectory = defaultDirectory
+        arnesRuntime?.workingDirectory = defaultDirectory
         projectPath = defaultDirectory
         settingsStorage.setProjectPath(defaultDirectory)
       } else {
@@ -1257,6 +1298,7 @@ EOF
         claudeClient.configuration.workingDirectory = nil
         codexRuntime?.workingDirectory = nil
         claudeRuntime?.workingDirectory = nil
+        arnesRuntime?.workingDirectory = nil
         projectPath = ""
       }
     }
@@ -1353,6 +1395,7 @@ EOF
       claudeClient.configuration.workingDirectory = sessionPath
       codexRuntime?.workingDirectory = sessionPath
       claudeRuntime?.workingDirectory = sessionPath
+      arnesRuntime?.workingDirectory = sessionPath
       // Update the observable project path
       projectPath = sessionPath
       if isDebugEnabled {
@@ -1364,6 +1407,7 @@ EOF
       claudeClient.configuration.workingDirectory = nil
       codexRuntime?.workingDirectory = nil
       claudeRuntime?.workingDirectory = nil
+      arnesRuntime?.workingDirectory = nil
       projectPath = ""
       if isDebugEnabled {
         let log = "No stored path for resumed session '\(id)'"
@@ -1487,6 +1531,8 @@ EOF
       return getCodexRuntime()
     case .claude:
       return getClaudeRuntime()
+    case .arnes:
+      return getArnesRuntime()
     case .api:
       return getAPIRuntime()
     }
@@ -1501,6 +1547,14 @@ EOF
       codexRuntime.commandOverride = globalPreferences.codexCommand
       codexRuntime.extraArguments = CodexChatRuntime.parseArgumentString(globalPreferences.codexExtraArgs)
       codexRuntime.environmentOverrides = globalPreferences.codexEnvironmentVariables
+    }
+
+    if let arnesRuntime = runtime as? ArnesChatRuntime {
+      arnesRuntime.systemInstructions = combinedArnesInstructions()
+      arnesRuntime.modelIdentifier = globalPreferences.arnesModel
+      arnesRuntime.commandOverride = globalPreferences.arnesCommand
+      arnesRuntime.extraArguments = CodexChatRuntime.parseArgumentString(globalPreferences.arnesExtraArgs)
+      arnesRuntime.environmentOverrides = globalPreferences.arnesEnvironmentVariables
     }
 
     if let apiRuntime = runtime as? APIChatRuntime {
@@ -1566,9 +1620,43 @@ EOF
       },
       onResultReceived: { [weak self] in
         self?.endLoadingState()
+      },
+      onModelResolved: { [weak self] model in
+        self?.updateResolvedModel(model, provider: .claude)
       }
     )
     claudeRuntime = runtime
+    return runtime
+  }
+
+  private func getArnesRuntime() -> ArnesChatRuntime {
+    if let arnesRuntime {
+      return arnesRuntime
+    }
+
+    let runtime = ArnesChatRuntime(
+      messageDisplay: messageStore,
+      sessionManager: sessionManager,
+      workingDirectory: claudeClient.configuration.workingDirectory,
+      systemInstructions: combinedArnesInstructions(),
+      modelIdentifier: globalPreferences.arnesModel,
+      commandOverride: globalPreferences.arnesCommand,
+      extraArguments: CodexChatRuntime.parseArgumentString(globalPreferences.arnesExtraArgs),
+      environmentOverrides: globalPreferences.arnesEnvironmentVariables,
+      onSessionChange: { [weak self] sessionId in
+        self?.handleRuntimeSessionChange(sessionId)
+      },
+      onUsageRecorded: { [weak self] record in
+        self?.recordCompletedTurnUsage(record)
+      },
+      onCostUpdate: { [weak self] costUSD in
+        self?.updateCost(costUSD)
+      },
+      onModelResolved: { [weak self] model in
+        self?.updateResolvedModel(model, provider: .arnes)
+      }
+    )
+    arnesRuntime = runtime
     return runtime
   }
 
@@ -1595,6 +1683,22 @@ EOF
   }
 
   private func combinedCodexDeveloperInstructions() -> String? {
+    let parts = [
+      codexDeveloperInstructionsPrefix ?? systemPromptPrefix,
+      globalPreferences.systemPrompt,
+      globalPreferences.appendSystemPrompt,
+    ]
+      .compactMap { value -> String? in
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed?.isEmpty == false ? trimmed : nil
+      }
+
+    return parts.isEmpty ? nil : parts.joined(separator: "\n\n")
+  }
+
+  /// Combined instructions appended to the Arnes system prompt, mirroring
+  /// `combinedCodexDeveloperInstructions()` (same prefix fallback chain).
+  private func combinedArnesInstructions() -> String? {
     let parts = [
       codexDeveloperInstructionsPrefix ?? systemPromptPrefix,
       globalPreferences.systemPrompt,
@@ -1753,6 +1857,7 @@ EOF
       claudeClient.configuration.workingDirectory = nil
       codexRuntime?.workingDirectory = nil
       claudeRuntime?.workingDirectory = nil
+      arnesRuntime?.workingDirectory = nil
       projectPath = ""
       settingsStorage.clearProjectPath()
 
@@ -1808,6 +1913,7 @@ EOF
     claudeClient.configuration.workingDirectory = nil
     codexRuntime?.workingDirectory = nil
     claudeRuntime?.workingDirectory = nil
+    arnesRuntime?.workingDirectory = nil
     projectPath = ""
 
     let errorMessage = "The directory '\(path)' no longer exists or is invalid. Please select a new working directory."

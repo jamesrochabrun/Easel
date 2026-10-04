@@ -457,7 +457,7 @@ public actor SimplifiedClaudeCodeSQLiteStorage: SessionStorageProtocol {
         toolUseID: messageRow[messageToolUseIdColumn],
         isError: messageRow[messageIsErrorColumn],
         codeSelections: nil, // Simplified for now
-        attachments: nil, // Could load from attachments table if needed
+        attachments: attachments(forMessageId: idString),
         wasCancelled: messageRow[messageWasCancelledColumn],
         taskGroupId: taskGroupId,
         isTaskContainer: messageRow[messageIsTaskContainerColumn],
@@ -467,6 +467,29 @@ public actor SimplifiedClaudeCodeSQLiteStorage: SessionStorageProtocol {
     }
 
     return messages
+  }
+
+  /// Hydrates a message's stored attachments so reloaded sessions keep
+  /// their attachment strip (rows were always written; they were just
+  /// never read back). The row id is "<messageId>_<index>", not a UUID —
+  /// a fresh UUID serves `Identifiable` for the UI.
+  private func attachments(forMessageId messageId: String) -> [StoredAttachment]? {
+    let query = attachmentsTable
+      .filter(attachmentMessageIdColumn == messageId)
+      .order(attachmentIdColumn.asc)
+
+    guard let rows = try? database.prepare(query) else { return nil }
+
+    let attachments = rows.map { row in
+      StoredAttachment(
+        id: UUID(),
+        fileName: row[attachmentFileNameColumn],
+        filePath: row[attachmentFilePathColumn],
+        type: row[attachmentFileTypeColumn]
+      )
+    }
+
+    return attachments.isEmpty ? nil : attachments
   }
 
   private func usageSummary(from row: Row) -> SessionUsageSummary {

@@ -209,7 +209,8 @@ public struct ChatScreen: View {
         outputTokens: viewModel.currentOutputTokens,
         costUSD: viewModel.currentCostUSD,
         showTokenCount: uiConfiguration.showTokenCount,
-        activityText: EaselToolCardPresentation.activeActivityTitle(in: viewModel.messages) ?? "Easel is working"
+        activityText: EaselToolCardPresentation.activeActivityTitle(in: viewModel.messages) ?? "Easel is working",
+        modelIdentifier: viewModel.resolvedModelIdentifier
       )
       .padding(.horizontal)
       .padding(.bottom, 8)
@@ -335,11 +336,24 @@ public struct ChatScreen: View {
   }
 
   private func launchTerminalWithSession(_ sessionId: String) {
+    if viewModel.activeProvider == .arnes {
+      if let error = TerminalLauncher.launchTerminalWithArnesSession(
+        sessionId,
+        projectPath: viewModel.projectPath,
+        command: globalPreferences.arnesCommand,
+        environment: globalPreferences.arnesEnvironmentVariables
+      ) {
+        viewModel.errorInfo = ErrorInfo.fileError(error, fileName: "Terminal launch")
+        viewModel.errorQueue.append(viewModel.errorInfo!)
+      }
+      return
+    }
+
     guard viewModel.activeProvider == .claude else {
       let error = NSError(
         domain: "ChatScreen",
         code: 1002,
-        userInfo: [NSLocalizedDescriptionKey: "Terminal handoff is only available for Claude sessions."]
+        userInfo: [NSLocalizedDescriptionKey: "Terminal handoff is only available for Claude and OpenRouter sessions."]
       )
       viewModel.errorInfo = ErrorInfo.fileError(error, fileName: "Terminal launch")
       viewModel.errorQueue.append(viewModel.errorInfo!)

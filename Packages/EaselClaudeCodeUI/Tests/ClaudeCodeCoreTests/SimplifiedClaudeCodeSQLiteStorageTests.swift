@@ -143,6 +143,42 @@ final class SimplifiedClaudeCodeSQLiteStorageTests: XCTestCase {
     XCTAssertEqual(workspaceSummary.reasoningOutputTokens, 25)
   }
 
+  func testAttachmentsRoundTripThroughSessionReload() async throws {
+    let storage = SimplifiedClaudeCodeSQLiteStorage(applicationSupportDirectory: temporaryRoot)
+    let sessionID = "session-with-image"
+
+    try await storage.saveSession(
+      id: sessionID,
+      firstMessage: "look at this",
+      workingDirectory: "/tmp/easel",
+      branchName: nil,
+      isWorktree: false,
+      provider: .claude
+    )
+
+    let attachment = StoredAttachment(
+      id: UUID(),
+      fileName: "Screenshot.png",
+      filePath: "/tmp/easel/attachments/Screenshot.png",
+      type: "image"
+    )
+    try await storage.updateSessionMessages(id: sessionID, messages: [
+      ChatMessage(role: .user, content: "look at this", attachments: [attachment]),
+      ChatMessage(role: .assistant, content: "I see it"),
+    ])
+
+    let storedSession = try await storage.getSession(id: sessionID)
+    let session = try XCTUnwrap(storedSession)
+    let userMessage = try XCTUnwrap(session.messages.first { $0.role == .user })
+    let reloaded = try XCTUnwrap(userMessage.attachments?.first)
+    XCTAssertEqual(reloaded.fileName, "Screenshot.png")
+    XCTAssertEqual(reloaded.filePath, "/tmp/easel/attachments/Screenshot.png")
+    XCTAssertEqual(reloaded.type, "image")
+
+    let assistantMessage = try XCTUnwrap(session.messages.first { $0.role == .assistant })
+    XCTAssertNil(assistantMessage.attachments)
+  }
+
   func testSessionProviderPersists() async throws {
     let storage = SimplifiedClaudeCodeSQLiteStorage(applicationSupportDirectory: temporaryRoot)
 
