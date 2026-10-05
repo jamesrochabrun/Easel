@@ -1,0 +1,7 @@
+interface:
+  display_name: "Easel Studio"
+  short_description: "Render UI variants and visuals into Easel's Designs surface"
+  default_prompt: "Use $easel-studio to render: "
+
+policy:
+  allow_implicit_invocation: true

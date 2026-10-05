@@ -7,6 +7,7 @@
 
 import EaselKit
 import EaselChat
+import EaselStudio
 import SwiftUI
 
 @main
@@ -15,8 +16,14 @@ struct EaselApp: App {
 
   var body: some Scene {
     Settings {
-      EaselChatSettingsView(chatService: appDelegate.chatService)
-        .tint(EaselDesignSystem.Palette.accent)
+      TabView {
+        EaselChatSettingsView(chatService: appDelegate.chatService)
+          .tabItem { Label("Assistant", systemImage: "bubble.left.and.bubble.right") }
+
+        StudioSettingsView(library: appDelegate.studioCoordinator.library)
+          .tabItem { Label("Studio", systemImage: "paintpalette") }
+      }
+      .tint(EaselDesignSystem.Palette.accent)
     }
     .commands {
       CommandGroup(after: .appInfo) {

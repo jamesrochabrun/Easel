@@ -11,6 +11,7 @@ import ClaudeCodeCore
 import ClaudeCodeSDK
 import EaselDesignSystems
 import EaselKit
+import EaselStudioCore
 import Foundation
 import OSLog
 
@@ -478,6 +479,9 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
 
     let client = try ClaudeCodeClient(configuration: config)
     let reference = ChatViewModelReference()
+    let studioMCPConfiguration = makeStudioMCPConfiguration(
+      projectPath: normalized(workingDirectory) ?? normalized(config.workingDirectory)
+    )
     let viewModel = ChatViewModel(
       claudeClient: client,
       sessionStorage: sessionStorage,
@@ -489,6 +493,7 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
       systemPromptPrefix: EaselAgentInstructions.systemPromptPrefix,
       codexDeveloperInstructionsPrefix: EaselAgentInstructions.codexDeveloperInstructionsPrefix,
       apiInstructionsPrefix: EaselAgentInstructions.apiAgentInstructionsPrefix,
+      studioMCPConfiguration: studioMCPConfiguration,
       apiModelClientFactory: apiModelClientFactory,
       shouldManageSessions: true,
       onSessionChange: { [weak self, weak reference] newSessionId in
@@ -517,6 +522,25 @@ public final class ChatService: ChatServiceProtocol, InspectorBridgeProtocol, Pr
     }
 
     return ChatSessionContext(viewModel: viewModel, deps: container, reference: reference)
+  }
+
+  /// Builds the Studio MCP attachment for a session, or nil when the bundled
+  /// server is missing or the session has no project. Only the Claude and
+  /// Codex runtimes consume it; `.arnes`/`.api` never see the tools — and the
+  /// steering guidance travels inside the configuration so it can never name
+  /// tools a session does not have.
+  private func makeStudioMCPConfiguration(projectPath: String?) -> StudioMCPConfiguration? {
+    guard let projectPath,
+          let serverPath = StudioMCPServerLocator.serverPath()
+    else {
+      return nil
+    }
+    return StudioMCPConfiguration(
+      serverPath: serverPath,
+      projectPath: StudioProjectKey.normalized(projectPath),
+      appSupportDirectory: StudioSupportDirectory.baseURL().path,
+      agentGuidance: StudioAgentGuidance.isEnabled() ? StudioAgentGuidance.systemPrompt : nil
+    )
   }
 
   private func makeTweakViewModel(

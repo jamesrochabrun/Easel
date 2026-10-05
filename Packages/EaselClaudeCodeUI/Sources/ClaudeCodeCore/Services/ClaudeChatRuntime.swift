@@ -29,6 +29,7 @@ final class ClaudeChatRuntime: ChatRuntime {
   private let streamProcessor: StreamProcessor
   private let globalPreferences: GlobalPreferencesStorage
   private let systemPromptPrefix: String?
+  private let studioMCPConfiguration: StudioMCPConfiguration?
   private let logger = Logger(subsystem: "com.ClaudeCodeUI.ClaudeChat", category: "ClaudeChatRuntime")
   private let onError: (Error, ErrorOperation) -> Void
   private let onTokenUsageUpdate: (Int, Int) -> Void
@@ -43,6 +44,7 @@ final class ClaudeChatRuntime: ChatRuntime {
     streamProcessor: StreamProcessor,
     globalPreferences: GlobalPreferencesStorage,
     systemPromptPrefix: String?,
+    studioMCPConfiguration: StudioMCPConfiguration? = nil,
     onError: @escaping (Error, ErrorOperation) -> Void,
     onTokenUsageUpdate: @escaping (Int, Int) -> Void,
     onCostUpdate: @escaping (Double) -> Void,
@@ -55,6 +57,7 @@ final class ClaudeChatRuntime: ChatRuntime {
     self.streamProcessor = streamProcessor
     self.globalPreferences = globalPreferences
     self.systemPromptPrefix = systemPromptPrefix
+    self.studioMCPConfiguration = studioMCPConfiguration
     self.onError = onError
     self.onTokenUsageUpdate = onTokenUsageUpdate
     self.onCostUpdate = onCostUpdate
@@ -142,7 +145,9 @@ final class ClaudeChatRuntime: ChatRuntime {
   private func createOptions() -> ClaudeCodeOptions {
     ClaudeChatRuntimeOptionsBuilder(
       globalPreferences: globalPreferences,
-      systemPromptPrefix: systemPromptPrefix
+      systemPromptPrefix: systemPromptPrefix,
+      studioMCP: studioMCPConfiguration,
+      activeSessionId: sessionManager.currentSessionId
     ).makeOptions()
   }
 

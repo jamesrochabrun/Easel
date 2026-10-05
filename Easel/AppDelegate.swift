@@ -7,6 +7,7 @@ import AppKit
 import EaselChat
 import EaselKit
 import EaselServerManager
+import EaselStudio
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -16,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private let softwareUpdater: SoftwareUpdating
   let appState = AppState()
   let chatService = ChatService()
+  let studioCoordinator = StudioCoordinator()
   var serverManager: ProjectServerManager?
 
   override convenience init() {
@@ -33,9 +35,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     appState.openCanvas()
+    studioCoordinator.start()
     let controller = WindowController(
       appState: appState,
       chatService: chatService,
+      studioCoordinator: studioCoordinator,
       isFloatingChatBarEnabled: isFloatingChatBarEnabled
     )
     self.windowController = controller

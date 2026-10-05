@@ -7,6 +7,7 @@ import EaselChat
 import EaselKit
 import EaselServerManager
 import EaselSlides
+import EaselStudio
 import EaselWebInspector
 import SwiftUI
 
@@ -14,6 +15,7 @@ struct CanvasContentView: View {
   @Bindable var appState: AppState
   let initialPrompt: String
   let chatService: ChatService
+  var studioCoordinator: StudioCoordinator? = nil
 
   @State private var serverManager = ProjectServerManager()
   @State private var projectFileService = DefaultProjectFileService()
@@ -25,6 +27,11 @@ struct CanvasContentView: View {
   @State private var localAgentHandoffViewModel = LocalAgentHandoffViewModel()
   @State private var contentMode: CanvasContentMode = .designs
   @State private var selectedCanvasSurface: CanvasSurface = .canvas
+  /// Set when the user picks a surface by hand; auto-switching then yields
+  /// until the project changes.
+  @State private var userPinnedSurface = false
+  /// True while the user is mid-interaction on the Designs surface.
+  @State private var isStudioUserEditing = false
   @State private var panelLayoutState: CanvasPanelLayoutState = .allPanels
   @State private var isDesignSystemSetupPresented = false
   @State private var isDesignSystemBrowserPresented = false
@@ -622,12 +629,88 @@ struct CanvasContentView: View {
             .opacity(selectedCanvasSurface == .resources ? 1 : 0)
             .allowsHitTesting(selectedCanvasSurface == .resources)
             .accessibilityHidden(selectedCanvasSurface != .resources)
+
+            if let studioCoordinator, let studioProjectKey {
+              StudioCanvasView(
+                projectKey: studioProjectKey,
+                library: studioCoordinator.library,
+                sessionId: { chatService.currentSessionId ?? "panel" },
+                onSendPrompt: { prompt in chatService.sendInspectorPrompt(prompt) },
+                onImplementSent: { studioCoordinator.noteImplementSent() },
+                onSendImplement: { visibleText, fullPrompt in
+                  chatService.sendMessage(visibleText, context: nil, hiddenContext: fullPrompt)
+                },
+                onUserEditingChange: { editing in
+                  isStudioUserEditing = editing
+                  studioCoordinator.isUserEditing = editing
+                }
+              )
+              .id(studioProjectKey)
+              .opacity(selectedCanvasSurface == .designs ? 1 : 0)
+              .allowsHitTesting(selectedCanvasSurface == .designs)
+              .accessibilityHidden(selectedCanvasSurface != .designs)
+            }
           }
         }
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .onChange(of: studioCoordinator?.lastArrivalToken ?? 0) {
+      // An artifact landed for the current project: show the Designs surface,
+      // unless the user pinned a surface or is mid-edit.
+      guard let studioCoordinator,
+            let studioProjectKey,
+            studioCoordinator.lastArrivalProjectKey == studioProjectKey,
+            contentMode == .workspace,
+            !userPinnedSurface,
+            !isStudioUserEditing
+      else { return }
+      selectedCanvasSurface = .designs
+    }
+    .onChange(of: studioCoordinator?.implementToken ?? 0) {
+      // An Implement request left the Designs surface: flip back to the live
+      // preview so the user watches the code land.
+      guard studioCoordinator != nil else { return }
+      selectedCanvasSurface = .canvas
+    }
+    .onChange(of: chatService.currentWorkingDirectory) {
+      userPinnedSurface = false
+      isStudioUserEditing = false
+      if selectedCanvasSurface == .designs {
+        selectedCanvasSurface = .canvas
+      }
+      studioCoordinator?.loadArtifacts(forProjectPath: chatService.currentWorkingDirectory)
+    }
+    .task(id: chatService.currentWorkingDirectory) {
+      studioCoordinator?.loadArtifacts(forProjectPath: chatService.currentWorkingDirectory)
+    }
+    .onChange(of: availableCanvasSurfaces) {
+      // The Designs segment can disappear (last artifact deleted); never
+      // leave the picker pointing at a surface it no longer offers.
+      if !availableCanvasSurfaces.contains(selectedCanvasSurface) {
+        selectedCanvasSurface = .canvas
+      }
+    }
+  }
+
+  /// The normalized Studio key for the open project, when there is one.
+  private var studioProjectKey: String? {
+    studioCoordinator?.projectKey(forProjectPath: chatService.currentWorkingDirectory)
+  }
+
+  /// Surfaces offered by the picker. Designs appears once the agent has
+  /// filed something for this project — until then the toggle stays the
+  /// familiar two-way Canvas / Design Files.
+  private var availableCanvasSurfaces: [CanvasSurface] {
+    var surfaces: [CanvasSurface] = [.canvas]
+    if let studioCoordinator,
+       studioCoordinator.hasArtifacts(forProjectPath: chatService.currentWorkingDirectory)
+    {
+      surfaces.append(.designs)
+    }
+    surfaces.append(.resources)
+    return surfaces
   }
 
   private var workspaceEmptyStateContent: CanvasWorkspaceEmptyStateContent? {
@@ -648,8 +731,16 @@ struct CanvasContentView: View {
 
   private var canvasSurfaceTopBar: some View {
     HStack(spacing: 12) {
-      Picker("Canvas surface", selection: $selectedCanvasSurface) {
-        ForEach(CanvasSurface.allCases) { surface in
+      Picker("Canvas surface", selection: Binding(
+        get: { selectedCanvasSurface },
+        set: { surface in
+          // A hand-picked surface pins the pane: auto-switching yields until
+          // the project changes.
+          userPinnedSurface = true
+          selectedCanvasSurface = surface
+        }
+      )) {
+        ForEach(availableCanvasSurfaces) { surface in
           Label(
             surface.displayName(isSlideDeckProject: isSlideDeckProject),
             systemImage: surface.systemImage(isSlideDeckProject: isSlideDeckProject)
@@ -753,6 +844,7 @@ struct CanvasContentView: View {
 
 private enum CanvasSurface: String, CaseIterable, Identifiable {
   case canvas
+  case designs
   case resources
 
   var id: String { rawValue }
@@ -761,6 +853,8 @@ private enum CanvasSurface: String, CaseIterable, Identifiable {
     switch self {
     case .canvas:
       return isSlideDeckProject ? "Slides" : "Canvas"
+    case .designs:
+      return "Designs"
     case .resources:
       return "Design Files"
     }
@@ -770,6 +864,8 @@ private enum CanvasSurface: String, CaseIterable, Identifiable {
     switch self {
     case .canvas:
       return isSlideDeckProject ? "rectangle.on.rectangle" : "rectangle.inset.filled"
+    case .designs:
+      return "paintpalette"
     case .resources:
       return "photo.on.rectangle.angled"
     }

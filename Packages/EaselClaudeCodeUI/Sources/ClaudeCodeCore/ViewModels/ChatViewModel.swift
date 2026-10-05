@@ -71,6 +71,10 @@ public final class ChatViewModel {
   /// Optional API-provider agent instructions prefix. Falls back to systemPromptPrefix when nil.
   private let apiInstructionsPrefix: String?
 
+  /// Attaches Easel's bundled Studio MCP server to Claude and Codex sessions.
+  /// nil (the default) leaves every provider without Studio tools.
+  private let studioMCPConfiguration: StudioMCPConfiguration?
+
   /// Optional model-client factory for the `.api` provider. Lets the
   /// embedding app supply backends ClaudeCodeCore doesn't link (on-device
   /// MLX); nil uses the built-in OpenAI-compatible/Ollama factory.
@@ -464,6 +468,7 @@ EOF
     systemPromptPrefix: String? = nil,
     codexDeveloperInstructionsPrefix: String? = nil,
     apiInstructionsPrefix: String? = nil,
+    studioMCPConfiguration: StudioMCPConfiguration? = nil,
     apiModelClientFactory: (@Sendable (EndpointProfile, String?) -> any AgentModelClient)? = nil,
     shouldManageSessions: Bool = true,
     onSessionChange: ((String) -> Void)? = nil,
@@ -480,6 +485,7 @@ EOF
     self.systemPromptPrefix = systemPromptPrefix
     self.codexDeveloperInstructionsPrefix = codexDeveloperInstructionsPrefix
     self.apiInstructionsPrefix = apiInstructionsPrefix
+    self.studioMCPConfiguration = studioMCPConfiguration
     self.apiModelClientFactory = apiModelClientFactory
     self.shouldManageSessions = shouldManageSessions
     self.onSessionChange = onSessionChange
@@ -1584,6 +1590,7 @@ EOF
       commandOverride: globalPreferences.codexCommand,
       extraArguments: CodexChatRuntime.parseArgumentString(globalPreferences.codexExtraArgs),
       environmentOverrides: globalPreferences.codexEnvironmentVariables,
+      studioMCPConfiguration: studioMCPConfiguration,
       onSessionChange: { [weak self] sessionId in
         self?.handleRuntimeSessionChange(sessionId)
       },
@@ -1606,6 +1613,7 @@ EOF
       streamProcessor: streamProcessor,
       globalPreferences: globalPreferences,
       systemPromptPrefix: systemPromptPrefix,
+      studioMCPConfiguration: studioMCPConfiguration,
       onError: { [weak self] error, operation in
         self?.handleError(error, operation: operation)
       },
@@ -1683,8 +1691,11 @@ EOF
   }
 
   private func combinedCodexDeveloperInstructions() -> String? {
+    // Studio guidance rides only with the Codex runtime, which actually gets
+    // the MCP server — Arnes shares this prefix shape but never the guidance.
     let parts = [
       codexDeveloperInstructionsPrefix ?? systemPromptPrefix,
+      studioMCPConfiguration?.agentGuidance,
       globalPreferences.systemPrompt,
       globalPreferences.appendSystemPrompt,
     ]

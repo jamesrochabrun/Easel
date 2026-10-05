@@ -18,6 +18,8 @@ final class CodexChatRuntime: ChatRuntime {
   var extraArguments: [String]
   /// Environment variable overrides injected into the Codex CLI process.
   var environmentOverrides: [String: String]
+  /// Attaches Easel's bundled Studio MCP server to every turn. nil = no Studio tools.
+  var studioMCPConfiguration: StudioMCPConfiguration?
 
   private let messageDisplay: ChatMessageDisplay
   private let sessionManager: SessionManager
@@ -45,6 +47,7 @@ final class CodexChatRuntime: ChatRuntime {
     commandOverride: String? = nil,
     extraArguments: [String] = [],
     environmentOverrides: [String: String] = [:],
+    studioMCPConfiguration: StudioMCPConfiguration? = nil,
     onSessionChange: ((String) -> Void)?,
     onUsageRecorded: ((SessionUsageRecord) -> Void)? = nil
   ) {
@@ -56,6 +59,7 @@ final class CodexChatRuntime: ChatRuntime {
     self.commandOverride = commandOverride
     self.extraArguments = extraArguments
     self.environmentOverrides = environmentOverrides
+    self.studioMCPConfiguration = studioMCPConfiguration
     self.onSessionChange = onSessionChange
     self.onUsageRecorded = onUsageRecorded
   }
@@ -154,7 +158,8 @@ final class CodexChatRuntime: ChatRuntime {
       workingDirectory: workingDirectory,
       developerInstructions: developerInstructions,
       modelIdentifier: modelIdentifier,
-      extraArguments: extraArguments
+      extraArguments: extraArguments,
+      studioMCP: studioMCPConfiguration
     )
     print(Self.debugCommandDescription(options: options))
     let client = makeClient()
@@ -248,7 +253,8 @@ final class CodexChatRuntime: ChatRuntime {
     developerInstructions: String? = nil,
     modelIdentifier: String? = nil,
     extraArguments: [String] = [],
-    configOverrides: [String: String] = CodexUserConfigCompatibility.compatibleConfigOverrides()
+    configOverrides: [String: String] = CodexUserConfigCompatibility.compatibleConfigOverrides(),
+    studioMCP: StudioMCPConfiguration? = nil
   ) -> CodexExecOptions {
     var options = CodexExecOptions()
     options.promptViaStdin = true
@@ -284,6 +290,22 @@ final class CodexChatRuntime: ChatRuntime {
       options.resumeSessionId = sessionId
     } else {
       options.resumeLastSession = true
+    }
+
+    // Every turn is a fresh `codex exec` process, so the Studio MCP server
+    // must be attached on every turn, not just the first. Under
+    // `approval = never` an MCP tool call fails hard unless the server is
+    // marked auto-approved, so that override always travels with it.
+    if let studioMCP {
+      options.mcpServers = [
+        StudioMCPConfiguration.serverName: McpServerConfig(
+          command: studioMCP.serverPath,
+          args: ["mcp-server"],
+          env: studioMCP.environment(provider: "codex", sessionId: currentSessionId)
+        ),
+      ]
+      options.configOverrides["mcp_servers.\(StudioMCPConfiguration.serverName).default_tools_approval_mode"] =
+        "\"auto\""
     }
 
     return options
@@ -336,6 +358,14 @@ final class CodexChatRuntime: ChatRuntime {
       guard let value = options.configOverrides[key] else { continue }
       parts.append("-c")
       parts.append(shellQuoted("\(key)=\(value)"))
+    }
+
+    if let servers = options.mcpServers {
+      for name in servers.keys.sorted() {
+        guard let config = servers[name], let command = config.command else { continue }
+        parts.append("-c")
+        parts.append(shellQuoted("mcp_servers.\(name).command=\"\(command)\""))
+      }
     }
 
     if options.promptViaStdin {

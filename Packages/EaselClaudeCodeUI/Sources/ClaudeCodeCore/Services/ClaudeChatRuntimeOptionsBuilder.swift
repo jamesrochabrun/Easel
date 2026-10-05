@@ -27,6 +27,8 @@ struct ClaudeChatRuntimeOptionsBuilder {
 
   let globalPreferences: GlobalPreferencesStorage
   let systemPromptPrefix: String?
+  var studioMCP: StudioMCPConfiguration?
+  var activeSessionId: String?
 
   func makeOptions() -> ClaudeCodeOptions {
     var options = ClaudeCodeOptions()
@@ -54,22 +56,64 @@ struct ClaudeChatRuntimeOptionsBuilder {
       options.systemPrompt = globalPreferences.systemPrompt
     }
 
-    var combinedAppendPrompt = systemPromptPrefix ?? ""
-    if !combinedAppendPrompt.isEmpty && !globalPreferences.appendSystemPrompt.isEmpty {
-      combinedAppendPrompt += "\n"
+    var appendParts: [String] = []
+    if let systemPromptPrefix, !systemPromptPrefix.isEmpty {
+      appendParts.append(systemPromptPrefix)
     }
-    combinedAppendPrompt += globalPreferences.appendSystemPrompt
+    if let guidance = studioMCP?.agentGuidance, !guidance.isEmpty {
+      appendParts.append(guidance)
+    }
+    if !globalPreferences.appendSystemPrompt.isEmpty {
+      appendParts.append(globalPreferences.appendSystemPrompt)
+    }
+    let combinedAppendPrompt = appendParts.joined(separator: "\n")
 
     if !combinedAppendPrompt.isEmpty {
       options.appendSystemPrompt = combinedAppendPrompt
     }
 
-    if !globalPreferences.mcpConfigPath.isEmpty {
-      options.mcpConfigPath = globalPreferences.mcpConfigPath
-    }
+    configureMCP(&options)
 
     options.permissionMode = .bypassPermissions
     return options
+  }
+
+  /// The SDK prefers `mcpConfigPath` over inline `mcpServers`, so the Studio
+  /// server rides inline only when the user has no config file of their own;
+  /// otherwise both are merged into a derived file. A merge failure falls back
+  /// to the user's config untouched — Studio never breaks the session.
+  private func configureMCP(_ options: inout ClaudeCodeOptions) {
+    let userConfigPath = globalPreferences.mcpConfigPath
+
+    guard let studioMCP else {
+      if !userConfigPath.isEmpty {
+        options.mcpConfigPath = userConfigPath
+      }
+      return
+    }
+
+    let environment = studioMCP.environment(provider: "claude", sessionId: activeSessionId)
+
+    if userConfigPath.isEmpty {
+      options.mcpServers = [
+        StudioMCPConfiguration.serverName: .stdio(McpStdioServerConfig(
+          command: studioMCP.serverPath,
+          args: ["mcp-server"],
+          env: environment
+        )),
+      ]
+      return
+    }
+
+    let mergedPath = StudioMCPConfigMerger.writeMergedConfig(
+      userConfigPath: userConfigPath,
+      serverPath: studioMCP.serverPath,
+      environment: environment,
+      outputDirectory: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
+        .first?.appendingPathComponent("ClaudeCodeUI", isDirectory: true)
+        ?? FileManager.default.temporaryDirectory
+    )
+    options.mcpConfigPath = mergedPath ?? userConfigPath
   }
 
   private func normalizedOptionalArgument(_ value: String) -> String? {
